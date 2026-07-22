@@ -1,0 +1,2 @@
+ALTER TABLE `users` MODIFY COLUMN `role` enum('Admin','Manager','Agent') NOT NULL DEFAULT 'Agent';--> statement-breakpoint
+ALTER TABLE `referrals` ADD `type` enum('Referral','Upsell') DEFAULT 'Referral' NOT NULL;

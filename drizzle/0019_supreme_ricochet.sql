@@ -1,0 +1,1 @@
+ALTER TABLE `triggerRules` MODIFY COLUMN `conditionType` enum('no_interaction_days','health_score_below','health_score_above','nps_score_below','nps_score_above','renewal_days_remaining','tag_added','status_changed') NOT NULL;

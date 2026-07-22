@@ -1,0 +1,1 @@
+ALTER TABLE `channelSettings` ADD `waBusinessAccountId` varchar(128);

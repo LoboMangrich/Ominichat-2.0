@@ -1,4 +1,5 @@
 import { Express, Request, Response } from "express";
+import { requireCronAuth, requireSession } from "./_core/routeGuards";
 import { getDb } from "./db";
 import { registerCsvImport } from "./csvImport";
 import { storagePut } from "./storage";
@@ -890,13 +891,7 @@ export function registerWebhooks(app: Express) {
 
   // ─── Leitor IMAP da Titan (recebimento) ───────────────────────────────────
   // Chamado pelo scheduler externo (ex.: a cada 2-5 min) para puxar e-mails novos.
-  // Se a env CRON_SECRET estiver definida, exige o header x-cron-secret; caso
-  // contrário fica aberto (mesma postura dos demais /api/scheduled/* deste build).
-  app.post("/api/scheduled/poll-email", async (req: Request, res: Response) => {
-    const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
-      return res.status(401).json({ ok: false, error: "Não autorizado" });
-    }
+  app.post("/api/scheduled/poll-email", requireCronAuth, async (_req: Request, res: Response) => {
     try {
       const result = await pollTitanInbox();
       res.status(result.ok ? 200 : 502).json(result);
@@ -909,7 +904,7 @@ export function registerWebhooks(app: Express) {
   // ─── Scheduled Messages Executor ─────────────────────────────────────────
   // Called by the periodic scheduled task to send pending messages whose time has come.
   // Requires a valid session cookie (role: user or admin).
-  app.post("/api/scheduled/send-scheduled", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/send-scheduled", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) return res.status(503).json({ error: "Database unavailable" });
@@ -1004,7 +999,7 @@ export function registerWebhooks(app: Express) {
   });
 
   // ─── Generic Upload Endpoint (for task attachments) ───────────────────────────────────────
-  app.post("/api/upload", async (req: Request, res: Response) => {
+  app.post("/api/upload", requireSession, async (req: Request, res: Response) => {
     try {
       const { key, mimeType, data } = req.body as { key: string; mimeType: string; data: number[] };
       if (!key || !mimeType || !data) return res.status(400).json({ error: "key, mimeType, data required" });
@@ -1020,7 +1015,7 @@ export function registerWebhooks(app: Express) {
   // --- Media Upload Endpoint ---
   // Accepts base64-encoded file data and stores it in S3.
   // Used by the chat UI for image, audio, and document attachments.
-  app.post("/api/upload-media", async (req: Request, res: Response) => {
+  app.post("/api/upload-media", requireSession, async (req: Request, res: Response) => {
     try {
       const { data, mimeType, filename } = req.body as {
         data: string; // base64
@@ -1159,7 +1154,7 @@ export function registerWebhooks(app: Express) {
   // These endpoints are called by Manus scheduled tasks (every 30min / 1h / daily)
   // They require a valid session cookie (role: user) injected by the platform.
 
-  app.post("/api/scheduled/process-journeys", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/process-journeys", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const { processJourneys } = await import("./playbookEngine");
       const result = await processJourneys();
@@ -1171,7 +1166,7 @@ export function registerWebhooks(app: Express) {
     }
   });
 
-  app.post("/api/scheduled/evaluate-triggers", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/evaluate-triggers", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const { evaluateTriggers } = await import("./automationEngine");
       const result = await evaluateTriggers();
@@ -1183,7 +1178,7 @@ export function registerWebhooks(app: Express) {
     }
   });
 
-  app.post("/api/scheduled/recalculate-health", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/recalculate-health", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const { recalculateAllHealthScores } = await import("./automationEngine");
       const result = await recalculateAllHealthScores();
@@ -1196,7 +1191,7 @@ export function registerWebhooks(app: Express) {
   });
 
   // Analisa todos os grupos monitorados (roda a cada 1h via scheduled task)
-  app.post("/api/scheduled/analyze-groups", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/analyze-groups", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) { res.status(503).json({ ok: false, error: 'DB unavailable' }); return; }
@@ -1245,7 +1240,7 @@ export function registerWebhooks(app: Express) {
   });
 
   // Export customer conversation history as CSV
-  app.get("/api/export/customer/:id/conversations", async (req: Request, res: Response) => {
+  app.get("/api/export/customer/:id/conversations", requireSession, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) { res.status(503).json({ error: 'DB unavailable' }); return; }
@@ -1271,7 +1266,7 @@ export function registerWebhooks(app: Express) {
   });
 
   // Backup diário de conversas (todo dia às 2h)
-  app.post("/api/scheduled/backup-conversations", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/backup-conversations", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) { res.status(503).json({ ok: false, error: 'DB unavailable' }); return; }
@@ -1298,7 +1293,7 @@ export function registerWebhooks(app: Express) {
   });
 
   // Verificação de status do WhatsApp (a cada 30 minutos)
-  app.post("/api/scheduled/check-whatsapp-status", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/check-whatsapp-status", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) { res.status(503).json({ ok: false, error: 'DB unavailable' }); return; }
@@ -1320,7 +1315,7 @@ export function registerWebhooks(app: Express) {
   });
 
   // Análise semanal de inteligência de comunicação (toda segunda-feira às 7h)
-  app.post("/api/scheduled/overdue-tasks", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/overdue-tasks", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) { res.status(503).json({ ok: false, error: 'DB unavailable' }); return; }
@@ -1380,7 +1375,7 @@ export function registerWebhooks(app: Express) {
     }
   });
 
-  app.post("/api/scheduled/weekly-intelligence", async (req: Request, res: Response) => {
+  app.post("/api/scheduled/weekly-intelligence", requireCronAuth, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       if (!db) { res.status(503).json({ ok: false, error: 'DB unavailable' }); return; }

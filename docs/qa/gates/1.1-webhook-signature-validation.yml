@@ -1,0 +1,17 @@
+schema: 1
+story: '1.1'
+gate: CONCERNS
+status_reason: 'Implementação correta e fail-closed (HMAC-SHA256 sobre raw body, timingSafeEqual, sem fallback hardcoded), todos os ACs satisfeitos e 43/43 testes passando — mas o self-healing obrigatório do CodeRabbit não pôde rodar neste ambiente, e falta cobertura de teste de integração HTTP nos 3 endpoints alterados.'
+reviewer: 'Quinn'
+reviewed_revision: 'git:b9f2ce9+uncommitted (working tree — ver File List da story para os arquivos alterados)'
+updated: '2026-08-18T20:37:19Z'
+top_issues:
+  - id: 'MNT-001'
+    severity: medium
+    finding: 'CodeRabbit Self-Healing (obrigatório — core-config.yaml > coderabbit_integration.enabled: true) não foi executado. WSL está instalado neste ambiente mas sem distribuição Linux com bash/coderabbit configurada (única distro presente: docker-desktop). Confirmado independentemente pela QA: `wsl -l -v` só lista docker-desktop; `wsl bash -c "..."` retorna "bash: not found".'
+    suggested_action: 'Rodar manualmente antes do push: `wsl bash -c "cd /mnt/c/Users/gabri/Ominichat-2.0 && ~/.local/bin/coderabbit --prompt-only -t uncommitted"` numa máquina/CI com WSL Ubuntu configurado, ou instalar a distro Ubuntu neste ambiente. @devops deve confirmar antes do merge.'
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'Os 8 testes novos (webhookAuth.test.ts) cobrem verifyMetaSignature/verifyTelegramSecret como funções puras, mas não há teste de integração HTTP que exercite os handlers reais em webhooks.ts (linhas ~545, ~597, ~664) e confirme que retornam 401 quando a assinatura é inválida. O repositório hoje não tem infraestrutura de teste HTTP/supertest para nenhuma rota Express (só tRPC caller e simulação de parsing de payload) — gap pré-existente, não introduzido por esta story, mas esta é a primeira story de segurança de webhook e seria o lugar natural para começar.'
+    suggested_action: 'Considerar adicionar supertest (ou equivalente) e um teste de integração cobrindo pelo menos 1 endpoint end-to-end (ex.: POST /api/webhooks/whatsapp sem assinatura → 401), como story de acompanhamento ou adendo a esta antes do merge.'
+waiver: { active: false }

@@ -212,3 +212,102 @@ interna**. Uso interno reduz a superfície de exposição, não a obrigação le
 - Todo endpoint novo fora do tRPC nasce com guard explícito.
 - Validar entrada externa com Zod antes de tocar no banco.
 - `.env.example` nunca contém valor real, só descrição e formato.
+
+## Rodando localmente (validado em 18/08/2026, Windows)
+
+Procedimento que funciona de ponta a ponta, sem depender do Manus.
+
+### 1. Banco
+
+```bash
+docker run --name mysql-ominichat -e MYSQL_ROOT_PASSWORD=devlocal \
+  -e MYSQL_DATABASE=ominichat -p 3306:3306 -d mysql:8
+```
+
+Nas próximas vezes, apenas `docker start mysql-ominichat`.
+
+### 2. `.env` (não versionado)
+
+```
+DATABASE_URL=mysql://root:devlocal@localhost:3306/ominichat
+JWT_SECRET=<openssl rand -hex 32, mínimo 32 caracteres>
+VITE_APP_ID=ominichat-local
+OWNER_OPEN_ID=local-admin
+VITE_OAUTH_PORTAL_URL=http://localhost:3000
+```
+
+`VITE_OAUTH_PORTAL_URL` precisa ser uma URL válida mesmo sem OAuth real: sem ela,
+`getLoginUrl()` em `client/src/const.ts` monta `new URL("undefined/app-auth")` e
+lança `Invalid URL`, derrubando a aplicação inteira. A função foi ajustada para
+retornar `"/"` quando a variável falta, mas a variável ainda é necessária para o
+fluxo de login real.
+
+Não use `echo >> .env` para acrescentar linhas: se o arquivo não terminar em
+quebra de linha, a nova variável cola na anterior e o dotenv lê as duas como um
+valor só. Edite no editor.
+
+### 3. Migrations
+
+```bash
+pnpm db:push
+```
+
+Se falhar, limpe o banco antes de repetir — MySQL não desfaz DDL em transação, e
+o banco fica num estado intermediário que gera erros diferentes na tentativa
+seguinte:
+
+```bash
+docker exec -i mysql-ominichat mysql -uroot -pdevlocal \
+  -e "DROP DATABASE ominichat; CREATE DATABASE ominichat;"
+```
+
+### 4. Servidor
+
+```bash
+NODE_ENV=development npx tsx watch server/_core/index.ts
+```
+
+`pnpm dev` **não funciona no Windows**: os scripts `dev` e `start` usam sintaxe
+Unix (`NODE_ENV=x comando`) e o pnpm executa scripts via cmd.exe, que não entende
+esse formato. Pendente: instalar `cross-env` e ajustar os dois scripts.
+
+### 5. Sessão local (sem OAuth do Manus)
+
+```bash
+pnpm dev:session
+```
+
+Gera um JWT de Admin assinado com o `JWT_SECRET` local. Cole o token no cookie
+`app_session_id` (DevTools → Application → Cookies → duplo clique na coluna Value
+→ Enter) e recarregue com Ctrl+Shift+R. Confira o campo Size do cookie: um JWT
+passa de 300 caracteres; se ficar em 14, o valor não foi salvo.
+
+Funciona porque a verificação de sessão em `sdk.ts` só confere a assinatura HS256
+e os campos `openId`, `appId` e `name` — nada do Manus participa. O Manus só
+aparece no callback do OAuth.
+
+Script estritamente local: aborta se `NODE_ENV=production` e não expõe rota HTTP.
+**Nunca transformar isso em endpoint** — rota que emite sessão de Admin é
+backdoor, e backdoor de desenvolvimento tende a sobreviver até produção.
+
+### Armadilhas já resolvidas
+
+- Migration `0001` definia `enum('user','admin','Admin','Manager','Agent')`. A
+  collation padrão do MySQL 8 é case-insensitive, então `admin` e `Admin` colidem
+  e o ENUM é rejeitado (`ER_DUPLICATED_VALUE_IN_TYPE`). Corrigido removendo o
+  valor duplicado. Essa migration nunca havia rodado em banco limpo.
+- Ao editar qualquer migration, manter o marcador `--> statement-breakpoint` no
+  fim da linha. Sem ele o Drizzle envia dois comandos numa query só e o MySQL
+  rejeita com erro de sintaxe.
+- Usar **dois terminais**: um dedicado ao servidor (que fica ocupado enquanto
+  roda) e outro para git, docker e scripts.
+- Ruído esperado e inofensivo no log: `%VITE_ANALYTICS_ENDPOINT%` não substituído
+  (Umami, não usado) e aviso de `@import` no CSS.
+
+### Estado da interface (primeira execução local)
+
+Telas marcadas como "em breve" pelo próprio sistema: Permissões, API, Webhooks,
+Automações, Financeiro, Assinatura.
+
+Telas que se apresentam como prontas e ainda precisam de verificação:
+Atendimento, CRM, Estatísticas, Usuários, Canais, Integrações, IA, Preferências.

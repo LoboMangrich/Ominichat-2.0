@@ -183,7 +183,6 @@ const NAV_MODULES: NavModule[] = [
 const SETTINGS_ITEMS: NavLeaf[] = [
   { icon: Users,        label: "Usuários",          path: "/users" },
   { icon: Shield,       label: "Permissões",        path: "/settings?tab=permissions", soon: true },
-  { icon: Phone,        label: "Canais",            path: "/integrations?tab=whatsapp" },
   { icon: Zap,          label: "Integrações",       path: "/integrations" },
   { icon: Key,          label: "API",               path: "/settings?tab=api", soon: true },
   { icon: Webhook,      label: "Webhooks",          path: "/settings?tab=webhooks", soon: true },
@@ -205,7 +204,7 @@ function matchActive(path: string, location: string): boolean {
     );
   }
   if (base === "/indicators/health") return location.startsWith("/indicators");
-  if (base === "/settings") return location === "/settings" || location.startsWith("/settings/") || location === "/integrations";
+  if (base === "/settings") return location === "/settings" || location.startsWith("/settings/");
   return location === base || location.startsWith(base + "/");
 }
 

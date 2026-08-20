@@ -65,7 +65,7 @@ export default function UserManagement() {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground">
-                Compartilhe o link da plataforma com o membro da equipe. Ele pode entrar com a conta Manus e será atribuído como Agente por padrão. Você pode alterar a função após o acesso.
+                Compartilhe o link da plataforma com o membro da equipe. Ele pode entrar com sua conta e será atribuído como Agente por padrão. Você pode alterar a função após o acesso.
               </p>
               <div className="space-y-1.5">
                 <Label>URL da Plataforma</Label>

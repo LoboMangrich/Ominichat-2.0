@@ -91,6 +91,14 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 - Credenciais de canal ficam na tabela `channelSettings` no banco, configuradas
   pela interface — **não** em variável de ambiente. Siga esse padrão ao adicionar
   credenciais novas (ex.: `waAppSecret`, `igAppSecret`).
+- Exceção: segredos de verificação criptográfica (`META_APP_SECRET`,
+  `TELEGRAM_WEBHOOK_SECRET`) ficam em variável de ambiente, não em
+  `channelSettings`. Motivo: sem multi-tenancy existe um único valor por
+  deploy, que nunca varia por registro; são usados apenas para validar
+  assinatura, nunca editados pelo time pela interface; e mantê-los fora do
+  banco os tira de backups, dumps e de qualquer tela de configuração.
+  Configuração operacional de canal (tokens de envio, IDs de telefone,
+  ativação) continua em `channelSettings`.
 
 ## Prioridades atuais (em ordem)
 

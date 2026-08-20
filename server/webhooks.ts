@@ -1,5 +1,6 @@
 import { Express, Request, Response } from "express";
 import { requireCronAuth, requireSession } from "./_core/routeGuards";
+import { verifyMetaSignature, verifyTelegramSecret, type RawBodyRequest } from "./_core/webhookAuth";
 import { getDb } from "./db";
 import { registerCsvImport } from "./csvImport";
 import { storagePut } from "./storage";
@@ -531,8 +532,8 @@ export function registerWebhooks(app: Express) {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
-    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || "cs_platform_instagram_verify";
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN;
+    if (VERIFY_TOKEN && mode === "subscribe" && token === VERIFY_TOKEN) {
       console.log("[Instagram Webhook] Verified successfully");
       res.status(200).send(challenge);
     } else {
@@ -541,6 +542,11 @@ export function registerWebhooks(app: Express) {
   });
 
   app.post("/api/webhooks/instagram", async (req: Request, res: Response) => {
+    if (!verifyMetaSignature(req as RawBodyRequest)) {
+      console.error("[Instagram Webhook] Assinatura inválida ou ausente — requisição rejeitada.");
+      res.status(401).json({ error: "Assinatura inválida" });
+      return;
+    }
     try {
       const body = req.body;
       if (body.object === "instagram") {
@@ -588,6 +594,11 @@ export function registerWebhooks(app: Express) {
 
   // ─── Telegram Bot Webhook ─────────────────────────────────────────────────
   app.post("/api/webhooks/telegram", async (req: Request, res: Response) => {
+    if (!verifyTelegramSecret(req as RawBodyRequest)) {
+      console.error("[Telegram Webhook] Secret token inválido ou ausente — requisição rejeitada.");
+      res.status(401).json({ error: "Assinatura inválida" });
+      return;
+    }
     try {
       const body = req.body;
       const message = body.message || body.channel_post;
@@ -638,9 +649,9 @@ export function registerWebhooks(app: Express) {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "cs_platform_verify_token";
+    const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    if (VERIFY_TOKEN && mode === "subscribe" && token === VERIFY_TOKEN) {
       console.log("[WhatsApp Webhook] Verified successfully");
       res.status(200).send(challenge);
     } else {
@@ -650,6 +661,11 @@ export function registerWebhooks(app: Express) {
 
   // Incoming WhatsApp messages (POST from Meta)
   app.post("/api/webhooks/whatsapp", async (req: Request, res: Response) => {
+    if (!verifyMetaSignature(req as RawBodyRequest)) {
+      console.error("[WhatsApp Webhook] Assinatura inválida ou ausente — requisição rejeitada.");
+      res.status(401).json({ error: "Assinatura inválida" });
+      return;
+    }
     try {
       const body = req.body;
 

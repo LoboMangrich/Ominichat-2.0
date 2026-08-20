@@ -35,9 +35,16 @@ async function startServer() {
   assertRequiredEnv();
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Configure body parser with larger size limit for file uploads.
+  // `verify` preserva o buffer bruto em req.rawBody: a validação de assinatura
+  // HMAC dos webhooks (webhookAuth.ts) precisa dos bytes originais, não do
+  // JSON re-serializado — a assinatura não confere se recalculada em cima do
+  // objeto já parseado.
+  const captureRawBody = (req: express.Request, _res: express.Response, buf: Buffer) => {
+    (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+  };
+  app.use(express.json({ limit: "50mb", verify: captureRawBody }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true, verify: captureRawBody }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerWebhooks(app);

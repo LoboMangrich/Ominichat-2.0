@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { useSearch } from "wouter";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -46,6 +47,13 @@ export default function Integrations() {
   const { data: guruData } = trpc.guru.getStats.useQuery();
   const { data: guruSettings } = trpc.guru.getSettings.useQuery();
   const { data: guruEvents } = trpc.guru.getWebhookEvents.useQuery({ limit: 10 });
+
+  const searchStr = useSearch();
+  const tabParam = new URLSearchParams(searchStr).get("tab");
+  const VALID_TABS = ["guru", "whatsapp", "email", "instagram", "telegram", "ghl"];
+  const [activeTab, setActiveTab] = useState(
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "guru"
+  );
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -164,7 +172,7 @@ export default function Integrations() {
         </div>
       )}
 
-      <Tabs defaultValue="guru">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="guru" className="gap-2">
             <ShoppingCart className="w-4 h-4" /> Digital Manager Guru

@@ -182,7 +182,7 @@ export default function Settings() {
           <div className="space-y-1.5">
             <Label>Nome de Exibição</Label>
             <Input defaultValue={user?.name ?? ""} placeholder="Seu nome..." disabled />
-            <p className="text-xs text-muted-foreground">O nome é gerenciado pela sua conta Manus.</p>
+            <p className="text-xs text-muted-foreground">O nome é gerenciado pela sua conta de login.</p>
           </div>
         </CardContent>
       </Card>

@@ -109,6 +109,13 @@ temp/
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 
-# Manus version file (auto-generated, not part of source)
-client/public/__manus__/version.json
+# Manus debug collector (legacy platform artifacts)
+# client/public/__manus__/ e .manus-logs/ vêm do coletor de debug herdado da
+# plataforma Manus (ver vite.config.ts). .manus-logs/ contém dados pessoais
+# reais capturados durante desenvolvimento (e-mail, telefone) — nunca commitar.
+# Antes desta regra, .manus-logs/ só era ignorada por coincidência da regra
+# genérica *.log acima.
+.manus-logs/
+client/public/__manus__/
+
 .project-config.json

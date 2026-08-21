@@ -73,7 +73,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LOGO_URL = "/manus-storage/reino-logo_7fcbaa4c.png";
+const LOGO_URL = "/cashmiles-icon.png";
 const MODULES_OPEN_KEY = "cs-modules-open";
 const SIDEBAR_OPEN_KEY = "cs-sidebar-open";
 
@@ -227,7 +227,7 @@ function LogoBubble({ size = 36 }: { size?: number }) {
         boxShadow: "0 2px 12px rgba(0,0,0,0.20), 0 1px 0 rgba(255,255,255,0.30) inset",
         backdropFilter: "blur(8px)",
       }} />
-      <img src={LOGO_URL} alt="Reino" style={{
+      <img src={LOGO_URL} alt="Cashmiles" style={{
         width: size * 0.68, height: size * 0.68,
         objectFit: "contain", position: "relative", zIndex: 1,
         filter: "drop-shadow(0 2px 6px rgba(201,162,39,0.60))",
@@ -433,7 +433,7 @@ function SidebarInner({
             <span className="font-black block leading-none" style={{
               fontFamily: "'Space Grotesk',sans-serif", fontSize: "17px",
               letterSpacing: "-0.04em", color: "#fff",
-            }}>Reino</span>
+            }}>Cashmiles</span>
             <span className="block mt-0.5" style={{
               fontSize: "8.5px", fontWeight: 700, textTransform: "uppercase",
               letterSpacing: "0.18em", color: "rgba(232,197,71,0.85)",
@@ -565,7 +565,7 @@ function LoginScreen() {
           <div className="text-center">
             <h1 className="font-black block leading-none"
               style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "32px", letterSpacing: "-0.04em", color: "#0D2010" }}>
-              Reino
+              Cashmiles
             </h1>
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] mt-1.5"
               style={{ color: "rgba(139,105,20,0.70)" }}>
@@ -693,7 +693,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </button>
           <LogoBubble size={30} />
           <span className="font-bold text-sm" style={{ color: "#0D4020", fontFamily: "'Space Grotesk',sans-serif" }}>
-            Reino Sucesso do Cliente
+            Cashmiles Sucesso do Cliente
           </span>
         </div>
         {mobileOpen && (

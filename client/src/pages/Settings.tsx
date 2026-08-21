@@ -453,7 +453,7 @@ export default function Settings() {
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <div className="flex justify-between">
             <span>Plataforma</span>
-            <span className="font-medium text-foreground">Reino Sucesso do Cliente</span>
+            <span className="font-medium text-foreground">Cashmiles Sucesso do Cliente</span>
           </div>
           <div className="flex justify-between">
             <span>Versão</span>

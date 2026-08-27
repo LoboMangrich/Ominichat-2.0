@@ -218,6 +218,13 @@
       "when": 1777329330319,
       "tag": "0030_clean_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1787865774496,
+      "tag": "0031_eager_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

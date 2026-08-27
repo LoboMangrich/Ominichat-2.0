@@ -149,6 +149,6 @@ CREATE TABLE `upsellOpportunities` (
 	CONSTRAINT `upsellOpportunities_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-ALTER TABLE `users` MODIFY COLUMN `role` enum('user','admin','Admin','Manager','Agent') NOT NULL DEFAULT 'Agent';--> statement-breakpoint
+ALTER TABLE `users` MODIFY COLUMN `role` enum('user','Admin','Manager','Agent') NOT NULL DEFAULT 'Agent';--> statement-breakpoint
 ALTER TABLE `users` ADD `avatarUrl` text;--> statement-breakpoint
 ALTER TABLE `users` ADD `isActive` boolean DEFAULT true NOT NULL;

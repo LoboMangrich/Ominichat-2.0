@@ -116,6 +116,8 @@ const NAV_MODULES: NavModule[] = [
       { icon: MessageCircle,  label: "Todas as Conversas",   path: "/atendimentos?canal=whatsapp" },
       { icon: Megaphone,      label: "Disparos em Massa",    path: "/broadcasts" },
       { icon: Users,          label: "Grupos",               path: "/groups" },
+      // ── Sara IA ──
+      { icon: Bot,            label: "Sara IA (Suporte)",    path: "/sara", sectionHeader: "Atendimento via Sara IA" },
       // ── E-mail ──
       { icon: Mail,           label: "Caixa de Entrada",     path: "/atendimentos?canal=email", soon: true, sectionHeader: "Atendimento via E-mail" },
       { icon: Mail,           label: "Caixa de Saída",       path: "/atendimentos?canal=email&view=saida", soon: true },

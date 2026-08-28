@@ -56,12 +56,18 @@ export interface SaraConversationDetail {
   messages: SaraMessage[];
 }
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 function assertConfigured(): void {
   if (!ENV.saraSupportApiUrl || !ENV.saraSupportApiKey) {
     throw new Error(
       "SARA_SUPPORT_API_URL/SARA_SUPPORT_API_KEY não configurados. Veja .env.example.",
     );
   }
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -71,6 +77,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${ENV.saraSupportApiUrl}${path}`, {
       ...init,
+      signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         "x-api-key": ENV.saraSupportApiKey,
         "content-type": "application/json",
@@ -78,16 +85,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch (error) {
+    if (isTimeoutError(error)) {
+      console.error(`[saraSupportClient] timeout (${REQUEST_TIMEOUT_MS}ms) ao chamar ${path}`);
+      throw new SaraSupportApiError(
+        "Sara Support API não respondeu a tempo. Tente novamente.",
+        0,
+      );
+    }
+    console.error(`[saraSupportClient] falha de rede ao chamar ${path}:`, error);
     throw new SaraSupportApiError(
-      `Falha de rede ao chamar a Sara Support API: ${error instanceof Error ? error.message : String(error)}`,
+      "Falha de rede ao chamar a Sara Support API.",
       0,
     );
   }
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    // Corpo bruto só vai pro log do servidor — nunca pro cliente, para não
+    // vazar detalhe da API externa (e potencialmente dado de conversa) pelo
+    // TRPCError que chega ao navegador.
+    console.error(`[saraSupportClient] ${response.status} em ${path}: ${body}`);
     throw new SaraSupportApiError(
-      `Sara Support API retornou ${response.status}${body ? `: ${body}` : ""}`,
+      `Sara Support API retornou erro (status ${response.status}).`,
       response.status,
     );
   }

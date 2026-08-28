@@ -200,6 +200,31 @@ interna**. Uso interno reduz a superfície de exposição, não a obrigação le
   dado pessoal.
 - Definir política de retenção de conversas antes do go-live.
 
+## Integração — Sara Support API
+
+A tela `/sara` (menu "Atendimento → Sara IA (Suporte)") integra com a **Sara
+Support API**, sistema externo em `https://recupera.agentesreino.com.br`
+(Epic 71). A Sara é um bot de IA que **já opera em produção, com clientes
+reais** no WhatsApp — não é um ambiente de teste do Ominichat, é a
+plataforma de outro time, acessada via API.
+
+- Cliente HTTP: `server/saraSupportClient.ts`. Router tRPC:
+  `server/routers/sara.ts` (`listConversations`, `getConversation`,
+  `sendMessage`, `takeover`, `release`, `close`, `sendTyping` — todas
+  `protectedProcedure`).
+- Autenticação por header `x-api-key`, configurada via `SARA_SUPPORT_API_URL`
+  e `SARA_SUPPORT_API_KEY` (variáveis de ambiente, ver `.env.example`). Sem
+  elas configuradas, a tela carrega normalmente e mostra erro claro ao
+  tentar listar/enviar — nenhuma outra feature do Ominichat é afetada.
+- **`POST .../messages` (botão de enviar em `/sara/:id`) manda uma mensagem
+  de verdade no WhatsApp do cliente.** Não é simulação: testar esse endpoint
+  contra a API real envia uma mensagem real para uma pessoa real. Ao testar,
+  use só um número/contato de teste conhecido — nunca o telefone de um
+  cliente real sem necessidade.
+- `takeover`, `release` e `close` também alteram o estado real da conversa
+  do lado da Sara (bloqueiam/liberam a IA de responder, encerram o
+  atendimento) — mesmo cuidado se aplica ao testar.
+
 ## Armadilhas conhecidas
 
 - **`npm install` falha.** `@builder.io/vite-plugin-jsx-loc@0.1.1` declara peer

@@ -16,6 +16,11 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // Base URL e API key (header x-api-key) da Sara Support API, sistema externo
+  // (Epic 71) que expõe conversas de um bot de IA no WhatsApp com takeover
+  // humano. Não confundir com o usuário/senha que só protegem o Swagger dela.
+  saraSupportApiUrl: process.env.SARA_SUPPORT_API_URL ?? "",
+  saraSupportApiKey: process.env.SARA_SUPPORT_API_KEY ?? "",
 };
 
 const MIN_JWT_SECRET_LENGTH = 32;

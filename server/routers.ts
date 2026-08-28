@@ -36,6 +36,7 @@ import { eq, and, desc, asc, like, or, sql, gte, lte, lt, count } from "drizzle-
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import { sendMessageByConversation, fetchMetaTemplates, sendWhatsAppTemplate, createMetaTemplate, deleteMetaTemplate } from "./channelSender";
+import { saraRouter } from "./routers/sara";
 
 // ─── Customers Router ─────────────────────────────────────────────────────────
 const customersRouter = router({
@@ -5476,6 +5477,7 @@ export const appRouter = router({
   clientROI: clientROIRouter,
   clientGoals: clientGoalsRouter,
   forms: formsRouter,
+  sara: saraRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,6 +1,6 @@
 /**
  * automationEngine.ts
- * Motor de automação proativa do Reino CS.
+ * Motor de automação proativa do Cashmiles CS.
  * Contém:
  *   1. evaluateTriggers() — avalia todas as regras ativas e cria ações na fila de supervisão
  *   2. recalculateAllHealthScores() — recalcula health score de todos os clientes e atualiza status

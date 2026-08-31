@@ -323,7 +323,7 @@ export default function Integrations() {
               { key: "emailPort", label: "Porta SMTP", placeholder: "465", type: "number" },
               { key: "emailUser", label: "Usuário / Email", placeholder: "suporte@suaempresa.com", type: "email" },
               { key: "emailPassword", label: "Senha da caixa", placeholder: "••••••••", type: "password" },
-              { key: "emailFromName", label: "Nome do Remetente", placeholder: "Suporte Reino", type: "text" },
+              { key: "emailFromName", label: "Nome do Remetente", placeholder: "Suporte Cashmiles", type: "text" },
               { key: "emailImapHost", label: "Host IMAP (recebimento)", placeholder: "imap.titan.email", type: "text" },
               { key: "emailImapPort", label: "Porta IMAP", placeholder: "993", type: "number" },
               { key: "slaFirstResponseMinutes", label: "ANS - Primeira Resposta (minutos)", placeholder: "120", type: "number" },

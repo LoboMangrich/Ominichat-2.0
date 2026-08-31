@@ -334,8 +334,10 @@ backdoor, e backdoor de desenvolvimento tende a sobreviver até produção.
   rejeita com erro de sintaxe.
 - Usar **dois terminais**: um dedicado ao servidor (que fica ocupado enquanto
   roda) e outro para git, docker e scripts.
-- Ruído esperado e inofensivo no log: `%VITE_ANALYTICS_ENDPOINT%` não substituído
-  (Umami, não usado) e aviso de `@import` no CSS.
+- Ruído esperado e inofensivo no log: aviso de `@import` no CSS. O snippet de
+  analytics Umami (`%VITE_ANALYTICS_ENDPOINT%`) foi removido de
+  `client/index.html` — não é usado pelo projeto e causava erro 400 e
+  `URIError` no Express a cada carregamento de página.
 
 ### Estado da interface (primeira execução local)
 

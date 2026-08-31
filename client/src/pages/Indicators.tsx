@@ -1,11 +1,10 @@
 import { lazy, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HeartPulse, TrendingUp, SmilePlus } from "lucide-react";
+import { HeartPulse, SmilePlus } from "lucide-react";
 import { SubTabBar } from "@/components/SubTabBar";
 import { useLocation } from "wouter";
 
 const HealthIndicators = lazy(() => import("./HealthIndicators"));
-const TeamPerformance = lazy(() => import("./TeamPerformance"));
 const Surveys = lazy(() => import("./Surveys"));
 
 function TabSkeleton() {
@@ -25,28 +24,21 @@ function TabSkeleton() {
 
 const INDICATOR_TABS = [
   { label: "Saúde dos Clientes",  path: "/indicators/health", icon: HeartPulse },
-  { label: "Desempenho do Time",  path: "/indicators/team",   icon: TrendingUp },
   { label: "NPS & Pesquisas",     path: "/indicators/nps",    icon: SmilePlus },
 ];
 
 export default function Indicators() {
   const [location] = useLocation();
 
-  const isTeam = location.includes("/team");
-  const isNps  = location.includes("/nps");
+  const isNps = location.includes("/nps");
 
   return (
     <div className="flex flex-col h-full page-bg min-h-screen">
       <SubTabBar tabs={INDICATOR_TABS} />
       <div className="flex-1">
-        {!isTeam && !isNps && (
+        {!isNps && (
           <Suspense fallback={<TabSkeleton />}>
             <HealthIndicators />
-          </Suspense>
-        )}
-        {isTeam && (
-          <Suspense fallback={<TabSkeleton />}>
-            <TeamPerformance />
           </Suspense>
         )}
         {isNps && (

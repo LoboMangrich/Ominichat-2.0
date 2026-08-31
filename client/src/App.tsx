@@ -35,7 +35,6 @@ import AIAnalysis from "./pages/AIAnalysis";
 import Surveys from "./pages/Surveys";
 import Referrals from "./pages/Referrals";
 import Productivity from "./pages/Productivity";
-import TeamPerformance from "./pages/TeamPerformance";
 import UserManagement from "./pages/UserManagement";
 import AIAgents from "./pages/AIAgents";
 import NewClients from "./pages/NewClients";
@@ -80,7 +79,6 @@ function Router() {
         <Route path="/metrics" component={Metrics} />
         <Route path="/indicators" component={Indicators} />
         <Route path="/indicators/health" component={Indicators} />
-        <Route path="/indicators/team" component={Indicators} />
         <Route path="/indicators/nps" component={Indicators} />      {/* ── Config ─────────────────────────────────────────── */}
         <Route path="/integrations" component={Integrations} />
         <Route path="/settings" component={Settings} />
@@ -100,7 +98,7 @@ function Router() {
         <Route path="/atendimentos" component={Atendimentos} />
         <Route path="/program-dashboard" component={ProgramDashboard} />
         <Route path="/productivity"><Redirect to="/metrics" /></Route>
-        <Route path="/team"><Redirect to="/indicators/team" /></Route>
+        <Route path="/team"><Redirect to="/metrics" /></Route>
         <Route path="/sla-monitor"><Redirect to="/metrics" /></Route>
         <Route path="/relatorios"><Redirect to="/metrics" /></Route>
         <Route path="/import-csv"><Redirect to="/settings" /></Route>

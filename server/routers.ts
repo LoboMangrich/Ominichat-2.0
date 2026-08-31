@@ -3406,7 +3406,7 @@ const groupsRouter = router({
     }
     const aiResponse = await invokeLLM({
       messages: [
-        { role: 'system', content: `Você é um especialista em Customer Success do Reino. Gere uma resposta profissional, empática e orientada a resultado para o grupo de WhatsApp "${group.groupName}". A resposta deve ser direta, humana e resolver o problema identificado. Use linguagem informal mas profissional. Máximo 3 parágrafos.${customerContext ? '\n\n' + customerContext : ''}` },
+        { role: 'system', content: `Você é um especialista em Customer Success do Cashmiles. Gere uma resposta profissional, empática e orientada a resultado para o grupo de WhatsApp "${group.groupName}". A resposta deve ser direta, humana e resolver o problema identificado. Use linguagem informal mas profissional. Máximo 3 parágrafos.${customerContext ? '\n\n' + customerContext : ''}` },
         { role: 'user', content: `Alerta: ${input.alertMessage}\n${input.aiSummary ? 'Resumo IA: ' + input.aiSummary + '\n' : ''}\nÚltimas mensagens do grupo:\n${msgContext}\n\nGere uma sugestão de resposta para enviar no grupo.` },
       ],
     });

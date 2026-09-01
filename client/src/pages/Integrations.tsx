@@ -34,9 +34,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { LayoutTemplate, Plus, Trash2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { SubTabBar } from "@/components/SubTabBar";
+import { getPublicBaseUrl } from "@/lib/publicUrl";
 
-// Always use the published domain for webhook URLs so they remain valid regardless of how the app is accessed
-const WEBHOOK_BASE = "https://reino-cs.manus.space";
+// Origem pública para URLs de webhook, resolvida em runtime (ver client/src/lib/publicUrl.ts)
+const WEBHOOK_BASE = getPublicBaseUrl();
 
 export default function Integrations() {
   const { user } = useAuth();

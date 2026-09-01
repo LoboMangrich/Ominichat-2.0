@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { getPublicBaseUrl } from "@/lib/publicUrl";
 import {
   FormInput, Plus, Trash2, Copy, ExternalLink, Eye, ClipboardList,
   CheckSquare, GripVertical, Settings, ChevronDown, ChevronUp, X
@@ -441,7 +442,7 @@ export default function Forms() {
   });
 
   function copyFormLink(slug: string) {
-    const url = `${window.location.origin}/forms/${slug}`;
+    const url = `${getPublicBaseUrl()}/forms/${slug}`;
     navigator.clipboard.writeText(url).then(() => toast.success("Link copiado!"));
   }
 

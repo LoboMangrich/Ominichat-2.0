@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getPublicBaseUrl } from "@/lib/publicUrl";
 import { Shield, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function UserManagement() {
   const { user } = useAuth();
+  const platformUrl = getPublicBaseUrl();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editRole, setEditRole] = useState<string>("Agent");
@@ -70,8 +72,8 @@ export default function UserManagement() {
               <div className="space-y-1.5">
                 <Label>URL da Plataforma</Label>
                 <div className="flex gap-2">
-                  <Input readOnly value="https://reino-cs.manus.space" className="bg-muted font-mono text-xs" />
-                  <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText("https://reino-cs.manus.space"); toast.success("Copiado!"); }}>
+                  <Input readOnly value={platformUrl} className="bg-muted font-mono text-xs" />
+                  <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(platformUrl); toast.success("Copiado!"); }}>
                     Copiar
                   </Button>
                 </div>

@@ -7,6 +7,10 @@ export const getLoginUrl = () => {
     return "/";
   }
 
+  // Deliberadamente NÃO usa client/src/lib/publicUrl.ts aqui: este redirectUri
+  // precisa bater exatamente com o valor cadastrado no provedor OAuth. Torná-lo
+  // configurável via VITE_PUBLIC_BASE_URL abriria um jeito de quebrar o login
+  // sem ninguém perceber. Tratar junto da migração de autenticação própria.
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
   const state = btoa(redirectUri);
 

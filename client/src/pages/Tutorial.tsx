@@ -17,8 +17,9 @@ import {
   Zap,
 } from "lucide-react";
 import { useState } from "react";
+import { getPublicBaseUrl } from "@/lib/publicUrl";
 
-const DOMAIN = "https://reino-cs.manus.space";
+const DOMAIN = getPublicBaseUrl();
 
 const steps = [
   {

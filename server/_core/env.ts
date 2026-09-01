@@ -16,6 +16,12 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // Provedor de LLM (server/_core/llm.ts), direto na Anthropic — não passa
+  // mais pela Forge API do Manus. llmApiUrl fica vazio por padrão: nesse caso
+  // o SDK usa o endpoint oficial da Anthropic, nunca um fallback de terceiro.
+  llmApiUrl: process.env.LLM_API_URL ?? "",
+  llmApiKey: process.env.LLM_API_KEY ?? "",
+  llmModel: process.env.LLM_MODEL ?? "claude-haiku-4-5-20251001",
   // Base URL e API key (header x-api-key) da Sara Support API, sistema externo
   // (Epic 71) que expõe conversas de um bot de IA no WhatsApp com takeover
   // humano. Não confundir com o usuário/senha que só protegem o Swagger dela.

@@ -1,0 +1,3 @@
+- [Gates e tooling de DevOps](project_devops_gates_environment.md) — quais gates existem (check/test/build, sem lint) e que AIOX dirs + CodeRabbit não existem aqui
+- [Fluxo de PR e go-live](project_pr_branch_flow.md) — branches reutilizadas após merge exigem PR novo; env vars pendentes do módulo Sara IA
+- [Colisão de migrations drizzle](project_migration_collisions.md) — branches paralelas geram mesmo índice com nomes diferentes; compare conteúdo antes de apagar branch

@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { ENV } from "./env";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
@@ -110,64 +111,102 @@ export type ResponseFormat =
   | { type: "json_object" }
   | { type: "json_schema"; json_schema: JsonSchema };
 
+// Non-streaming synchronous cap: 16000 é o default recomendado para não
+// truncar respostas sem se aproximar do limite HTTP não-streaming. Nenhum
+// chamador hoje passa maxTokens/max_tokens explicitamente, mas o parâmetro
+// continua honrado quando informado.
+const DEFAULT_MAX_TOKENS = 16000;
+
 const ensureArray = (
   value: MessageContent | MessageContent[]
 ): MessageContent[] => (Array.isArray(value) ? value : [value]);
 
-const normalizeContentPart = (
+// Extrai o texto puro de um content (usado para mensagens system e
+// tool/function, que na API nativa da Anthropic não têm blocos próprios).
+const contentToPlainText = (
+  content: MessageContent | MessageContent[]
+): string =>
+  ensureArray(content)
+    .map(part => {
+      if (typeof part === "string") return part;
+      if (part.type === "text") return part.text;
+      return JSON.stringify(part);
+    })
+    .join("\n");
+
+const contentPartToBlock = (
   part: MessageContent
-): TextContent | ImageContent | FileContent => {
+): Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam => {
   if (typeof part === "string") {
     return { type: "text", text: part };
   }
 
   if (part.type === "text") {
-    return part;
+    return { type: "text", text: part.text };
   }
 
   if (part.type === "image_url") {
-    return part;
+    return { type: "image", source: { type: "url", url: part.image_url.url } };
   }
 
   if (part.type === "file_url") {
-    return part;
+    return { type: "document", source: { type: "url", url: part.file_url.url } };
   }
 
   throw new Error("Unsupported message content part");
 };
 
-const normalizeMessage = (message: Message) => {
-  const { role, name, tool_call_id } = message;
+// A Anthropic só aceita um system prompt inicial (nunca um "role": "system"
+// no meio da conversa) e não tem role "tool"/"function" — tool results viram
+// um bloco tool_result dentro de uma mensagem "user". Içamos aqui.
+const splitSystemAndMessages = (
+  messages: Message[]
+): { system: string | undefined; messages: Anthropic.MessageParam[] } => {
+  const systemParts: string[] = [];
+  const converted: Anthropic.MessageParam[] = [];
 
-  if (role === "tool" || role === "function") {
-    const content = ensureArray(message.content)
-      .map(part => (typeof part === "string" ? part : JSON.stringify(part)))
-      .join("\n");
+  for (const message of messages) {
+    if (message.role === "system") {
+      systemParts.push(contentToPlainText(message.content));
+      continue;
+    }
 
-    return {
-      role,
-      name,
-      tool_call_id,
-      content,
-    };
-  }
+    if (message.role === "tool" || message.role === "function") {
+      converted.push({
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: message.tool_call_id ?? "",
+            content: contentToPlainText(message.content),
+          },
+        ],
+      });
+      continue;
+    }
 
-  const contentParts = ensureArray(message.content).map(normalizeContentPart);
-
-  // If there's only text content, collapse to a single string for compatibility
-  if (contentParts.length === 1 && contentParts[0].type === "text") {
-    return {
-      role,
-      name,
-      content: contentParts[0].text,
-    };
+    converted.push({
+      role: message.role,
+      content: ensureArray(message.content).map(contentPartToBlock),
+    });
   }
 
   return {
-    role,
-    name,
-    content: contentParts,
+    system: systemParts.length > 0 ? systemParts.join("\n") : undefined,
+    messages: converted,
   };
+};
+
+const buildTools = (tools: Tool[] | undefined): Anthropic.ToolUnion[] | undefined => {
+  if (!tools || tools.length === 0) return undefined;
+
+  return tools.map(tool => ({
+    name: tool.function.name,
+    description: tool.function.description,
+    input_schema: (tool.function.parameters as Anthropic.Tool.InputSchema | undefined) ?? {
+      type: "object",
+    },
+  }));
 };
 
 const normalizeToolChoice = (
@@ -209,18 +248,19 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+const buildToolChoice = (
+  toolChoice: ToolChoice | undefined,
+  tools: Tool[] | undefined
+): Anthropic.ToolChoice | undefined => {
+  const normalized = normalizeToolChoice(toolChoice, tools);
+  if (!normalized) return undefined;
 
-const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
+  if (normalized === "none") return { type: "none" };
+  if (normalized === "auto") return { type: "auto" };
+  return { type: "tool", name: normalized.function.name };
 };
 
-const normalizeResponseFormat = ({
+const buildOutputConfig = ({
   responseFormat,
   response_format,
   outputSchema,
@@ -230,22 +270,29 @@ const normalizeResponseFormat = ({
   response_format?: ResponseFormat;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
-}):
-  | { type: "json_schema"; json_schema: JsonSchema }
-  | { type: "text" }
-  | { type: "json_object" }
-  | undefined => {
+}): Anthropic.OutputConfig | undefined => {
   const explicitFormat = responseFormat || response_format;
+
   if (explicitFormat) {
-    if (
-      explicitFormat.type === "json_schema" &&
-      !explicitFormat.json_schema?.schema
-    ) {
-      throw new Error(
-        "responseFormat json_schema requires a defined schema object"
-      );
+    if (explicitFormat.type === "json_schema") {
+      if (!explicitFormat.json_schema?.schema) {
+        throw new Error(
+          "responseFormat json_schema requires a defined schema object"
+        );
+      }
+      return {
+        format: { type: "json_schema", schema: explicitFormat.json_schema.schema },
+      };
     }
-    return explicitFormat;
+
+    if (explicitFormat.type === "json_object") {
+      // A Messages API nativa não tem um modo "qualquer JSON" sem schema
+      // (diferente do response_format: json_object da OpenAI). Um schema
+      // aberto de objeto é a aproximação mais próxima.
+      return { format: { type: "json_schema", schema: { type: "object" } } };
+    }
+
+    return undefined; // "text"
   }
 
   const schema = outputSchema || output_schema;
@@ -255,78 +302,114 @@ const normalizeResponseFormat = ({
     throw new Error("outputSchema requires both name and schema");
   }
 
+  return { format: { type: "json_schema", schema: schema.schema } };
+};
+
+// stop_reason da Anthropic não é 1:1 com finish_reason da OpenAI. Mapeamos os
+// casos equivalentes e repassamos o valor bruto nos demais (pause_turn,
+// refusal, model_context_window_exceeded) em vez de falhar.
+const FINISH_REASON_MAP: Record<string, string> = {
+  end_turn: "stop",
+  stop_sequence: "stop",
+  max_tokens: "length",
+  tool_use: "tool_calls",
+};
+
+const mapFinishReason = (stopReason: string | null): string | null => {
+  if (stopReason === null) return null;
+  return FINISH_REASON_MAP[stopReason] ?? stopReason;
+};
+
+const toInvokeResult = (response: Anthropic.Message): InvokeResult => {
+  const textParts: string[] = [];
+  const toolCalls: ToolCall[] = [];
+
+  for (const block of response.content) {
+    if (block.type === "text") {
+      textParts.push(block.text);
+    } else if (block.type === "tool_use") {
+      toolCalls.push({
+        id: block.id,
+        type: "function",
+        function: {
+          name: block.name,
+          arguments: JSON.stringify(block.input ?? {}),
+        },
+      });
+    }
+  }
+
   return {
-    type: "json_schema",
-    json_schema: {
-      name: schema.name,
-      schema: schema.schema,
-      ...(typeof schema.strict === "boolean" ? { strict: schema.strict } : {}),
+    id: response.id,
+    // A Messages API não devolve um timestamp de criação; aproximamos com o
+    // horário da resposta, só para preencher o campo esperado pelos chamadores.
+    created: Math.floor(Date.now() / 1000),
+    model: response.model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: textParts.join("\n"),
+          ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        },
+        finish_reason: mapFinishReason(response.stop_reason),
+      },
+    ],
+    usage: {
+      prompt_tokens: response.usage.input_tokens,
+      completion_tokens: response.usage.output_tokens,
+      total_tokens: response.usage.input_tokens + response.usage.output_tokens,
     },
   };
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
+  if (!ENV.llmApiKey) {
+    throw new Error("LLM_API_KEY is not configured");
+  }
 
   const {
     messages,
     tools,
     toolChoice,
     tool_choice,
+    maxTokens,
+    max_tokens,
     outputSchema,
     output_schema,
     responseFormat,
     response_format,
   } = params;
 
-  const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
-    messages: messages.map(normalizeMessage),
-  };
+  const client = new Anthropic({
+    apiKey: ENV.llmApiKey,
+    // baseURL vazio → o SDK usa o endpoint oficial da Anthropic. Nunca um
+    // fallback de terceiro.
+    baseURL: ENV.llmApiUrl || undefined,
+  });
 
-  if (tools && tools.length > 0) {
-    payload.tools = tools;
-  }
-
-  const normalizedToolChoice = normalizeToolChoice(
-    toolChoice || tool_choice,
-    tools
-  );
-  if (normalizedToolChoice) {
-    payload.tool_choice = normalizedToolChoice;
-  }
-
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
-
-  const normalizedResponseFormat = normalizeResponseFormat({
+  const { system, messages: anthropicMessages } = splitSystemAndMessages(messages);
+  const anthropicTools = buildTools(tools);
+  const anthropicToolChoice = buildToolChoice(toolChoice || tool_choice, tools);
+  const outputConfig = buildOutputConfig({
     responseFormat,
     response_format,
     outputSchema,
     output_schema,
   });
 
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
+  const request: Anthropic.MessageCreateParamsNonStreaming = {
+    model: ENV.llmModel,
+    max_tokens: maxTokens ?? max_tokens ?? DEFAULT_MAX_TOKENS,
+    messages: anthropicMessages,
+    ...(system ? { system } : {}),
+    ...(anthropicTools ? { tools: anthropicTools } : {}),
+    ...(anthropicToolChoice ? { tool_choice: anthropicToolChoice } : {}),
+    ...(outputConfig ? { output_config: outputConfig } : {}),
+  };
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const response = await client.messages.create(request);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
-  }
-
-  return (await response.json()) as InvokeResult;
+  return toInvokeResult(response);
 }

@@ -186,7 +186,10 @@ const SETTINGS_ITEMS: NavLeaf[] = [
   { icon: Zap,          label: "Integrações",       path: "/integrations" },
   { icon: Key,          label: "API",               path: "/settings?tab=api", soon: true },
   { icon: Webhook,      label: "Webhooks",          path: "/settings?tab=webhooks", soon: true },
-  { icon: Bot,          label: "IA",                path: "/ia-automation" },
+  // Item "IA" oculto: os 6 agentes internos foram desativados, o atendimento
+  // migrou para a Sara via API externa (tela /sara). Rota /ia-automation e
+  // código continuam intactos — remover este comentário para reexibir.
+  // { icon: Bot,          label: "IA",                path: "/ia-automation" },
   { icon: Workflow,     label: "Automações",        path: "/ia-automation?view=automacoes", soon: true },
   { icon: CreditCard,   label: "Financeiro",        path: "/settings?tab=financeiro", soon: true },
   { icon: Star,         label: "Assinatura",        path: "/settings?tab=assinatura", soon: true },

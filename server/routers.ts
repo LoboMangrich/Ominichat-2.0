@@ -3283,8 +3283,10 @@ const groupsRouter = router({
       .orderBy(desc(groupAlerts.createdAt)).limit(50);
   }),
 
-  // Endpoint para receber mensagem de grupo via webhook
-  ingestMessage: publicProcedure.input(z.object({
+  // Usado pela UI de atendimento (Atendimentos.tsx, Groups.tsx) para registrar
+  // mensagens de grupo enviadas pelo atendente logado — não é chamado por
+  // nenhum sistema externo hoje, por isso exige sessão.
+  ingestMessage: protectedProcedure.input(z.object({
     groupId: z.string(),
     groupName: z.string(),
     senderId: z.string(),
@@ -3636,7 +3638,11 @@ const triggerRulesRouter = router({
           }
         }
         await db.update(triggerRules).set({ lastEvaluatedAt: now, triggerCount: sql`triggerCount + ${affectedCustomers.length}` }).where(eq(triggerRules.id, rule.id));
-      } catch (_) {}
+      } catch (err) {
+        // Uma regra com falha não pode derrubar a avaliação das demais —
+        // por isso o catch continua aqui, mas agora o erro é logado.
+        console.error(`[TriggerRules] Falha ao avaliar regra ${rule.id} (${rule.name}):`, err);
+      }
     }
     return { triggered };
   }),

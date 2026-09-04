@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 
+// status é o valor real do enum conversations.status (drizzle/schema.ts) — nunca o rótulo em
+// português, senão o filtro em conversations.list não retorna nada.
+export const OPEN_CONVERSATIONS_POLL_INPUT = { status: "Open", page: 1, limit: 1 } as const;
+
 /**
  * Hook que monitora novos atendimentos abertos e emite notificação sonora
  * usando Web Audio API (sem dependências externas).
@@ -16,7 +20,7 @@ export function useNewConversationNotification() {
 
   // Poll open conversations count every 15s
   const { data } = trpc.conversations.list.useQuery(
-    { status: "Aberto", page: 1, limit: 1 },
+    OPEN_CONVERSATIONS_POLL_INPUT,
     { refetchInterval: enabled ? 15_000 : false }
   );
 

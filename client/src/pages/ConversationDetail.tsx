@@ -51,7 +51,9 @@ const statusColors: Record<string, string> = {
   Closed: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
 
-const statusLabels: Record<string, string> = {
+// Chaves = valores reais do enum conversations.status (drizzle/schema.ts). Única fonte de
+// verdade para os valores aceitos por conversations.updateStatus — nunca hardcodear em português.
+export const statusLabels: Record<string, string> = {
   Open: "Aberto",
   Waiting: "Aguardando",
   Closed: "Encerrado",
@@ -612,9 +614,9 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Aberto">Aberto</SelectItem>
-              <SelectItem value="Aguardando">Aguardando</SelectItem>
-              <SelectItem value="Fechado">Encerrado</SelectItem>
+              {Object.entries(statusLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

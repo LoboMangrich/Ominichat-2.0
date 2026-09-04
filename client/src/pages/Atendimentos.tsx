@@ -25,6 +25,20 @@ type ChatItem = {
 
 type Tag = { id: number; name: string; color: string | null; icon: string | null; isDefault: boolean | null };
 
+// Client-side filter for default status tags.
+// ATENÇÃO: os IDs 2-5 são assumidos, não garantidos — conversationTags não tem seed fixo
+// (server/routers.ts, tags router), as tags são criadas em runtime e o id é autoincrement.
+// Isso só "funciona" porque, no banco atual, essas tags foram criadas nessa ordem. Se alguém
+// recriar o banco do zero ou reordenar a criação das tags padrão, esse mapa aponta para as
+// tags erradas silenciosamente. Não depender de IDs fixos aqui — buscar por nome/slug estável
+// seria a correção correta, fora do escopo deste fix (que é só o idioma dos valores de status).
+export const TAG_STATUS_MAP: Record<number, string> = {
+  2: "Open",
+  3: "Waiting",
+  4: "auto",
+  5: "group",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(date: string | Date | null): string {
   if (!date) return "";
@@ -407,14 +421,6 @@ export default function Atendimentos() {
       if (match) setSelectedItem(match);
     }
   }, [urlCustomerId, items.length]);
-
-  // Client-side filter for default status tags
-  const TAG_STATUS_MAP: Record<number, string> = {
-    2: "Aberto",
-    3: "Aguardando",
-    4: "auto",
-    5: "group",
-  };
 
   const filteredItems = items.filter(item => {
     if (!selectedTagId) return true;

@@ -42,6 +42,14 @@ import { ClientROIPanel } from "@/components/ClientROIPanel";
 import { Calendar } from "lucide-react";
 const NewClients = lazy(() => import("./NewClients"));
 
+// conv.status vem do banco em inglês (enum conversations.status, drizzle/schema.ts) — comparar
+// sempre contra "Open"/"Waiting", nunca contra o rótulo em português.
+export function getConversationStatusDisplay(status: string | null | undefined): { color: string; label: string } {
+  if (status === "Open") return { color: "#0d6b4e", label: "Aberto" };
+  if (status === "Waiting") return { color: "#9a6010", label: "Aguardando" };
+  return { color: "oklch(0.55 0.05 155)", label: "Fechado" };
+}
+
 // ─── CustomerTasksTab ─────────────────────────────────────────────────────────
 function CustomerTasksTab({ customerId }: { customerId: number }) {
   const [newTitle, setNewTitle] = useState("");
@@ -839,8 +847,7 @@ export default function Customers() {
                     ) : (
                       lastInteractions.map((conv: any) => {
                         const channelIcon = conv.channel === 'whatsapp' ? '📱' : conv.channel === 'email' ? '📧' : conv.channel === 'instagram' ? '📸' : conv.channel === 'telegram' ? '✈️' : '💬';
-                        const statusColor = conv.status === 'Aberto' ? '#0d6b4e' : conv.status === 'Aguardando' ? '#9a6010' : 'oklch(0.55 0.05 155)';
-                        const statusLabel = conv.status === 'Aberto' ? 'Aberto' : conv.status === 'Aguardando' ? 'Aguardando' : 'Fechado';
+                        const { color: statusColor, label: statusLabel } = getConversationStatusDisplay(conv.status);
                         const timeAgo = (() => {
                           const d = conv.updatedAt ? new Date(conv.updatedAt) : new Date(conv.createdAt);
                           const mins = Math.floor((Date.now() - d.getTime()) / 60000);

@@ -73,6 +73,10 @@ import { useAuth } from "@/_core/hooks/useAuth";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// status é o valor real do enum conversations.status (drizzle/schema.ts) — nunca o rótulo em
+// português, senão o filtro em conversations.list não retorna nada.
+export const OPEN_CONVERSATIONS_QUERY_INPUT = { status: "Open", page: 1, limit: 1 } as const;
+
 const LOGO_URL = "/cashmiles-icon.png";
 const MODULES_OPEN_KEY = "cs-modules-open";
 const SIDEBAR_OPEN_KEY = "cs-sidebar-open";
@@ -656,7 +660,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => { localStorage.setItem(MODULES_OPEN_KEY, JSON.stringify(openModules)); }, [openModules]);
 
   const { data: convData } = trpc.conversations.list.useQuery(
-    { status: "Aberto", page: 1, limit: 1 },
+    OPEN_CONVERSATIONS_QUERY_INPUT,
     { refetchInterval: 30_000 }
   );
   const openConvCount = convData?.total ?? 0;

@@ -39,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   Closed: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   Open: "Aberto",
   Waiting: "Aguardando",
   Closed: "Finalizado",
@@ -92,20 +92,27 @@ function timeAgo(date: Date | null | string | number) {
 // ─── Queue tabs ───────────────────────────────────────────────────────────────
 
 type QueueTab = "all" | "open" | "waiting" | "closed" | "ai" | "group";
-const QUEUE_TABS: { id: QueueTab; label: string; icon: string; status?: string; aiOnly?: boolean; groupOnly?: boolean; activeColor: string; badgeColor: string }[] = [
+// `status` aqui é o valor do enum conversations.status no banco (drizzle/schema.ts) — sempre em
+// inglês. Nunca usar o rótulo em português aqui: é enviado direto como filtro para conversations.list.
+export const QUEUE_TABS: { id: QueueTab; label: string; icon: string; status?: string; aiOnly?: boolean; groupOnly?: boolean; activeColor: string; badgeColor: string }[] = [
   { id: "all",     label: "Todos",       icon: "#",  activeColor: "border-slate-500 text-slate-700 dark:text-slate-300",    badgeColor: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
-  { id: "open",    label: "Em Aberto",   icon: "🟣", status: "Aberto",    activeColor: "border-violet-500 text-violet-700 dark:text-violet-300",  badgeColor: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
-  { id: "waiting", label: "Aguardando",  icon: "⏳", status: "Aguardando", activeColor: "border-amber-500 text-amber-700 dark:text-amber-300",    badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
+  { id: "open",    label: "Em Aberto",   icon: "🟣", status: "Open",    activeColor: "border-violet-500 text-violet-700 dark:text-violet-300",  badgeColor: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
+  { id: "waiting", label: "Aguardando",  icon: "⏳", status: "Waiting", activeColor: "border-amber-500 text-amber-700 dark:text-amber-300",    badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
   { id: "ai",      label: "Automático",  icon: "🤖", aiOnly: true,      activeColor: "border-purple-500 text-purple-700 dark:text-purple-300", badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
   { id: "group",   label: "Grupo",       icon: "👥", groupOnly: true,   activeColor: "border-blue-500 text-blue-700 dark:text-blue-300",       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-  { id: "closed",  label: "Finalizados", icon: "✅", status: "Fechado",  activeColor: "border-slate-400 text-slate-600 dark:text-slate-400",   badgeColor: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+  { id: "closed",  label: "Finalizados", icon: "✅", status: "Closed",  activeColor: "border-slate-400 text-slate-600 dark:text-slate-400",   badgeColor: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
 ];
 
 // ─── ConvCard ─────────────────────────────────────────────────────────────────
 
+// conv.status vem do banco em inglês (enum conversations.status) — comparar sempre contra "Open".
+export function isConversationUnread(conv: { status: string; handledByAi: boolean }): boolean {
+  return conv.status === "Open" && !conv.handledByAi;
+}
+
 function ConvCard({ conv, onClick, onLabelClick }: { conv: any; onClick: () => void; onLabelClick?: (label: string) => void }) {
   const lastMsg = conv.messages?.[conv.messages.length - 1];
-  const unread = conv.status === "Aberto" && !conv.handledByAi;
+  const unread = isConversationUnread(conv);
   const chGlass = CHANNEL_GLASS[conv.channel] ?? { bg: "rgba(100,116,139,0.10)", color: "#475569", border: "rgba(100,116,139,0.18)" };
   const stGlass = STATUS_GLASS[conv.status] ?? { bg: "rgba(100,116,139,0.10)", color: "#475569", border: "rgba(100,116,139,0.18)" };
   const qsColor = conv.qualityScore >= 80 ? "#0d6b4e" : conv.qualityScore >= 60 ? "#9a6010" : "#b91c1c";

@@ -1,5 +1,6 @@
 import {
   int,
+  index,
   mysqlEnum,
   mysqlTable,
   text,
@@ -61,7 +62,11 @@ export const customers = mysqlTable("customers", {
   healthScore: float("healthScore"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_customers_phone").on(table.phone),
+  index("idx_customers_email").on(table.email),
+  index("idx_customers_status").on(table.status),
+]);
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = typeof customers.$inferInsert;
@@ -108,7 +113,10 @@ export const conversations = mysqlTable("conversations", {
   closedAt: timestamp("closedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_conversations_status_updated").on(table.status, table.updatedAt),
+  index("idx_conversations_customer").on(table.customerId),
+]);
 
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof conversations.$inferInsert;
@@ -126,7 +134,9 @@ export const messages = mysqlTable("messages", {
   whatsappMessageId: varchar("whatsappMessageId", { length: 128 }),
   readAt: timestamp("readAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_messages_conversation_created").on(table.conversationId, table.createdAt),
+]);
 
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = typeof messages.$inferInsert;
@@ -777,7 +787,9 @@ export const customerJourney = mysqlTable("customerJourney", {
   stepsCompleted: int("stepsCompleted").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_customer_journey_customer_status").on(table.customerId, table.status),
+]);
 export type CustomerJourney = typeof customerJourney.$inferSelect;
 export type InsertCustomerJourney = typeof customerJourney.$inferInsert;
 

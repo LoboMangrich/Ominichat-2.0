@@ -39,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   Closed: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
 
-export const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Record<string, string> = {
   Open: "Aberto",
   Waiting: "Aguardando",
   Closed: "Finalizado",

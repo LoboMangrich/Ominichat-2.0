@@ -9,8 +9,11 @@ const REAL_STATUS_VALUES = conversations.status.enumValues;
 
 describe("Atendimentos — TAG_STATUS_MAP compara contra o enum real do banco", () => {
   it("as entradas que representam status de conversa usam valores do enum real", () => {
-    // "auto" e "group" (ids 4 e 5) não são status de conversa — são marcadores de outro tipo de
-    // filtro (handledByAi / item.type), tratados à parte no componente.
+    // "group" (id 5) não é status de conversa — é tratado à parte em filteredItems via
+    // item.type === "group" (Atendimentos.tsx). "auto" (id 4) NÃO é tratado à parte: cai em
+    // item.status === "auto", que nunca casa (ChatItem não tem status "auto"), então a tag
+    // "Automático" sempre devolve lista vazia. Bug pré-existente, fora do escopo deste fix (que é
+    // só o idioma dos valores de status "Open"/"Waiting") — não corrigido aqui.
     const statusEntries = Object.entries(TAG_STATUS_MAP).filter(
       ([, value]) => value !== "auto" && value !== "group"
     );

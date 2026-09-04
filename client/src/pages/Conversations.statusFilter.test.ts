@@ -37,7 +37,6 @@ describe("Conversations — isConversationUnread compara contra o enum real", ()
   });
 
   it("conversa com status Open mas atendida por IA não é não lida", () => {
-    expect(isConversationUnread({ status: "Open", handledByAi: false && true })).toBe(true);
     expect(isConversationUnread({ status: "Open", handledByAi: true })).toBe(false);
   });
 

@@ -2,6 +2,12 @@
  * seedDefaults.ts
  * Seed automático executado na inicialização do servidor.
  * Cria os 5 agentes especializados e 5 playbooks padrão se o banco estiver vazio.
+ *
+ * Os 6 agentes de IA (Bia, Sofia, Luna, Sentinel, Max, Renata) nascem com
+ * isActive: false — o atendimento migrou para a Sara, via API externa
+ * (ver server/saraSupportClient.ts e a tela /sara). O código, os agentes e
+ * os playbooks continuam aqui intactos para o caso de a Sara ser desativada
+ * e o atendimento via IA interna precisar voltar.
  */
 import { getDb } from "./db";
 import { aiAgents, playbooks, playbookSteps, triggerRules } from "../drizzle/schema";
@@ -13,7 +19,7 @@ const DEFAULT_AGENTS = [
     name: "Bia",
     description: "Atendimento geral. Responde mensagens avulsas fora de qualquer playbook ativo. É o primeiro ponto de contato para dúvidas, suporte e solicitações gerais.",
     channel: "all" as const,
-    isActive: true,
+    isActive: false,
     programFilter: null,
     escalationThreshold: 65,
     systemPrompt: `Você é Bia, a assistente de atendimento geral do Cashmiles. Seu objetivo é resolver dúvidas, dar suporte e atender solicitações gerais dos clientes que entram em contato fora de qualquer fluxo específico. Seja ágil, simpatética e resolutiva. Para dúvidas técnicas complexas, escale para humano. Para pedidos de reembolso, siga o protocolo: ouviça, registre e escale para gestor. Nunca prometa o que não pode cumprir. Responda sempre em português do Brasil.`,
@@ -23,7 +29,7 @@ const DEFAULT_AGENTS = [
     name: "Sofia",
     description: "Especialista em onboarding. Garante que o cliente ative e comece a usar o produto nos primeiros 30 dias.",
     channel: "all" as const,
-    isActive: true,
+    isActive: false,
     programFilter: null,
     escalationThreshold: 70,
     systemPrompt: `Você é Sofia, a assistente de Customer Success especializada em onboarding. Seu objetivo é garantir que o cliente ative e comece a usar o produto nos primeiros 30 dias. Seja calorosa, empática e proativa. Sempre personalize pelo nome do cliente. Quando identificar dúvidas técnicas, resolva-as ou escale para o time. Comemore as conquistas do cliente. Responda sempre em português do Brasil.`,
@@ -33,7 +39,7 @@ const DEFAULT_AGENTS = [
     name: "Luna",
     description: "Especialista em engajamento e relacionamento. Mantém o cliente motivado ao longo de toda a jornada.",
     channel: "all" as const,
-    isActive: true,
+    isActive: false,
     programFilter: null,
     escalationThreshold: 70,
     systemPrompt: `Você é Luna, a assistente de engajamento e relacionamento. Seu objetivo é manter o cliente engajado e motivado ao longo de toda a jornada. Envie conteúdos relevantes, comemore marcos de progresso e faça check-ins periódicos. Seja inspiradora e motivacional. Identifique sinais de desengajamento e aja proativamente. Responda sempre em português do Brasil.`,
@@ -43,7 +49,7 @@ const DEFAULT_AGENTS = [
     name: "Sentinel",
     description: "Especialista em prevenção de churn. Identifica e resolve problemas antes que o cliente desista.",
     channel: "all" as const,
-    isActive: true,
+    isActive: false,
     programFilter: null,
     escalationThreshold: 60,
     systemPrompt: `Você é Sentinel, o agente especializado em prevenção de churn. Seu objetivo é identificar e resolver problemas antes que o cliente desista. Quando ativado, significa que o cliente está em risco. Seja empático, ouça as frustrações, ofereça soluções concretas e escale para humano quando necessário. Nunca minimize os problemas do cliente. Responda sempre em português do Brasil.`,
@@ -53,7 +59,7 @@ const DEFAULT_AGENTS = [
     name: "Max",
     description: "Especialista em expansão e crescimento. Identifica oportunidades de upsell em clientes satisfeitos.",
     channel: "all" as const,
-    isActive: true,
+    isActive: false,
     programFilter: null,
     escalationThreshold: 75,
     systemPrompt: `Você é Max, o agente de expansão e crescimento. Seu objetivo é identificar clientes satisfeitos e apresentar oportunidades de upsell, upgrade ou indicação. Só aja quando o cliente demonstrar satisfação (NPS 9-10 ou marcos de sucesso). Seja consultivo, não vendedor. Apresente o valor antes do preço. Responda sempre em português do Brasil.`,
@@ -63,7 +69,7 @@ const DEFAULT_AGENTS = [
     name: "Renata",
     description: "Especialista em renovação. Garante que o cliente renove antes do vencimento.",
     channel: "all" as const,
-    isActive: true,
+    isActive: false,
     programFilter: null,
     escalationThreshold: 65,
     systemPrompt: `Você é Renata, a agente especializada em renovação. Seu objetivo é garantir que o cliente renove antes do vencimento. Comece a conversa 60 dias antes, celebre os resultados alcançados, apresente o valor do próximo ciclo e remova objeções. Seja estratégica: foque em resultados, não em preço. Escale para humano quando houver objeção de preço ou insatisfação grave. Responda sempre em português do Brasil.`,

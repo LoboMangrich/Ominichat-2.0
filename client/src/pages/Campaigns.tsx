@@ -221,9 +221,10 @@ export default function Campaigns() {
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* value = enum real de customers.status (drizzle/schema.ts); rótulo em português só na label */}
                         <SelectItem value="_all">Todos</SelectItem>
-                        <SelectItem value="Ativo">Ativo</SelectItem>
-                        <SelectItem value="Em Risco">Em Risco</SelectItem>
+                        <SelectItem value="Active">Ativo</SelectItem>
+                        <SelectItem value="At Risk">Em Risco</SelectItem>
                         <SelectItem value="New">Novo</SelectItem>
                         <SelectItem value="Churned">Churned</SelectItem>
                       </SelectContent>

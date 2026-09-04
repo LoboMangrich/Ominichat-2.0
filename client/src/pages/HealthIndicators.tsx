@@ -6,6 +6,12 @@ import { HeartPulse, TrendingDown, TrendingUp, AlertTriangle, Users, RefreshCw }
 import { toast } from "sonner";
 import { Link } from "wouter";
 
+// c.status vem do banco em inglês (enum customers.status, drizzle/schema.ts) — comparar sempre
+// contra "Active", nunca contra o rótulo em português.
+export function isActiveCustomer(c: { status: string }): boolean {
+  return c.status === "Active";
+}
+
 function ScoreBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -26,7 +32,7 @@ export default function HealthIndicators() {
     onError: () => toast.error("Erro ao recalcular"),
   });
 
-  const active = (customers as any[]).filter((c) => c.status === "Ativo");
+  const active = (customers as any[]).filter(isActiveCustomer);
   // Only count clients with a calculated score (score > 0 and not null)
   const activeWithScore = active.filter((c) => c.healthScore !== null && c.healthScore !== undefined && c.healthScore > 0);
   const total = activeWithScore.length;

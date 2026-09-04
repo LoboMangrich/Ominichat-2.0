@@ -137,6 +137,19 @@ function ProgramCard({
 
 // ─── ClientRow ────────────────────────────────────────────────────────────────
 
+// Chaves = valores reais do enum customers.status (drizzle/schema.ts). A chave do status
+// "At Risk" estava escrita como "Em Risco" (o rótulo) — statusLabel[client.status] nunca casava
+// para clientes em risco, que apareciam com o valor cru em inglês e sem a cor de destaque.
+export const statusLabel: Record<string, string> = {
+  Active: "Ativo", "At Risk": "Em Risco", Churned: "Churn", New: "Novo",
+};
+export const statusStyle: Record<string, { bg: string; color: string }> = {
+  Active: { bg: "rgba(16,185,129,0.08)", color: "#10b981" },
+  "At Risk": { bg: "rgba(245,158,11,0.08)", color: "#f59e0b" },
+  Churned: { bg: "rgba(239,68,68,0.08)", color: "#ef4444" },
+  New: { bg: "rgba(59,130,246,0.08)", color: "#3b82f6" },
+};
+
 function ClientRow({ client }: { client: any }) {
   const [, navigate] = useLocation();
   const daysSinceEntry = daysSince(client.createdAt);
@@ -144,15 +157,6 @@ function ClientRow({ client }: { client: any }) {
   const neverContacted = !client.lastInteractionAt;
   const pendingContact = neverContacted || (daysSinceContact !== null && daysSinceContact > 7);
 
-  const statusLabel: Record<string, string> = {
-    Active: "Ativo", "Em Risco": "Em Risco", Churned: "Churn", New: "Novo",
-  };
-  const statusStyle: Record<string, { bg: string; color: string }> = {
-    Active: { bg: "rgba(16,185,129,0.08)", color: "#10b981" },
-    "Em Risco": { bg: "rgba(245,158,11,0.08)", color: "#f59e0b" },
-    Churned: { bg: "rgba(239,68,68,0.08)", color: "#ef4444" },
-    New: { bg: "rgba(59,130,246,0.08)", color: "#3b82f6" },
-  };
   const ss = statusStyle[client.status] || { bg: "rgba(0,0,0,0.05)", color: "oklch(0.50 0.04 155)" };
 
   return (

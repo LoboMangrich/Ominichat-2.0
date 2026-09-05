@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Megaphone, Plus, Send, Trash2, Users, Bot, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { ALL_FILTER_SENTINEL, clearAllSentinel, CUSTOMER_STATUS_FILTER_OPTIONS } from "./Campaigns.filters";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Rascunho",
@@ -202,12 +203,12 @@ export default function Campaigns() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Programa</Label>
-                    <Select value={filterProgram} onValueChange={v => setFilterProgram(v === "_all" ? "" : v)}>
+                    <Select value={filterProgram} onValueChange={v => setFilterProgram(clearAllSentinel(v))}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="_all">Todos os programas</SelectItem>
+                        <SelectItem value={ALL_FILTER_SENTINEL}>Todos os programas</SelectItem>
                         {programs.map((p: any) => p.program && (
                           <SelectItem key={p.program} value={p.program}>{p.program}</SelectItem>
                         ))}
@@ -216,17 +217,15 @@ export default function Campaigns() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Status do cliente</Label>
-                    <Select value={filterStatus} onValueChange={v => setFilterStatus(v === "_all" ? "" : v)}>
+                    <Select value={filterStatus} onValueChange={v => setFilterStatus(clearAllSentinel(v))}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
-                        {/* value = enum real de customers.status (drizzle/schema.ts); rótulo em português só na label */}
-                        <SelectItem value="_all">Todos</SelectItem>
-                        <SelectItem value="Active">Ativo</SelectItem>
-                        <SelectItem value="At Risk">Em Risco</SelectItem>
-                        <SelectItem value="New">Novo</SelectItem>
-                        <SelectItem value="Churned">Churned</SelectItem>
+                        <SelectItem value={ALL_FILTER_SENTINEL}>Todos</SelectItem>
+                        {CUSTOMER_STATUS_FILTER_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

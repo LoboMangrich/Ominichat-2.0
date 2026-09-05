@@ -119,11 +119,14 @@ function CustomerTasksTab({ customerId }: { customerId: number }) {
   );
 }
 
-const statusConfig: Record<string, { bg: string; color: string; border: string; label: string }> = {
-  Active:   { bg: "rgba(13,107,78,0.10)",   color: "#0d6b4e", border: "rgba(13,107,78,0.20)",   label: "Ativo" },
-  "Em Risco": { bg: "rgba(201,130,39,0.12)",  color: "#9a6010", border: "rgba(201,130,39,0.22)",  label: "Em Risco" },
-  Churned:  { bg: "rgba(220,38,38,0.10)",   color: "#b91c1c", border: "rgba(220,38,38,0.20)",   label: "Cancelado" },
-  New:      { bg: "rgba(52,130,246,0.10)",  color: "#1d4ed8", border: "rgba(52,130,246,0.20)",  label: "Novo" },
+// Chaves = valores reais do enum customers.status (drizzle/schema.ts). Antes, a chave do status
+// "At Risk" estava escrita como "Em Risco" (o rótulo, não o valor do enum) — statusConfig[c.status]
+// nunca casava para clientes em risco, e o badge de status simplesmente não aparecia para eles.
+export const statusConfig: Record<string, { bg: string; color: string; border: string; label: string }> = {
+  Active:     { bg: "rgba(13,107,78,0.10)",  color: "#0d6b4e", border: "rgba(13,107,78,0.20)",  label: "Ativo" },
+  "At Risk":  { bg: "rgba(201,130,39,0.12)", color: "#9a6010", border: "rgba(201,130,39,0.22)", label: "Em Risco" },
+  Churned:    { bg: "rgba(220,38,38,0.10)",  color: "#b91c1c", border: "rgba(220,38,38,0.20)",  label: "Cancelado" },
+  New:        { bg: "rgba(52,130,246,0.10)", color: "#1d4ed8", border: "rgba(52,130,246,0.20)", label: "Novo" },
 };
 
 export default function Customers() {
@@ -371,10 +374,9 @@ export default function Customers() {
                   <Select value={newCustomer.status} onValueChange={v => setNewCustomer(p => ({ ...p, status: v as any }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="New">Novo</SelectItem>
-                      <SelectItem value="Ativo">Ativo</SelectItem>
-                      <SelectItem value="Em Risco">Em Risco</SelectItem>
-                      <SelectItem value="Churned">Cancelado</SelectItem>
+                      {Object.entries(statusConfig).map(([value, cfg]) => (
+                        <SelectItem key={value} value={value}>{cfg.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -428,10 +430,9 @@ export default function Customers() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
-            <SelectItem value="Ativo">Ativo</SelectItem>
-            <SelectItem value="Em Risco">Em Risco</SelectItem>
-            <SelectItem value="New">Novo</SelectItem>
-            <SelectItem value="Churned">Cancelado</SelectItem>
+            {Object.entries(statusConfig).map(([value, cfg]) => (
+              <SelectItem key={value} value={value}>{cfg.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={programFilter} onValueChange={v => { setProgramFilter(v === "all" ? "" : v); setPage(1); }}>

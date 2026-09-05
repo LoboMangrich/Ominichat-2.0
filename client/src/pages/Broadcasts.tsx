@@ -169,9 +169,10 @@ export default function Broadcasts() {
                           <SelectValue placeholder="Todos" />
                         </SelectTrigger>
                         <SelectContent>
+                          {/* value = enum real de customers.status (drizzle/schema.ts); rótulo em português só na label */}
                           <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="Ativo">Ativos</SelectItem>
-                          <SelectItem value="Em Risco">Em Risco</SelectItem>
+                          <SelectItem value="Active">Ativos</SelectItem>
+                          <SelectItem value="At Risk">Em Risco</SelectItem>
                           <SelectItem value="New">Novos</SelectItem>
                         </SelectContent>
                       </Select>

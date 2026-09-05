@@ -94,7 +94,7 @@ function timeAgo(date: Date | null | string | number) {
 type QueueTab = "all" | "open" | "waiting" | "closed" | "ai" | "group";
 // `status` aqui é o valor do enum conversations.status no banco (drizzle/schema.ts) — sempre em
 // inglês. Nunca usar o rótulo em português aqui: é enviado direto como filtro para conversations.list.
-export const QUEUE_TABS: { id: QueueTab; label: string; icon: string; status?: string; aiOnly?: boolean; groupOnly?: boolean; activeColor: string; badgeColor: string }[] = [
+export const QUEUE_TABS: { id: QueueTab; label: string; icon: string; status?: "Open" | "Waiting" | "Closed"; aiOnly?: boolean; groupOnly?: boolean; activeColor: string; badgeColor: string }[] = [
   { id: "all",     label: "Todos",       icon: "#",  activeColor: "border-slate-500 text-slate-700 dark:text-slate-300",    badgeColor: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
   { id: "open",    label: "Em Aberto",   icon: "🟣", status: "Open",    activeColor: "border-violet-500 text-violet-700 dark:text-violet-300",  badgeColor: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
   { id: "waiting", label: "Aguardando",  icon: "⏳", status: "Waiting", activeColor: "border-amber-500 text-amber-700 dark:text-amber-300",    badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },

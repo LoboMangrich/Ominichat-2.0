@@ -256,7 +256,7 @@ const customersRouter = router({
 const conversationsRouter = router({
   list: protectedProcedure
     .input(z.object({
-      status: z.string().optional(),
+      status: z.enum(["Open", "Waiting", "Closed"]).optional(),
       channel: z.string().optional(),
       agentId: z.number().optional(),
       customerId: z.number().optional(),
@@ -268,7 +268,7 @@ const conversationsRouter = router({
       if (!db) return { conversations: [], total: 0 };
       const offset = (input.page - 1) * input.limit;
       const conditions = [];
-      if (input.status) conditions.push(eq(conversations.status, input.status as any));
+      if (input.status) conditions.push(eq(conversations.status, input.status));
       if (input.channel) conditions.push(eq(conversations.channel, input.channel as any));
       if (input.agentId) conditions.push(eq(conversations.assignedAgentId, input.agentId));
       if (input.customerId) conditions.push(eq(conversations.customerId, input.customerId));

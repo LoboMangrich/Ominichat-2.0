@@ -202,7 +202,7 @@ export default function Campaigns() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Programa</Label>
-                    <Select value={filterProgram} onValueChange={setFilterProgram}>
+                    <Select value={filterProgram} onValueChange={v => setFilterProgram(v === "_all" ? "" : v)}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
@@ -216,7 +216,7 @@ export default function Campaigns() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Status do cliente</Label>
-                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <Select value={filterStatus} onValueChange={v => setFilterStatus(v === "_all" ? "" : v)}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>

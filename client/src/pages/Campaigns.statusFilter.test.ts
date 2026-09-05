@@ -30,3 +30,24 @@ describe("Campaigns — filtro de status do cliente usa o enum real, não o rót
     expect(customers.status.enumValues).toContain("At Risk");
   });
 });
+
+describe("Campaigns — o sentinela '_all' (opção \"Todos\") não vaza como filtro real", () => {
+  // Achado do @qa na revisão do PR #21: onValueChange={setFilterStatus} gravava o literal
+  // "_all" no estado, e `filterStatus || undefined` não removia esse valor (string não-vazia é
+  // truthy). Escolher "Todos" mandava filterStatus: "_all" para campaigns.previewAudience/create,
+  // que devolvia audiência zero silenciosamente. Mesmo problema em filterProgram (SelectItem
+  // value="_all" de "Todos os programas"). Corrigido normalizando "_all" para "" no próprio
+  // onValueChange, no mesmo padrão já usado em Broadcasts.tsx e Customers.tsx.
+  it("normaliza '_all' para string vazia ao selecionar 'Todos' no filtro de status", () => {
+    expect(source).toMatch(/onValueChange=\{v => setFilterStatus\(v === "_all" \? "" : v\)\}/);
+  });
+
+  it("normaliza '_all' para string vazia ao selecionar 'Todos os programas'", () => {
+    expect(source).toMatch(/onValueChange=\{v => setFilterProgram\(v === "_all" \? "" : v\)\}/);
+  });
+
+  it("regressão direta: não usa mais setFilterStatus/setFilterProgram direto como onValueChange", () => {
+    expect(source).not.toMatch(/onValueChange=\{setFilterStatus\}/);
+    expect(source).not.toMatch(/onValueChange=\{setFilterProgram\}/);
+  });
+});

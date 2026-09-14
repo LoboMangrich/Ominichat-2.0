@@ -292,6 +292,10 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
+    if (!user.isActive) {
+      throw ForbiddenError("Usuário desativado");
+    }
+
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,

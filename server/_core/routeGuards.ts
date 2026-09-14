@@ -23,11 +23,8 @@ export type AuthedRequest = Request & { user?: User };
  */
 export async function requireSession(req: AuthedRequest, res: Response, next: NextFunction) {
   try {
+    // sdk.authenticateRequest já rejeita usuário com isActive: false.
     const user = await sdk.authenticateRequest(req);
-    if (!user.isActive) {
-      res.status(403).json({ error: "Usuário desativado" });
-      return;
-    }
     req.user = user;
     next();
   } catch {
@@ -62,9 +59,10 @@ export async function requireCronAuth(req: AuthedRequest, res: Response, next: N
   }
 
   // Fallback: permite disparo manual por um Admin logado (ex.: botão no painel).
+  // sdk.authenticateRequest já rejeita usuário com isActive: false.
   try {
     const user = await sdk.authenticateRequest(req);
-    if (user.isActive && user.role === "Admin") {
+    if (user.role === "Admin") {
       req.user = user;
       next();
       return;

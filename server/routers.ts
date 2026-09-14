@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { optionalEmail } from "./_core/validators";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -99,7 +100,7 @@ const customersRouter = router({
   create: protectedProcedure
     .input(z.object({
       name: z.string().min(1),
-      email: z.string().email().optional(),
+      email: optionalEmail,
       phone: z.string().optional(),
       program: z.string().optional(),
       status: z.enum(["Active", "At Risk", "Churned", "New"]).default("New"),
@@ -117,7 +118,7 @@ const customersRouter = router({
     .input(z.object({
       id: z.number(),
       name: z.string().optional(),
-      email: z.string().optional(),
+      email: optionalEmail,
       phone: z.string().optional(),
       program: z.string().optional(),
       status: z.enum(["Active", "At Risk", "Churned", "New"]).optional(),
@@ -1179,7 +1180,7 @@ const ghlRouter = router({
     .input(z.object({
       ghlContactId: z.string(),
       name: z.string(),
-      email: z.string().optional(),
+      email: optionalEmail,
       phone: z.string().optional(),
       program: z.string().optional(),
       tags: z.array(z.string()).optional(),
@@ -2884,7 +2885,7 @@ const reportsRouter = router({
     .input(z.object({
       weekOffset: z.number().default(0), // 0 = current week, -1 = last week
       sendEmail: z.boolean().default(false),
-      emailTo: z.string().email().optional(),
+      emailTo: optionalEmail,
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();

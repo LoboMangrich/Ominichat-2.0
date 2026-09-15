@@ -13,6 +13,11 @@ export const ENV = {
   // Secret token configurado via setWebhook do Telegram, enviado no header
   // x-telegram-bot-api-secret-token em toda chamada ao webhook.
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? "",
+  // Segredo do encaminhador de e-mail (ex.: Reclame Aqui via forwarder externo),
+  // aceito no header x-email-ticket-secret (preferencial) ou no path
+  // /api/webhooks/email-ticket/:token, para encaminhadores sem suporte a header
+  // customizado. Ver server/_core/routeGuards.ts.
+  emailTicketSecret: process.env.EMAIL_TICKET_SECRET ?? "",
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",

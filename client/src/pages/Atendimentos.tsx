@@ -23,20 +23,16 @@ type ChatItem = {
   groupId: number | null;
 };
 
-type Tag = { id: number; name: string; color: string | null; icon: string | null; isDefault: boolean | null };
+type Tag = { id: number; name: string; slug: string | null; color: string | null; icon: string | null; isDefault: boolean | null };
 
-// Client-side filter for default status tags.
-// ATENÇÃO: os IDs 2-5 são assumidos, não garantidos — conversationTags não tem seed fixo
-// (server/routers.ts, tags router), as tags são criadas em runtime e o id é autoincrement.
-// Isso só "funciona" porque, no banco atual, essas tags foram criadas nessa ordem. Se alguém
-// recriar o banco do zero ou reordenar a criação das tags padrão, esse mapa aponta para as
-// tags erradas silenciosamente. Não depender de IDs fixos aqui — buscar por nome/slug estável
-// seria a correção correta, fora do escopo deste fix (que é só o idioma dos valores de status).
-export const TAG_STATUS_MAP: Record<number, string> = {
-  2: "Open",
-  3: "Waiting",
-  4: "auto",
-  5: "group",
+// Client-side filter para as tags padrão de status/tipo, chaveado pelo slug estável da tag
+// (conversationTags.slug, ver drizzle/schema.ts e server/seedDefaults.ts) — não pelo id
+// autoincrement, que varia conforme a ordem em que as tags são criadas.
+export const TAG_STATUS_MAP: Record<string, string> = {
+  open: "Open",
+  waiting: "Waiting",
+  auto: "auto",
+  group: "group",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -422,10 +418,20 @@ export default function Atendimentos() {
     }
   }, [urlCustomerId, items.length]);
 
+  const selectedTagSlug = (tags as Tag[]).find(t => t.id === selectedTagId)?.slug;
+
   const filteredItems = items.filter(item => {
     if (!selectedTagId) return true;
-    const statusFilter = TAG_STATUS_MAP[selectedTagId];
-    if (!statusFilter) return true; // custom tag — server already filtered
+    const statusFilter = selectedTagSlug ? TAG_STATUS_MAP[selectedTagSlug] : undefined;
+    if (!statusFilter) return true; // custom tag (sem slug) — server já filtrou
+    // "Em Aberto"/"Aguardando": tags.listUnified (server/routers.ts) já restringe a
+    // conversas com uma linha em conversationTagAssignments para esta tag antes de chegar
+    // aqui — e nada no projeto cria essa linha automaticamente a partir de conversations.status
+    // (nenhuma automação insere em conversationTagAssignments). Na prática, hoje, esses dois
+    // filtros só retornam algo se um atendente atribuiu a tag manualmente à conversa; a
+    // comparação abaixo por conversations.status é redundante enquanto isso não mudar.
+    // Decisão pendente com o time de CS: status deve espelhar conversations.status
+    // automaticamente, ou é marcação manual do atendente (dois produtos diferentes)?
     if (statusFilter === "group") return item.type === "group";
     return item.status === statusFilter;
   });

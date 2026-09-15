@@ -44,7 +44,7 @@ de confiar.
 
 ```bash
 pnpm install          # npm install QUEBRA — use pnpm
-pnpm dev              # NÃO funciona no Windows (ver "Rodando localmente")
+pnpm dev              # dev server (tsx watch server/_core/index.ts)
 pnpm dev:session      # gera JWT de Admin local
 pnpm check            # tsc --noEmit
 pnpm test             # vitest run
@@ -170,7 +170,6 @@ Depende do item 2 (precisa de URL pública). Especificação já recebida — ve
   automaticamente ou ser marcação manual do atendente? São produtos diferentes.
 - Filtro da tag "Automático" (`slug: auto`) retorna lista vazia. Bug
   pré-existente, não investigado.
-- `cross-env` para os scripts `dev` e `start` funcionarem no Windows
 - Chaves estrangeiras: as 55 tabelas não têm nenhuma. Decisão separada dos
   índices, com mais risco (cascade, registros órfãos).
 
@@ -351,11 +350,12 @@ Recriar o banco também é necessário para exercitar o seed (tags padrão etc.)
 ### 4. Servidor
 
 ```bash
-NODE_ENV=development npx tsx watch server/_core/index.ts
+pnpm dev
 ```
 
-`pnpm dev` **não funciona no Windows**: os scripts usam sintaxe Unix
-(`NODE_ENV=x comando`) e o pnpm executa via cmd.exe. Pendente: `cross-env`.
+Os scripts `dev` e `start` usam `cross-env` para setar `NODE_ENV` — resolve a
+incompatibilidade com o cmd.exe (que o pnpm usa para rodar scripts no Windows e
+não entende `NODE_ENV=x comando` na frente do binário).
 
 ### 5. Sessão local
 

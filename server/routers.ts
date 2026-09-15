@@ -4810,6 +4810,17 @@ const tagsRouter = router({
     }))
     .query(async ({ input }) => {
       const db = await getDb();
+
+      // Resolve o slug da tag selecionada (se houver) — nunca decidir por número de id aqui.
+      // "Grupos" (slug "group") é tratado à parte: não é uma atribuição em
+      // conversationTagAssignments, é um tipo de item (whatsappGroups) diferente de conversation.
+      let selectedTagSlug: string | null = null;
+      if (input.tagId) {
+        const [tag] = await db!.select({ slug: conversationTags.slug }).from(conversationTags).where(eq(conversationTags.id, input.tagId));
+        selectedTagSlug = tag?.slug ?? null;
+      }
+      const isGroupFilter = selectedTagSlug === "group";
+
       // Conversations
       const convs = await db!.select({
         id: conversations.id,
@@ -4829,12 +4840,20 @@ const tagsRouter = router({
         .leftJoin(customers, eq(conversations.customerId, customers.id))
         .where(and(
           input.search ? or(like(customers.name, `%${input.search}%`), like(customers.phone, `%${input.search}%`)) : undefined,
-          input.tagId && input.tagId !== 1 && input.tagId !== 5
+          // "Em Aberto"/"Aguardando" (slugs "open"/"waiting") caem aqui também: filtram por
+          // conversationTagAssignments, ou seja, exigem que um atendente tenha atribuído a tag
+          // manualmente à conversa via tags.assign. Nada no projeto insere nessa tabela a partir
+          // de conversations.status automaticamente — nenhuma automação/trigger o faz. Na prática,
+          // hoje, esses dois filtros só retornam algo depois de atribuição manual. Decisão
+          // pendente com o time de CS: status deve espelhar conversations.status automaticamente
+          // (mudaria esta cláusula para comparar conversations.status em vez de fazer o
+          // subselect), ou a marcação manual É o comportamento pretendido?
+          input.tagId && !isGroupFilter
             ? sql`${conversations.id} IN (SELECT conversationId FROM conversationTagAssignments WHERE tagId = ${input.tagId})`
             : undefined,
         ))
         .orderBy(desc(conversations.updatedAt))
-        .limit(input.tagId === 5 ? 0 : input.limit); // tag 5 = Grupos only
+        .limit(isGroupFilter ? 0 : input.limit); // "Grupos" não traz conversas
 
       // Groups
       const groups = await db!.select({
@@ -4854,7 +4873,7 @@ const tagsRouter = router({
         .from(whatsappGroups)
         .where(input.search ? like(whatsappGroups.groupName, `%${input.search}%`) : undefined)
         .orderBy(desc(whatsappGroups.updatedAt))
-        .limit(input.tagId === undefined || input.tagId === 1 || input.tagId === 5 ? 50 : 0);
+        .limit(input.tagId === undefined || isGroupFilter ? 50 : 0);
 
       const all = [...convs, ...groups].sort((a, b) =>
         new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime()

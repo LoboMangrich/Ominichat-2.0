@@ -1,7 +1,9 @@
 /**
  * seedDefaults.ts
  * Seed automático executado na inicialização do servidor.
- * Cria os 5 agentes especializados e 5 playbooks padrão se o banco estiver vazio.
+ * Cria os 5 agentes especializados, 5 playbooks padrão, 8 gatilhos padrão e as 4 tags
+ * de conversa padrão (Em Aberto, Aguardando, Automático, Grupos) se as respectivas
+ * tabelas estiverem vazias.
  *
  * Os 6 agentes de IA (Bia, Sofia, Luna, Sentinel, Max, Renata) nascem com
  * isActive: false — o atendimento migrou para a Sara, via API externa
@@ -10,7 +12,7 @@
  * e o atendimento via IA interna precisar voltar.
  */
 import { getDb } from "./db";
-import { aiAgents, playbooks, playbookSteps, triggerRules } from "../drizzle/schema";
+import { aiAgents, playbooks, playbookSteps, triggerRules, conversationTags } from "../drizzle/schema";
 import { count } from "drizzle-orm";
 
 // ─── Agentes Especializados ───────────────────────────────────────────────────
@@ -356,6 +358,19 @@ const DEFAULT_TRIGGERS = [
   },
 ];
 
+// ─── Tags Padrão ──────────────────────────────────────────────────────────────────────────────────────
+// Nomes e conjunto vêm de todo.md ("Painel esquerdo: barra de busca + lista de tags/filtros
+// (Todos, Em Aberto, Aguardando, Automático, Grupos)") — "Todos" não é uma tag real, é o estado
+// "nenhum filtro selecionado" no client (Atendimentos.tsx). O slug é o identificador estável que
+// client e server usam para reconhecer estas 4 tags, em vez do id autoincrement (ver
+// client/src/pages/Atendimentos.tsx e o router tags.listUnified em server/routers.ts).
+const DEFAULT_TAGS = [
+  { name: "Em Aberto", slug: "open", color: "#22c55e", icon: "circle-dot", sortOrder: 10 },
+  { name: "Aguardando", slug: "waiting", color: "#f59e0b", icon: "clock", sortOrder: 20 },
+  { name: "Automático", slug: "auto", color: "#6366f1", icon: "bot", sortOrder: 30 },
+  { name: "Grupos", slug: "group", color: "#0ea5e9", icon: "users", sortOrder: 40 },
+];
+
 // ─── Seed Function ───────────────────────────────────────────────────────────────────────────────────
 export async function seedDefaultsIfEmpty(): Promise<void> {
   try {
@@ -397,6 +412,20 @@ export async function seedDefaultsIfEmpty(): Promise<void> {
         }]);
       }
       console.log("[Seed] 8 trigger rules created: inatividade, health score, renovação, NPS negativo");
+    }
+
+    // Check if conversation tags already exist
+    const [tagCount] = await db.select({ count: count() }).from(conversationTags);
+    if ((tagCount?.count ?? 0) === 0) {
+      console.log("[Seed] No conversation tags found — creating 4 default tags...");
+      for (const tag of DEFAULT_TAGS) {
+        await db.insert(conversationTags).values({
+          ...tag,
+          isDefault: true,
+          isSystem: true,
+        });
+      }
+      console.log("[Seed] 4 conversation tags created: Em Aberto, Aguardando, Automático, Grupos");
     }
   } catch (err) {
     console.error("[Seed] Failed to seed defaults:", err);

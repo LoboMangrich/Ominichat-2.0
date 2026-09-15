@@ -988,6 +988,11 @@ export type InsertCustomerNote = typeof customerNotes.$inferInsert;
 export const conversationTags = mysqlTable("conversationTags", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 64 }).notNull(),
+  // Identificador estável e independente de autoincrement, usado pelo client/server para
+  // reconhecer as tags padrão do sistema (ver seedDefaults.ts) sem depender do id numérico —
+  // que varia conforme a ordem em que as tags são criadas. Nulo para tags customizadas
+  // (criadas pelo usuário via tags.create), preenchido só nas tags padrão do seed.
+  slug: varchar("slug", { length: 32 }).unique(),
   color: varchar("color", { length: 32 }).default("#6366f1").notNull(),
   icon: varchar("icon", { length: 32 }).default("tag").notNull(),
   isDefault: boolean("isDefault").default(false).notNull(),

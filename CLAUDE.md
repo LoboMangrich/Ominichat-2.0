@@ -109,10 +109,11 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 - Credenciais de canal ficam em `channelSettings` no banco, configuradas pela
   interface — **não** em variável de ambiente.
 - Exceção: segredos de verificação criptográfica (`META_APP_SECRET`,
-  `TELEGRAM_WEBHOOK_SECRET`, `SUPPORT_OUTBOUND_WEBHOOK_SECRET`) ficam em
-  variável de ambiente. Sem multi-tenancy existe um único valor por deploy, que
-  nunca varia por registro; são usados só para validar assinatura, nunca
-  editados pela interface; e ficam fora de backups e dumps.
+  `TELEGRAM_WEBHOOK_SECRET`, `SUPPORT_OUTBOUND_WEBHOOK_SECRET`,
+  `EMAIL_TICKET_SECRET`) ficam em variável de ambiente. Sem multi-tenancy
+  existe um único valor por deploy, que nunca varia por registro; são usados
+  só para validar assinatura, nunca editados pela interface; e ficam fora de
+  backups e dumps.
 
 ## Backlog — em ordem
 
@@ -162,6 +163,8 @@ Depende do item 2 (precisa de URL pública). Especificação já recebida — ve
 - `webhooks.ts:122,329,470` — gravam `email`/`contactEmail` direto do payload de
   webhook sem schema nenhum. Se vier `""`, grava `""` em vez de `null`. É
   superfície de ingestão externa, não formulário: decidir o schema antes.
+  (A autenticação de `/api/webhooks/email-ticket`, linha 122, já foi corrigida —
+  ver "Segurança"; falta ainda a validação Zod do payload em si.)
 - Issue #22 — validação frágil em `customers.list`/`campaigns`/`broadcasts`
 - Issue #23 — tipo fraco em `statusConfig`
 - Tags "Em Aberto"/"Aguardando" filtram por `conversationTagAssignments`, e nada
@@ -307,6 +310,17 @@ ninguém perceber. Para isso, o Cashmiles precisa vigiar a fila ativamente
 - `isActive` é verificado em `authenticateRequest` (`sdk.ts`), ponto único por
   onde todo o tRPC passa. Não duplicar a checagem; não criar caminho que a
   contorne.
+- `/api/webhooks/email-ticket` ficou sem guard nenhum até ser corrigido — a
+  Story 1.1 (validação de assinatura) cobriu WhatsApp/Instagram/Telegram e
+  deixou esse endpoint fora do escopo sem justificativa registrada. Hoje exige
+  `EMAIL_TICKET_SECRET` (`routeGuards.ts` → `requireEmailTicketSecret`),
+  aceito por duas vias — qualquer uma que bata libera:
+  - Header `x-email-ticket-secret` — **preferencial**, mesmo padrão de
+    `x-cron-secret` (`timingSafeEqual`).
+  - Token no path, `/api/webhooks/email-ticket/{token}` — só para
+    encaminhadores que não suportam header customizado. Evite quando possível:
+    URL vaza em log de acesso/proxy/APM com mais facilidade que header.
+  Fail-closed: sem `EMAIL_TICKET_SECRET` configurado, a rota nega sempre.
 
 ## Rodando localmente (Windows)
 

@@ -32,7 +32,7 @@ export async function requireSession(req: AuthedRequest, res: Response, next: Ne
   }
 }
 
-function safeCompare(a: string, b: string): boolean {
+export function safeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   // timingSafeEqual lança se os tamanhos diferem — compare o tamanho antes.
@@ -76,5 +76,46 @@ export async function requireCronAuth(req: AuthedRequest, res: Response, next: N
       "[Cron] CRON_SECRET não configurado. As tarefas agendadas vão falhar até que a variável seja definida e o scheduler envie o header x-cron-secret."
     );
   }
+  res.status(401).json({ error: "Não autorizado" });
+}
+
+/**
+ * Exige o segredo do encaminhador de e-mail em /api/webhooks/email-ticket, aceito
+ * por duas vias — qualquer uma que bata libera:
+ *   1. Header x-email-ticket-secret (preferencial — mesmo padrão de x-cron-secret)
+ *   2. Token no path, /api/webhooks/email-ticket/:token — só para encaminhadores
+ *      que não suportam header customizado. URLs vazam em log de acesso/proxy/APM
+ *      com mais facilidade que headers, por isso não é a via preferencial.
+ *
+ * Fail-closed: sem EMAIL_TICKET_SECRET configurado, a rota nega sempre — nunca abre.
+ *
+ * Achado de segurança: a Story 1.1 (webhook-signature-validation) cobriu WhatsApp,
+ * Instagram e Telegram e deixou /api/webhooks/email-ticket explicitamente fora do
+ * escopo, sem justificativa registrada — o endpoint ficou sem nenhum guard,
+ * aceitando POST anônimo que cria cliente e conversa. Corrigido aqui.
+ */
+export async function requireEmailTicketSecret(req: Request, res: Response, next: NextFunction) {
+  const expected = ENV.emailTicketSecret;
+
+  if (!expected) {
+    console.error(
+      "[EmailTicket] EMAIL_TICKET_SECRET não configurado — recusando webhook de e-mail (fail-closed)."
+    );
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const headerSecret = req.headers["x-email-ticket-secret"];
+  if (typeof headerSecret === "string" && safeCompare(headerSecret, expected)) {
+    next();
+    return;
+  }
+
+  const pathToken = req.params.token;
+  if (typeof pathToken === "string" && safeCompare(pathToken, expected)) {
+    next();
+    return;
+  }
+
   res.status(401).json({ error: "Não autorizado" });
 }

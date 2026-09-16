@@ -63,6 +63,7 @@
     "emoji-picker-react": "^4.18.0",
     "express": "^4.21.2",
     "framer-motion": "^12.23.22",
+    "google-auth-library": "^11.1.0",
     "imapflow": "^1.0.164",
     "input-otp": "^1.4.2",
     "jose": "6.1.0",

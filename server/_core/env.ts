@@ -21,7 +21,23 @@ export const ENV = {
   // humano. Não confundir com o usuário/senha que só protegem o Swagger dela.
   saraSupportApiUrl: process.env.SARA_SUPPORT_API_URL ?? "",
   saraSupportApiKey: process.env.SARA_SUPPORT_API_KEY ?? "",
+  // Login com Google Workspace (substitui o OAuth do Manus — ver backlog
+  // item 1 no CLAUDE.md). Client ID/Secret e redirect URI do OAuth Client
+  // configurado no Google Cloud Console.
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
+  // E-mails que viram Admin automaticamente no primeiro login (bootstrap).
+  // Lista separada por vírgula em OWNER_EMAILS, normalizada para minúsculas.
+  ownerEmails: parseOwnerEmails(process.env.OWNER_EMAILS ?? ""),
 };
+
+function parseOwnerEmails(raw: string): string[] {
+  return raw
+    .split(",")
+    .map(email => email.trim().toLowerCase())
+    .filter(email => email.length > 0);
+}
 
 const MIN_JWT_SECRET_LENGTH = 32;
 
@@ -48,6 +64,11 @@ function isPlaceholderSecret(value: string): boolean {
   return PLACEHOLDER_SECRET_SUBSTRINGS.some(pattern => normalized.includes(pattern));
 }
 
+// Regex simples, só para pegar erro grosseiro de digitação em OWNER_EMAILS
+// (ex.: esqueceu o "@", colou um domínio sem usuário). Não precisa validar
+// RFC 5322 completo — o Google já garante que o e-mail autenticado é real.
+const SIMPLE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /**
  * Falha rápido na inicialização do servidor se variáveis de ambiente
  * obrigatórias estiverem ausentes ou inseguras. Não chamar no topo do módulo
@@ -73,6 +94,31 @@ export function assertRequiredEnv(): void {
   if (isPlaceholderSecret(ENV.cookieSecret)) {
     throw new Error(
       "JWT_SECRET parece um valor placeholder/inseguro (ex.: contém \"changeme\" ou \"secret\"). Gere um valor aleatório, ex.: openssl rand -base64 32."
+    );
+  }
+
+  // Login com Google Workspace ainda é opcional (convive com o OAuth do
+  // Manus). Mas se alguém começou a configurar, exigimos as três variáveis
+  // juntas — meia-configuração falha em runtime de um jeito confuso.
+  const googleVars = {
+    GOOGLE_CLIENT_ID: ENV.googleClientId,
+    GOOGLE_CLIENT_SECRET: ENV.googleClientSecret,
+    GOOGLE_REDIRECT_URI: ENV.googleRedirectUri,
+  };
+  const googleVarsPresent = Object.entries(googleVars).filter(([, value]) => value.length > 0);
+  if (googleVarsPresent.length > 0 && googleVarsPresent.length < Object.keys(googleVars).length) {
+    const missingGoogleVars = Object.entries(googleVars)
+      .filter(([, value]) => value.length === 0)
+      .map(([name]) => name);
+    throw new Error(
+      `Login com Google Workspace parcialmente configurado. Faltam: ${missingGoogleVars.join(", ")}. Configure as três variáveis (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI) ou nenhuma.`
+    );
+  }
+
+  const invalidOwnerEmails = ENV.ownerEmails.filter(email => !SIMPLE_EMAIL_PATTERN.test(email));
+  if (invalidOwnerEmails.length > 0) {
+    throw new Error(
+      `OWNER_EMAILS contém valor que não parece e-mail: ${invalidOwnerEmails.join(", ")}. Use uma lista separada por vírgula, ex.: admin@empresa.com,outro@empresa.com.`
     );
   }
 }

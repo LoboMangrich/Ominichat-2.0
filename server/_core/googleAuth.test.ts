@@ -172,7 +172,7 @@ describe("Google OAuth callback — estado de acesso do primeiro login", () => {
     expect(state.redirectedTo).toBe("/");
   });
 
-  it("usuário existente não tem isActive/approvedAt/approvedBy alterados no login", async () => {
+  it("usuário existente desativado (approvedAt preenchido) não tem estado alterado e cai em /acesso-pendente?status=desativado", async () => {
     const app = buildApp();
     const { stateCookie, stateValue } = await startLoginAndGetCookie(app.routes);
 
@@ -214,6 +214,46 @@ describe("Google OAuth callback — estado de acesso do primeiro login", () => {
     // isActive: false persistido antes é respeitado — sem sessão, redirect de desativado.
     expect(res.cookie).not.toHaveBeenCalled();
     expect(state.redirectedTo).toBe("/acesso-pendente?status=desativado");
+  });
+
+  it("usuário existente ainda pendente (approvedAt null) continua pendente, não vira desativado — regressão", async () => {
+    const app = buildApp();
+    const { stateCookie, stateValue } = await startLoginAndGetCookie(app.routes);
+
+    // Já existe no banco (criado na primeira tentativa de login), mas nunca
+    // foi aprovado — approvedAt null. Segunda tentativa de login não pode
+    // classificar isso como "desativado" só porque existingUser é truthy.
+    const existingPendingUser: User = {
+      id: 8,
+      openId: "google-sub-pendente",
+      name: "Ainda Pendente",
+      email: "pendente@empresa.com",
+      loginMethod: "google",
+      role: "Agent",
+      avatarUrl: null,
+      isActive: false,
+      approvedAt: null,
+      approvedBy: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    };
+    vi.mocked(db.getUserByOpenId).mockResolvedValue(existingPendingUser);
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: "google-sub-pendente", email: "pendente@empresa.com", name: "Ainda Pendente" }),
+    });
+
+    const { res, state } = fakeRes();
+    const req: any = {
+      protocol: "https",
+      query: { code: "auth-code-999", state: stateValue },
+      headers: { cookie: `google_oauth_state=${stateCookie}` },
+    };
+
+    await app.routes["/api/auth/google/callback"](req, res);
+
+    expect(res.cookie).not.toHaveBeenCalled();
+    expect(state.redirectedTo).toBe("/acesso-pendente?status=pendente");
   });
 
   it("state ausente ou adulterado é rejeitado com 400, sem chamar o Google", async () => {

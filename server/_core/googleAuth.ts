@@ -225,12 +225,18 @@ export function registerGoogleAuthRoutes(app: Express) {
       });
       await db.upsertUser(upsertInput);
 
-      // Usuário existente: isActive já persistido antes, não mexido pelo
-      // upsert acima. Usuário novo: o valor que acabamos de decidir e gravar.
+      // Usuário existente: isActive/approvedAt já persistidos antes, não
+      // mexidos pelo upsert acima. Usuário novo: os valores que acabamos de
+      // decidir e gravar.
       const isActive = existingUser ? existingUser.isActive : Boolean(upsertInput.isActive);
+      const approvedAt = existingUser ? existingUser.approvedAt : (upsertInput.approvedAt ?? null);
 
       if (!isActive) {
-        const status = existingUser ? "desativado" : "pendente";
+        // Mesma regra dos três estados da tela de Usuários (approvedAt null
+        // = nunca aprovado = pendente, não desativado) — independente de já
+        // existir no banco: um usuário pendente pode tentar logar mais de
+        // uma vez antes de ser aprovado.
+        const status = approvedAt ? "desativado" : "pendente";
         res.redirect(302, `${ACCESS_PENDING_PATH}?status=${status}`);
         return;
       }

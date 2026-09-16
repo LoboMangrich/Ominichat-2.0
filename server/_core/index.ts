@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerGoogleAuthRoutes } from "./googleAuth";
 import { registerStorageProxy } from "./storageProxy";
 import { registerWebhooks } from "../webhooks";
 import { seedDefaultsIfEmpty } from "../seedDefaults";
@@ -47,6 +48,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true, verify: captureRawBody }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerGoogleAuthRoutes(app);
   registerWebhooks(app);
   // tRPC API
   app.use(

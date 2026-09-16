@@ -152,6 +152,10 @@ menos sentido com SSO, onde relogar é um clique.
 Depende do item 1. Subdomínio com HTTPS, solicitado ao time de TI. Necessário
 para o redirect URI de produção do Google e para receber os webhooks da Sara.
 
+Ao cadastrar o redirect URI de produção no Google Cloud Console, gerar um
+Client Secret novo no mesmo passo. O atual foi transmitido por canal não
+seguro durante o desenvolvimento e não deve ir para produção.
+
 ### 3. Receptor do webhook da Sara
 
 Depende do item 2 (precisa de URL pública). Especificação já recebida — ver

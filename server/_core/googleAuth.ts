@@ -79,19 +79,35 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-type NewUserAccess = Pick<InsertUser, "isActive" | "approvedAt" | "approvedBy"> &
+type PendingUserAccess = Pick<InsertUser, "isActive" | "approvedAt" | "approvedBy"> &
   Partial<Pick<InsertUser, "role">>;
 
 /**
- * Decide o estado de acesso de um usuário NUNCA visto antes (openId novo).
- *
- * OWNER_EMAILS é bootstrap de primeiro login, não controle de acesso
- * contínuo — ver comentário completo em env.ts (ownerEmails). Esta função só
- * é chamada uma vez, no momento da criação; remover o e-mail da variável
- * depois não desfaz o que já foi persistido aqui (nem o isActive, nem o
- * papel de Admin concedido abaixo).
+ * true quando o usuário nunca foi aprovado: ou ainda não existe (login
+ * novo), ou já existe mas segue com approvedAt null (pendente, mesmo já
+ * tendo tentado logar antes). Usuário ativo ou desativado por um Admin
+ * (approvedAt preenchido) nunca é "pendente" — nunca reavaliado aqui.
  */
-export function resolveNewUserAccess(email: string | null): NewUserAccess {
+function isPendingUser(user: User | undefined): boolean {
+  if (!user) return true;
+  return !user.isActive && user.approvedAt === null;
+}
+
+/**
+ * Decide o estado de acesso de um usuário PENDENTE (novo ou já existente
+ * sem aprovação) a cada login.
+ *
+ * OWNER_EMAILS é bootstrap, não controle de acesso contínuo — ver comentário
+ * completo em env.ts (ownerEmails). Mas como é reavaliado em todo login
+ * enquanto o usuário seguir pendente (não só no INSERT), um e-mail
+ * adicionado a OWNER_EMAILS depois do primeiro login também promove a Admin
+ * na próxima tentativa — evita o lockout de "e-mail do primeiro Admin ainda
+ * não configurado quando ele logou pela primeira vez, e agora ninguém pode
+ * aprová-lo". Um usuário já ativo ou já desativado por um Admin nunca passa
+ * por aqui de novo (ver isPendingUser) — remover o e-mail da lista depois
+ * não desfaz o que já foi persistido para eles.
+ */
+export function resolveNewUserAccess(email: string | null): PendingUserAccess {
   const isOwnerBootstrap = email !== null && ENV.ownerEmails.includes(email.toLowerCase());
 
   if (isOwnerBootstrap) {
@@ -102,9 +118,10 @@ export function resolveNewUserAccess(email: string | null): NewUserAccess {
 }
 
 /**
- * Monta o payload de db.upsertUser para o login Google. Usuário existente:
- * isActive/approvedAt/approvedBy ficam de fora do payload de propósito — só
- * um Admin (usersRouter.toggleActive) decide isso depois do primeiro login.
+ * Monta o payload de db.upsertUser para o login Google. isActive/approvedAt/
+ * approvedBy/role só entram no payload enquanto o usuário estiver pendente
+ * (ver isPendingUser) — uma vez aprovado ou desativado por um Admin, login
+ * nunca mais toca nesses campos sozinho.
  */
 export function buildUserUpsertInput(params: {
   sub: string;
@@ -120,7 +137,7 @@ export function buildUserUpsertInput(params: {
     lastSignedIn: new Date(),
   };
 
-  if (params.existingUser) {
+  if (!isPendingUser(params.existingUser)) {
     return base;
   }
 
@@ -225,11 +242,17 @@ export function registerGoogleAuthRoutes(app: Express) {
       });
       await db.upsertUser(upsertInput);
 
-      // Usuário existente: isActive/approvedAt já persistidos antes, não
-      // mexidos pelo upsert acima. Usuário novo: os valores que acabamos de
-      // decidir e gravar.
-      const isActive = existingUser ? existingUser.isActive : Boolean(upsertInput.isActive);
-      const approvedAt = existingUser ? existingUser.approvedAt : (upsertInput.approvedAt ?? null);
+      // upsertInput só inclui isActive/approvedAt quando o usuário estava
+      // pendente (isPendingUser) — inclusive quando isso promoveu um
+      // existingUser pendente a Admin agora mesmo. Nesse caso o valor
+      // recém-decidido é o estado real após o upsert, não o de
+      // existingUser (que é a foto de ANTES do upsert rodar). Só cai no
+      // fallback de existingUser quando o payload não tocou nesses campos
+      // (usuário já ativo ou já desativado por um Admin).
+      const isActive =
+        upsertInput.isActive !== undefined ? Boolean(upsertInput.isActive) : Boolean(existingUser?.isActive);
+      const approvedAt =
+        upsertInput.approvedAt !== undefined ? upsertInput.approvedAt : (existingUser?.approvedAt ?? null);
 
       if (!isActive) {
         // Mesma regra dos três estados da tela de Usuários (approvedAt null

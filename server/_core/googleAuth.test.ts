@@ -256,6 +256,99 @@ describe("Google OAuth callback — estado de acesso do primeiro login", () => {
     expect(state.redirectedTo).toBe("/acesso-pendente?status=pendente");
   });
 
+  it("usuário existente pendente é promovido a Admin se o e-mail entrou em OWNER_EMAILS depois do primeiro login", async () => {
+    const app = buildApp();
+    const { stateCookie, stateValue } = await startLoginAndGetCookie(app.routes);
+
+    const existingPendingUser: User = {
+      id: 9,
+      openId: "google-sub-futuro-admin",
+      name: "Futuro Admin",
+      email: "owner@empresa.com",
+      loginMethod: "google",
+      role: "Agent",
+      avatarUrl: null,
+      isActive: false,
+      approvedAt: null,
+      approvedBy: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    };
+    vi.mocked(db.getUserByOpenId).mockResolvedValue(existingPendingUser);
+    // owner@empresa.com só foi adicionado a OWNER_EMAILS agora, depois do
+    // primeiro login (que já tinha criado o usuário como pendente).
+    ENV.ownerEmails = ["owner@empresa.com"];
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: "google-sub-futuro-admin", email: "owner@empresa.com", name: "Futuro Admin" }),
+    });
+
+    const { res, state } = fakeRes();
+    const req: any = {
+      protocol: "https",
+      query: { code: "auth-code-owner-2", state: stateValue },
+      headers: { cookie: `google_oauth_state=${stateCookie}` },
+    };
+
+    await app.routes["/api/auth/google/callback"](req, res);
+
+    expect(db.upsertUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openId: "google-sub-futuro-admin",
+        isActive: true,
+        approvedAt: expect.any(Date),
+        approvedBy: null,
+        role: "Admin",
+      })
+    );
+    expect(res.cookie).toHaveBeenCalledWith("app_session_id", expect.any(String), expect.any(Object));
+    expect(state.redirectedTo).toBe("/");
+  });
+
+  it("usuário existente desativado por um Admin NÃO é promovido mesmo com e-mail em OWNER_EMAILS", async () => {
+    const app = buildApp();
+    const { stateCookie, stateValue } = await startLoginAndGetCookie(app.routes);
+
+    const existingDisabledUser: User = {
+      id: 10,
+      openId: "google-sub-desativado-owner",
+      name: "Desativado",
+      email: "owner@empresa.com",
+      loginMethod: "google",
+      role: "Agent",
+      avatarUrl: null,
+      isActive: false,
+      approvedAt: new Date("2026-01-05"), // já foi aprovado antes — decisão de Admin de desativar depois é a última palavra
+      approvedBy: 2,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    };
+    vi.mocked(db.getUserByOpenId).mockResolvedValue(existingDisabledUser);
+    ENV.ownerEmails = ["owner@empresa.com"];
+    mockVerifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: "google-sub-desativado-owner", email: "owner@empresa.com", name: "Desativado" }),
+    });
+
+    const { res, state } = fakeRes();
+    const req: any = {
+      protocol: "https",
+      query: { code: "auth-code-owner-3", state: stateValue },
+      headers: { cookie: `google_oauth_state=${stateCookie}` },
+    };
+
+    await app.routes["/api/auth/google/callback"](req, res);
+
+    const upsertArg = vi.mocked(db.upsertUser).mock.calls[0][0];
+    expect(upsertArg).not.toHaveProperty("isActive");
+    expect(upsertArg).not.toHaveProperty("approvedAt");
+    expect(upsertArg).not.toHaveProperty("approvedBy");
+    expect(upsertArg).not.toHaveProperty("role");
+
+    expect(res.cookie).not.toHaveBeenCalled();
+    expect(state.redirectedTo).toBe("/acesso-pendente?status=desativado");
+  });
+
   it("state ausente ou adulterado é rejeitado com 400, sem chamar o Google", async () => {
     const app = buildApp();
     const { stateCookie } = await startLoginAndGetCookie(app.routes);

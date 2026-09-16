@@ -28,15 +28,18 @@ export const ENV = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
-  // E-mails que viram Admin automaticamente no primeiro login (bootstrap).
-  // Lista separada por vírgula em OWNER_EMAILS, normalizada para minúsculas.
+  // E-mails que viram Admin automaticamente no login (bootstrap). Lista
+  // separada por vírgula em OWNER_EMAILS, normalizada para minúsculas.
   //
-  // IMPORTANTE: isto é bootstrap de primeiro login, não controle de acesso
-  // contínuo. É consultado uma única vez, no INSERT do usuário novo
-  // (server/_core/googleAuth.ts). Remover um e-mail daqui depois NÃO revoga
-  // o acesso nem o papel de Admin de quem já foi criado por essa lista — o
-  // estado do usuário já foi persistido no banco (isActive, role) e passa a
-  // ser gerenciado exclusivamente pela tela de Usuários (usersRouter).
+  // IMPORTANTE: isto é bootstrap de acesso pendente, não controle de acesso
+  // contínuo. É reconsultado em todo login ENQUANTO o usuário seguir
+  // pendente (isPendingUser em server/_core/googleAuth.ts) — de propósito,
+  // pra não travar o primeiro Admin se ele logar antes de a variável estar
+  // configurada. Assim que o usuário é aprovado ou desativado por um Admin
+  // (approvedAt preenchido), esta lista some do caminho: remover um e-mail
+  // dela depois NÃO revoga o acesso nem o papel de Admin de quem já foi
+  // aprovado por ela — o estado passa a ser gerenciado exclusivamente pela
+  // tela de Usuários (usersRouter).
   ownerEmails: parseOwnerEmails(process.env.OWNER_EMAILS ?? ""),
 };
 

@@ -10,6 +10,7 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
 import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import { SignJWT, jwtVerify } from "jose";
+import type { InsertUser, User } from "../../drizzle/schema";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
@@ -18,6 +19,7 @@ import { sdk } from "./sdk";
 
 export const GOOGLE_OAUTH_STATE_COOKIE = "google_oauth_state";
 export const GOOGLE_OAUTH_STATE_COOKIE_PATH = "/api/auth/google";
+export const ACCESS_PENDING_PATH = "/acesso-pendente";
 const GOOGLE_OAUTH_STATE_TYP = "google_oauth_state";
 const STATE_COOKIE_TTL_MS = 10 * 60 * 1000;
 
@@ -75,6 +77,54 @@ async function verifyStateCookie(
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
   return typeof value === "string" ? value : undefined;
+}
+
+type NewUserAccess = Pick<InsertUser, "isActive" | "approvedAt" | "approvedBy"> &
+  Partial<Pick<InsertUser, "role">>;
+
+/**
+ * Decide o estado de acesso de um usuário NUNCA visto antes (openId novo).
+ *
+ * OWNER_EMAILS é bootstrap de primeiro login, não controle de acesso
+ * contínuo — ver comentário completo em env.ts (ownerEmails). Esta função só
+ * é chamada uma vez, no momento da criação; remover o e-mail da variável
+ * depois não desfaz o que já foi persistido aqui (nem o isActive, nem o
+ * papel de Admin concedido abaixo).
+ */
+export function resolveNewUserAccess(email: string | null): NewUserAccess {
+  const isOwnerBootstrap = email !== null && ENV.ownerEmails.includes(email.toLowerCase());
+
+  if (isOwnerBootstrap) {
+    return { isActive: true, approvedAt: new Date(), approvedBy: null, role: "Admin" };
+  }
+
+  return { isActive: false, approvedAt: null, approvedBy: null };
+}
+
+/**
+ * Monta o payload de db.upsertUser para o login Google. Usuário existente:
+ * isActive/approvedAt/approvedBy ficam de fora do payload de propósito — só
+ * um Admin (usersRouter.toggleActive) decide isso depois do primeiro login.
+ */
+export function buildUserUpsertInput(params: {
+  sub: string;
+  name: string | null;
+  email: string | null;
+  existingUser: User | undefined;
+}): InsertUser {
+  const base: InsertUser = {
+    openId: params.sub,
+    name: params.name,
+    email: params.email,
+    loginMethod: "google",
+    lastSignedIn: new Date(),
+  };
+
+  if (params.existingUser) {
+    return base;
+  }
+
+  return { ...base, ...resolveNewUserAccess(params.email) };
 }
 
 export function registerGoogleAuthRoutes(app: Express) {
@@ -166,17 +216,24 @@ export function registerGoogleAuthRoutes(app: Express) {
       const googleEmail = idTokenPayload.email ?? null;
       const googleName = idTokenPayload.name ?? null;
 
-      // TODO(login Google — Fatia 4): usuário novo deve entrar pendente
-      // (isActive: false), sem sessão, até aprovação de um Admin. Ainda não
-      // implementado — todo login novo entra ativo, mesmo comportamento do
-      // fluxo do Manus hoje.
-      await db.upsertUser({
-        openId: googleSub,
+      const existingUser = await db.getUserByOpenId(googleSub);
+      const upsertInput = buildUserUpsertInput({
+        sub: googleSub,
         name: googleName,
         email: googleEmail,
-        loginMethod: "google",
-        lastSignedIn: new Date(),
+        existingUser,
       });
+      await db.upsertUser(upsertInput);
+
+      // Usuário existente: isActive já persistido antes, não mexido pelo
+      // upsert acima. Usuário novo: o valor que acabamos de decidir e gravar.
+      const isActive = existingUser ? existingUser.isActive : Boolean(upsertInput.isActive);
+
+      if (!isActive) {
+        const status = existingUser ? "desativado" : "pendente";
+        res.redirect(302, `${ACCESS_PENDING_PATH}?status=${status}`);
+        return;
+      }
 
       const sessionToken = await sdk.createSessionToken(googleSub, {
         name: googleName || "",

@@ -21,6 +21,14 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["Admin", "Manager", "Agent"]).default("Agent").notNull(),
   avatarUrl: text("avatarUrl"),
   isActive: boolean("isActive").default(true).notNull(),
+  // null = nunca aprovado (pendente, se isActive: false) ou usuário criado
+  // antes desta coluna existir (isActive: true, sem histórico de aprovação).
+  approvedAt: timestamp("approvedAt"),
+  // Admin (users.id) que aprovou o primeiro acesso. null quando aprovado via
+  // bootstrap automático de OWNER_EMAILS (sem aprovador humano) ou quando
+  // approvedAt também é null. Sem FK — mesmo padrão de createdBy/updatedBy
+  // já usado neste schema.
+  approvedBy: int("approvedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

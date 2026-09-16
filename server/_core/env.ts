@@ -29,6 +29,13 @@ export const ENV = {
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
   // E-mails que viram Admin automaticamente no primeiro login (bootstrap).
   // Lista separada por vírgula em OWNER_EMAILS, normalizada para minúsculas.
+  //
+  // IMPORTANTE: isto é bootstrap de primeiro login, não controle de acesso
+  // contínuo. É consultado uma única vez, no INSERT do usuário novo
+  // (server/_core/googleAuth.ts). Remover um e-mail daqui depois NÃO revoga
+  // o acesso nem o papel de Admin de quem já foi criado por essa lista — o
+  // estado do usuário já foi persistido no banco (isActive, role) e passa a
+  // ser gerenciado exclusivamente pela tela de Usuários (usersRouter).
   ownerEmails: parseOwnerEmails(process.env.OWNER_EMAILS ?? ""),
 };
 

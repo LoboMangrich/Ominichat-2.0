@@ -19,6 +19,32 @@ const ROLE_COLORS: Record<string, string> = {
   Agent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
 };
 
+const PENDING_BADGE_COLOR = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+const DISABLED_BADGE_COLOR = "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400";
+
+type UserRow = {
+  id: number;
+  name: string | null;
+  email: string | null;
+  role: "Admin" | "Manager" | "Agent";
+  isActive: boolean;
+  approvedAt: Date | string | null;
+  approvedBy: number | null;
+  createdAt: Date | string;
+  lastSignedIn: Date | string;
+};
+
+// Deriva o estado a partir de isActive + approvedAt (sem coluna própria) —
+// ver CLAUDE.md > Backlog > 1 para a decisão completa.
+function getUserStatus(u: UserRow): "pending" | "active" | "disabled" {
+  if (u.isActive) return "active";
+  return u.approvedAt ? "disabled" : "pending";
+}
+
+function formatDate(value: Date | string): string {
+  return new Date(value).toLocaleDateString("pt-BR");
+}
+
 export default function UserManagement() {
   const { user } = useAuth();
   const platformUrl = getPublicBaseUrl();
@@ -31,6 +57,14 @@ export default function UserManagement() {
     onSuccess: () => { toast.success("Função atualizada!"); refetch(); setOpen(false); },
     onError: (e) => toast.error(e.message),
   });
+  const toggleActiveMutation = trpc.users.toggleActive.useMutation({
+    onSuccess: () => { refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // approvedBy referencia users.id — resolvido aqui mesmo, sem precisar de
+  // join no backend (a lista já traz todo mundo).
+  const usersById = new Map((users ?? []).map(u => [u.id, u]));
 
   if (user?.role === "Agent") {
     return (
@@ -100,63 +134,113 @@ export default function UserManagement() {
             </div>
           ) : (
             <div className="divide-y">
-              {users.map(u => (
-                <div key={u.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold text-primary">{u.name?.charAt(0) ?? "?"}</span>
+              {users.map(u => {
+                const status = getUserStatus(u);
+                const approver = u.approvedBy ? usersById.get(u.approvedBy) : undefined;
+                const canManage = user?.role === "Admin" && u.id !== user.id;
+
+                return (
+                  <div key={u.id} className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-primary">{u.name?.charAt(0) ?? "?"}</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{u.name ?? "Sem nome"}</p>
+                        <p className="text-xs text-muted-foreground">{u.email ?? "Sem e-mail"}</p>
+                        {status === "disabled" && u.approvedAt && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Aprovado {approver ? `por ${approver.name ?? approver.email ?? "—"} ` : ""}
+                            em {formatDate(u.approvedAt)}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-sm">{u.name ?? "Sem nome"}</p>
-                      <p className="text-xs text-muted-foreground">{u.email ?? "Sem e-mail"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge className={ROLE_COLORS[u.role] ?? ""}>{u.role}</Badge>
-                    {user?.role === "Admin" && u.id !== user.id && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => { setEditId(u.id); setEditRole(u.role); }}
-                          >
-                            Alterar Função
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Alterar Função de {u.name}</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4 pt-2">
-                            <div className="space-y-1.5">
-                              <Label>Nova Função</Label>
-                              <Select value={editRole} onValueChange={setEditRole}>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Admin">Administrador</SelectItem>
-                                  <SelectItem value="Manager">Gerente</SelectItem>
-                                  <SelectItem value="Agent">Atendente</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+                    <div className="flex items-center gap-3">
+                      {status === "pending" && <Badge className={PENDING_BADGE_COLOR}>Pendente de aprovação</Badge>}
+                      {status === "disabled" && <Badge className={DISABLED_BADGE_COLOR}>Desativado</Badge>}
+                      {status === "active" && <Badge className={ROLE_COLORS[u.role] ?? ""}>{u.role}</Badge>}
+
+                      {canManage && status === "active" && (
+                        <Dialog>
+                          <DialogTrigger asChild>
                             <Button
-                              className="w-full"
-                              disabled={updateRoleMutation.isPending}
-                              onClick={() => editId && updateRoleMutation.mutate({ userId: editId, role: editRole as any })}
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => { setEditId(u.id); setEditRole(u.role); }}
                             >
-                              {updateRoleMutation.isPending ? "Salvando..." : "Salvar Função"}
+                              Alterar Função
                             </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Alterar Função de {u.name}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                              <div className="space-y-1.5">
+                                <Label>Nova Função</Label>
+                                <Select value={editRole} onValueChange={setEditRole}>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Admin">Administrador</SelectItem>
+                                    <SelectItem value="Manager">Gerente</SelectItem>
+                                    <SelectItem value="Agent">Atendente</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                className="w-full"
+                                disabled={updateRoleMutation.isPending}
+                                onClick={() => editId && updateRoleMutation.mutate({ userId: editId, role: editRole as any })}
+                              >
+                                {updateRoleMutation.isPending ? "Salvando..." : "Salvar Função"}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+
+                      {canManage && status === "pending" && (
+                        <Button
+                          size="sm"
+                          className="text-xs"
+                          disabled={toggleActiveMutation.isPending}
+                          onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: true })}
+                        >
+                          Aprovar acesso
+                        </Button>
+                      )}
+
+                      {canManage && status === "active" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          disabled={toggleActiveMutation.isPending}
+                          onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: false })}
+                        >
+                          Desativar
+                        </Button>
+                      )}
+
+                      {canManage && status === "disabled" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          disabled={toggleActiveMutation.isPending}
+                          onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: true })}
+                        >
+                          Reativar
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

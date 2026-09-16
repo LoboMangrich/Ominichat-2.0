@@ -64,6 +64,20 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.lastSignedIn = new Date();
     }
 
+    // isActive/approvedAt/approvedBy só valem para o INSERT (usuário novo).
+    // Propositalmente ausentes de updateSet: um login subsequente nunca deve
+    // reabrir ou fechar acesso sozinho — isso é decisão exclusiva de um
+    // Admin via usersRouter.toggleActive.
+    if (user.isActive !== undefined) {
+      values.isActive = user.isActive;
+    }
+    if (user.approvedAt !== undefined) {
+      values.approvedAt = user.approvedAt;
+    }
+    if (user.approvedBy !== undefined) {
+      values.approvedBy = user.approvedBy;
+    }
+
     if (Object.keys(updateSet).length === 0) {
       updateSet.lastSignedIn = new Date();
     }

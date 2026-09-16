@@ -32,7 +32,7 @@ export async function requireSession(req: AuthedRequest, res: Response, next: Ne
   }
 }
 
-function safeCompare(a: string, b: string): boolean {
+export function safeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   // timingSafeEqual lança se os tamanhos diferem — compare o tamanho antes.

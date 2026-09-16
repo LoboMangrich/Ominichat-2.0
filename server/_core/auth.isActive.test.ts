@@ -7,19 +7,6 @@ import { createContext } from "./context";
 import { ENV } from "./env";
 import { sdk } from "./sdk";
 
-// Sem isso, "usuário não encontrado no banco" tentaria re-sincronizar via
-// getUserInfoWithJwt, que faria uma chamada de rede real ao OAuth server do
-// Manus (ENV.oAuthServerUrl) — mockamos axios para forçar essa sincronização
-// a falhar de forma controlada e determinística, como aconteceria em produção
-// sem o Manus configurado.
-vi.mock("axios", () => ({
-  default: {
-    create: vi.fn(() => ({
-      post: vi.fn().mockRejectedValue(new Error("rede indisponível (mock)")),
-    })),
-  },
-}));
-
 vi.mock("../db", () => ({
   getDb: vi.fn().mockResolvedValue(null),
   getUserByOpenId: vi.fn(),

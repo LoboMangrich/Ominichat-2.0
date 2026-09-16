@@ -1,8 +1,9 @@
 export const ENV = {
-  appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
-  oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
+  // openId "clássico" que vira Admin automaticamente no primeiro login local
+  // (scripts/dev-session.ts, bootstrap sem depender do Google). Sem relação
+  // com OWNER_EMAILS, que é o bootstrap equivalente do login Google.
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   // Segredo compartilhado com o scheduler externo, enviado no header x-cron-secret
   // nas chamadas a /api/scheduled/*. Sem ele, essas rotas só aceitam sessão de Admin.
@@ -104,9 +105,11 @@ export function assertRequiredEnv(): void {
     );
   }
 
-  // Login com Google Workspace ainda é opcional (convive com o OAuth do
-  // Manus). Mas se alguém começou a configurar, exigimos as três variáveis
-  // juntas — meia-configuração falha em runtime de um jeito confuso.
+  // Login com Google Workspace: as três variáveis continuam opcionais aqui
+  // (o servidor sobe sem elas, só a rota /api/auth/google/start responde 503
+  // enquanto faltar configuração). Mas se alguém começou a configurar,
+  // exigimos as três juntas — meia-configuração falha em runtime de um jeito
+  // confuso.
   const googleVars = {
     GOOGLE_CLIENT_ID: ENV.googleClientId,
     GOOGLE_CLIENT_SECRET: ENV.googleClientSecret,

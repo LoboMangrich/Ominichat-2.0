@@ -31,7 +31,6 @@ type Tag = { id: number; name: string; slug: string | null; color: string | null
 export const TAG_STATUS_MAP: Record<string, string> = {
   open: "Open",
   waiting: "Waiting",
-  auto: "auto",
   group: "group",
 };
 

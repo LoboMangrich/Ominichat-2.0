@@ -362,12 +362,17 @@ const DEFAULT_TRIGGERS = [
 // Nomes e conjunto vêm de todo.md ("Painel esquerdo: barra de busca + lista de tags/filtros
 // (Todos, Em Aberto, Aguardando, Automático, Grupos)") — "Todos" não é uma tag real, é o estado
 // "nenhum filtro selecionado" no client (Atendimentos.tsx). O slug é o identificador estável que
-// client e server usam para reconhecer estas 4 tags, em vez do id autoincrement (ver
+// client e server usam para reconhecer estas tags, em vez do id autoincrement (ver
 // client/src/pages/Atendimentos.tsx e o router tags.listUnified em server/routers.ts).
+//
+// "Automático" (slug "auto") foi removida daqui: o filtro sempre retornava lista vazia (o client
+// comparava conversations.status === "auto", valor que o enum Open/Waiting/Closed nunca produz) e
+// não havia semântica definida para a tag em nenhuma story ou comentário — ver CLAUDE.md > Backlog
+// > Correções pendentes. Bancos que rodaram este seed antes dessa mudança mantêm a linha da tag no
+// banco; scripts/downgrade-auto-tag.mjs rebaixa esses registros de tag de sistema para tag comum.
 const DEFAULT_TAGS = [
   { name: "Em Aberto", slug: "open", color: "#22c55e", icon: "circle-dot", sortOrder: 10 },
   { name: "Aguardando", slug: "waiting", color: "#f59e0b", icon: "clock", sortOrder: 20 },
-  { name: "Automático", slug: "auto", color: "#6366f1", icon: "bot", sortOrder: 30 },
   { name: "Grupos", slug: "group", color: "#0ea5e9", icon: "users", sortOrder: 40 },
 ];
 
@@ -417,7 +422,7 @@ export async function seedDefaultsIfEmpty(): Promise<void> {
     // Check if conversation tags already exist
     const [tagCount] = await db.select({ count: count() }).from(conversationTags);
     if ((tagCount?.count ?? 0) === 0) {
-      console.log("[Seed] No conversation tags found — creating 4 default tags...");
+      console.log("[Seed] No conversation tags found — creating 3 default tags...");
       for (const tag of DEFAULT_TAGS) {
         await db.insert(conversationTags).values({
           ...tag,
@@ -425,7 +430,7 @@ export async function seedDefaultsIfEmpty(): Promise<void> {
           isSystem: true,
         });
       }
-      console.log("[Seed] 4 conversation tags created: Em Aberto, Aguardando, Automático, Grupos");
+      console.log("[Seed] 3 conversation tags created: Em Aberto, Aguardando, Grupos");
     }
   } catch (err) {
     console.error("[Seed] Failed to seed defaults:", err);

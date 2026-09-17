@@ -17,17 +17,15 @@ localmente de forma independente** — ver "Rodando localmente". O desvínculo d
 Manus está quase completo: branding, URLs, coletor de debug e módulos mortos
 foram removidos.
 
-O login já foi migrado para Google Workspace (backlog item 1) — `oauth.ts` e
-o `OAuthService` do Manus foram removidos. Falta aplicar a migration 0034
-(`pnpm db:push`, requer Docker/MySQL local rodando) e validar o fluxo contra
-um projeto real no Google Cloud Console antes de considerar pronto para
-produção — nenhuma conta Google Workspace real foi testada durante o
-desenvolvimento.
+O Manus não é mais usado para autenticação: o login com Google Workspace
+(PR #31) está mesclado na `main`. `oauth.ts`, `manusTypes.ts` e o
+`OAuthService` foram removidos.
 
 O que ainda depende do Manus:
 
-- `storage.ts`, `voiceTranscription.ts`, `map.ts`, `notification.ts` — usam a
-  Forge API. Não bloqueiam nada; falham apenas na feature específica.
+- Restam apenas `storage.ts`, `voiceTranscription.ts`, `map.ts` e
+  `notification.ts` usando a Forge API — e nenhum deles bloqueia deploy;
+  falham apenas na feature específica.
 
 Não há deploy em produção. Nenhuma URL pública recebe webhooks hoje.
 
@@ -123,51 +121,21 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 
 Trabalhe um item até o fim antes de abrir o próximo.
 
-### 1. Login com Google Workspace — feito, falta validar em ambiente real
+### 1. Domínio e deploy
 
-Substituiu o OAuth do Manus. Regra de acesso: **o Google prova a identidade, o
-Cashmiles decide quem entra.** Primeiro login cria usuário pendente
-(`isActive: false`), sem sessão, até um Admin aprovar pela tela de Usuários.
-Exceção de bootstrap: e-mails em `OWNER_EMAILS` entram como Admin ativo
-automaticamente (ver comentário em `server/_core/env.ts`).
-
-Entregue:
-
-- `google-auth-library` para `generateAuthUrl`/`getToken`/`verifyIdToken`
-- `/api/auth/google/start` (state aleatório + PKCE S256, cookie assinado
-  `httpOnly`/`secure`/`sameSite=lax`, TTL 10 min) e `/api/auth/google/callback`
-  (valida `state` com `timingSafeEqual`, troca `code`, valida `id_token`)
-- `users.approvedAt`/`approvedBy` (migration `0034_thin_gressill.sql`)
-  distinguem pendente de desativado; tela de Usuários com os três estados
-- `openId` agora recebe o `sub` do Google; `oauth.ts`, `manusTypes.ts` e
-  `OAuthService` foram removidos de `sdk.ts`
-- Cookie de sessão: `sameSite=lax` (era `none`); validade `SESSION_TTL_MS` de
-  30 dias (era `ONE_YEAR_MS`, 1 ano — não fazia sentido com SSO)
-- Testes: `server/_core/googleAuth.test.ts`, `server/routers.usersApproval.test.ts`
-
-Pendente:
-
-- Aplicar a migration 0034 (`pnpm db:push`) — não rodou neste ambiente por
-  falta de Docker/MySQL local ativo no momento do desenvolvimento
-- Validar o fluxo completo contra um projeto real no Google Cloud Console
-  (Client ID/Secret de teste) — nenhuma conta Google Workspace real foi usada
-  durante o desenvolvimento
-
-### 2. Domínio e deploy
-
-Depende do item 1. Subdomínio com HTTPS, solicitado ao time de TI. Necessário
-para o redirect URI de produção do Google e para receber os webhooks da Sara.
+Subdomínio com HTTPS, solicitado ao time de TI. Necessário para o redirect
+URI de produção do Google e para receber os webhooks da Sara.
 
 Ao cadastrar o redirect URI de produção no Google Cloud Console, gerar um
 Client Secret novo no mesmo passo. O atual foi transmitido por canal não
 seguro durante o desenvolvimento e não deve ir para produção.
 
-### 3. Receptor do webhook da Sara
+### 2. Receptor do webhook da Sara
 
-Depende do item 2 (precisa de URL pública). Especificação já recebida — ver
+Depende do item 1 (precisa de URL pública). Especificação já recebida — ver
 "Integração — Sara Support API".
 
-### 4. Correções pendentes
+### 3. Correções pendentes
 
 - `webhooks.ts:122,329,470` — gravam `email`/`contactEmail` direto do payload de
   webhook sem schema nenhum. Se vier `""`, grava `""` em vez de `null`. É
@@ -180,17 +148,30 @@ Depende do item 2 (precisa de URL pública). Especificação já recebida — ve
   popula essa tabela a partir de `conversations.status`. **Decisão de produto
   pendente com o time de CS:** essas tags devem espelhar o status
   automaticamente ou ser marcação manual do atendente? São produtos diferentes.
-- Filtro da tag "Automático" (`slug: auto`) retorna lista vazia. Bug
-  pré-existente, não investigado.
+- A tag "Automático" (`slug: auto`) foi removida de `DEFAULT_TAGS`
+  (`seedDefaults.ts`) e de `TAG_STATUS_MAP` (`Atendimentos.tsx`) — investigada
+  e resolvida, não é mais pendente. O filtro sempre retornava lista vazia, e
+  informava errado ao atendente ("nenhuma conversa automática" quando na
+  verdade o filtro nunca funcionou). Duas causas: dependia de
+  `conversationTagAssignments` (mesmo problema do bullet acima) e, mesmo com
+  atribuição manual, o client comparava `conversations.status === "auto"`,
+  valor que o enum (`Open`/`Waiting`/`Closed`) nunca produz — quebrado de
+  forma incondicional. Não havia semântica definida para a tag em nenhuma
+  story ou comentário de código. Bancos que já rodaram o seed antigo mantêm a
+  tag no banco, rebaixada de sistema para tag comum editável via
+  `scripts/downgrade-auto-tag.mjs` (roda uma vez, idempotente). Se o time de
+  CS quiser esse filtro de volta, a implementação mais provável é
+  `conversations.handledByAi = true`, com tratamento especial no servidor
+  (`tags.listUnified` em `routers.ts`), igual ao que já existe para `group`.
 - Chaves estrangeiras: as 55 tabelas não têm nenhuma. Decisão separada dos
   índices, com mais risco (cascade, registros órfãos).
 
-### 5. Identificação de cliente via Guru (projeto novo)
+### 4. Identificação de cliente via Guru (projeto novo)
 
 Objetivo: quando o atendente assumir a conversa, já ter o contexto do cliente
 pronto — quem é, o que comprou, quando, e se está no prazo de reembolso.
 
-**Só começar depois dos itens 1 a 4.**
+**Só começar depois dos itens 1 a 3.**
 
 Fluxo pretendido: cliente entra em contato → coleta de nome, e-mail e CPF →
 consulta à Guru → identificação → histórico de compras → contexto para o
@@ -330,6 +311,19 @@ ninguém perceber. Para isso, o Cashmiles precisa vigiar a fila ativamente
     encaminhadores que não suportam header customizado. Evite quando possível:
     URL vaza em log de acesso/proxy/APM com mais facilidade que header.
   Fail-closed: sem `EMAIL_TICKET_SECRET` configurado, a rota nega sempre.
+- Os três estados de acesso de um usuário (ativo, pendente, desativado) são
+  derivados de `isActive` + `approvedAt` — não existe enum próprio.
+  `approvedAt` null = nunca aprovado = pendente; preenchido = já foi aprovado
+  (ativo) ou aprovado e depois revogado por um Admin (desativado, com
+  `isActive: false`).
+- `OWNER_EMAILS` é bootstrap de primeiro acesso, não controle de acesso
+  contínuo: é reavaliado a cada login só enquanto o usuário seguir pendente.
+  Remover um e-mail da lista **não revoga** o acesso de quem já é Admin — ver
+  `resolveNewUserAccess` em `server/_core/googleAuth.ts`.
+- **Pendente de validar:** o fluxo de conta pendente nunca foi testado de
+  verdade — falta confirmar com uma conta `@reinoeducacao.com` fora de
+  `OWNER_EMAILS` que o ciclo completo funciona: cai em pendente, aparece no
+  topo da lista de Usuários, um Admin aprova, o usuário entra.
 
 ## Rodando localmente (Windows)
 
@@ -350,10 +344,21 @@ JWT_SECRET=<openssl rand -hex 32, mínimo 32 caracteres>
 OWNER_OPEN_ID=local-admin
 ```
 
-Para logar de verdade (não só via `pnpm dev:session`), configure também
-`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` e
-`OWNER_EMAILS` (ver `.env.example`) — sem isso, `/api/auth/google/start`
-responde 503.
+O login local agora é com Google Workspace. Para logar de verdade, configure
+também:
+
+```
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+OWNER_EMAILS=seu-email@reinoeducacao.com
+```
+
+(ver `.env.example`) — sem isso, `/api/auth/google/start` responde 503.
+
+`pnpm dev:session` continua disponível como atalho alternativo, que gera
+sessão de Admin sem passar pelo Google (ver "5. Sessão local" abaixo) —
+**estritamente para desenvolvimento**, nunca em produção.
 
 Não use `echo >> .env`: se o arquivo não terminar em quebra de linha, a variável
 nova cola na anterior e o dotenv lê as duas como um valor só. Edite no editor.
@@ -404,3 +409,11 @@ backdoor, e backdoor de desenvolvimento tende a sobreviver até produção.
   linha. Sem ele o Drizzle envia dois comandos numa query só e o MySQL rejeita.
 - Usar **dois terminais**: um dedicado ao servidor, outro para git e docker.
 - Ruído esperado no log: aviso de `@import` no CSS.
+- Variável de ambiente é lida na inicialização (`ENV` em `server/_core/env.ts`
+  é montado uma vez, no boot). Editar o `.env` com o servidor rodando não tem
+  efeito — reiniciar `pnpm dev` depois de qualquer mudança.
+- Se um e-mail de `OWNER_EMAILS` logar antes de a variável estar configurada,
+  o usuário é criado pendente. Já corrigido: um pendente com e-mail na lista é
+  promovido no login seguinte (`resolveNewUserAccess` em `googleAuth.ts`). Mas
+  um usuário já desativado por um Admin (`approvedAt` preenchido) nunca é
+  reavaliado — a decisão humana permanece final.

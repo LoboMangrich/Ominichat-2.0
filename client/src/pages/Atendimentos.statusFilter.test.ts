@@ -9,17 +9,19 @@ import { TAG_STATUS_MAP } from "./Atendimentos";
 // TAG_STATUS_MAP passou a ser chaveado por slug (conversationTags.slug — ver drizzle/schema.ts e
 // server/seedDefaults.ts) em vez de id autoincrement, porque o id depende da ordem em que as tags
 // são criadas e não é garantido em instalação nova.
+//
+// A entrada "auto" (tag "Automático") tinha o mesmo defeito e nunca era corrigível por atribuição
+// manual: comparava item.status === "auto", valor que o enum de conversations.status nunca produz.
+// Removida de DEFAULT_TAGS (server/seedDefaults.ts) e daqui — ver CLAUDE.md > Backlog > Correções
+// pendentes.
 const REAL_STATUS_VALUES = conversations.status.enumValues;
 
 describe("Atendimentos — TAG_STATUS_MAP compara contra o enum real do banco", () => {
   it("as entradas que representam status de conversa usam valores do enum real", () => {
     // "group" não é status de conversa — é tratado à parte em filteredItems via
-    // item.type === "group" (Atendimentos.tsx). "auto" NÃO é tratado à parte: cai em
-    // item.status === "auto", que nunca casa (ChatItem não tem status "auto"), então a tag
-    // "Automático" sempre devolve lista vazia. Bug pré-existente, fora do escopo deste fix — não
-    // corrigido aqui.
+    // item.type === "group" (Atendimentos.tsx).
     const statusEntries = Object.entries(TAG_STATUS_MAP).filter(
-      ([, value]) => value !== "auto" && value !== "group"
+      ([, value]) => value !== "group"
     );
     expect(statusEntries.length).toBeGreaterThan(0);
     for (const [, value] of statusEntries) {
@@ -30,5 +32,9 @@ describe("Atendimentos — TAG_STATUS_MAP compara contra o enum real do banco", 
   it("slug 'open' filtra por Open, slug 'waiting' filtra por Waiting", () => {
     expect(TAG_STATUS_MAP.open).toBe("Open");
     expect(TAG_STATUS_MAP.waiting).toBe("Waiting");
+  });
+
+  it("'auto' não existe mais no mapa — comparava contra um valor impossível do enum", () => {
+    expect(TAG_STATUS_MAP.auto).toBeUndefined();
   });
 });

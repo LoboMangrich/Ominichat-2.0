@@ -1,5 +1,5 @@
 import { Express, Request, Response } from "express";
-import { requireCronAuth, requireSession } from "./_core/routeGuards";
+import { requireCronAuth, requireSession, requireEmailTicketSecret } from "./_core/routeGuards";
 import { verifyMetaSignature, verifyTelegramSecret, type RawBodyRequest } from "./_core/webhookAuth";
 import { getDb } from "./db";
 import { registerCsvImport } from "./csvImport";
@@ -875,7 +875,9 @@ export function registerWebhooks(app: Express) {
 
   // ─── Email Ticket Webhook (Reclame Aqui e outros) ────────────────────────────────────────
   // Receives parsed email data and creates a support ticket
-  app.post("/api/webhooks/email-ticket", async (req: Request, res: Response) => {
+  // :token é opcional — cobre o encaminhador que só suporta URL fixa (ver
+  // requireEmailTicketSecret em routeGuards.ts para as duas vias aceitas).
+  app.post("/api/webhooks/email-ticket/:token?", requireEmailTicketSecret, async (req: Request, res: Response) => {
     try {
       const payload = req.body;
       const subject = payload?.subject || payload?.Subject || "Sem assunto";

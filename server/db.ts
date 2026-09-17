@@ -64,6 +64,26 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.lastSignedIn = new Date();
     }
 
+    // isActive/approvedAt/approvedBy: mesmo padrão do role acima — só entram
+    // em values/updateSet quando o chamador passa explicitamente. Quem
+    // decide QUANDO isso deve acontecer é o chamador (googleAuth.ts só passa
+    // esses campos enquanto o usuário segue pendente — ver isPendingUser),
+    // não este upsert genérico. Sem isso aqui, uma promoção de usuário já
+    // existente (ex.: e-mail adicionado a OWNER_EMAILS depois do primeiro
+    // login) gravaria só no INSERT e nunca persistiria no UPDATE.
+    if (user.isActive !== undefined) {
+      values.isActive = user.isActive;
+      updateSet.isActive = user.isActive;
+    }
+    if (user.approvedAt !== undefined) {
+      values.approvedAt = user.approvedAt;
+      updateSet.approvedAt = user.approvedAt;
+    }
+    if (user.approvedBy !== undefined) {
+      values.approvedBy = user.approvedBy;
+      updateSet.approvedBy = user.approvedBy;
+    }
+
     if (Object.keys(updateSet).length === 0) {
       updateSet.lastSignedIn = new Date();
     }

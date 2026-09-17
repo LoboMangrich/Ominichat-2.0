@@ -16,6 +16,7 @@ import SaraConversationDetail from "./pages/SaraConversationDetail";
 import Tasks from "./pages/Tasks";
 import Forms from "./pages/Forms";
 import PublicForm from "./pages/PublicForm";
+import AccessPending from "./pages/AccessPending";
 import Campaigns from "./pages/Campaigns";
 import RenewalCalendar from "./pages/RenewalCalendar";
 import Integrations from "./pages/Integrations";
@@ -57,6 +58,7 @@ function Router() {
     <Switch>
       {/* ── Public routes (no sidebar) ─────────────────────── */}
       <Route path="/forms/:slug" component={PublicForm} />
+      <Route path="/acesso-pendente" component={AccessPending} />
       {/* ── Authenticated routes (with sidebar) ─────────────── */}
       <Route>
     <DashboardLayout>

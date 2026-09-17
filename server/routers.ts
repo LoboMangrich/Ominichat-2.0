@@ -1127,8 +1127,15 @@ const usersRouter = router({
     if (!db) return [];
     return db.select({
       id: users.id, name: users.name, email: users.email,
-      role: users.role, isActive: users.isActive, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn,
-    }).from(users).orderBy(users.name);
+      role: users.role, isActive: users.isActive, approvedAt: users.approvedAt,
+      approvedBy: users.approvedBy, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn,
+    }).from(users)
+      // Pendentes de aprovação (isActive: false, nunca aprovados) no topo —
+      // é a única linha que exige ação do Admin, não pode se perder na lista.
+      .orderBy(
+        sql`(${users.isActive} = false AND ${users.approvedAt} IS NULL) DESC`,
+        users.name
+      );
   }),
 
   updateRole: adminProcedure
@@ -1142,10 +1149,27 @@ const usersRouter = router({
 
   toggleActive: adminProcedure
     .input(z.object({ userId: z.number(), isActive: z.boolean() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
-      await db.update(users).set({ isActive: input.isActive }).where(eq(users.id, input.userId));
+
+      const updateSet: { isActive: boolean; approvedAt?: Date; approvedBy?: number } = {
+        isActive: input.isActive,
+      };
+
+      // Primeira aprovação (approvedAt ainda null): registra quem e quando.
+      // Reativação de alguém já aprovado antes NÃO sobrescreve esse registro
+      // original — é auditoria de primeira aprovação, não de cada toggle.
+      if (input.isActive) {
+        const [target] = await db.select({ approvedAt: users.approvedAt })
+          .from(users).where(eq(users.id, input.userId)).limit(1);
+        if (target && !target.approvedAt) {
+          updateSet.approvedAt = new Date();
+          updateSet.approvedBy = ctx.user.id;
+        }
+      }
+
+      await db.update(users).set(updateSet).where(eq(users.id, input.userId));
       return { success: true };
     }),
 });

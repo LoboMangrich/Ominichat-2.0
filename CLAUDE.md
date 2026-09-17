@@ -17,11 +17,15 @@ localmente de forma independente** — ver "Rodando localmente". O desvínculo d
 Manus está quase completo: branding, URLs, coletor de debug e módulos mortos
 foram removidos.
 
+O login já foi migrado para Google Workspace (backlog item 1) — `oauth.ts` e
+o `OAuthService` do Manus foram removidos. Falta aplicar a migration 0034
+(`pnpm db:push`, requer Docker/MySQL local rodando) e validar o fluxo contra
+um projeto real no Google Cloud Console antes de considerar pronto para
+produção — nenhuma conta Google Workspace real foi testada durante o
+desenvolvimento.
+
 O que ainda depende do Manus:
 
-- `server/_core/oauth.ts` e `sdk.ts` — o login ainda passa pelo OAuth do Manus.
-  **É o último bloqueio para deploy.** Migração para Google Workspace em
-  andamento (ver backlog).
 - `storage.ts`, `voiceTranscription.ts`, `map.ts`, `notification.ts` — usam a
   Forge API. Não bloqueiam nada; falham apenas na feature específica.
 
@@ -119,39 +123,44 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 
 Trabalhe um item até o fim antes de abrir o próximo.
 
-### 1. Login com Google Workspace (bloqueia o deploy)
+### 1. Login com Google Workspace — feito, falta validar em ambiente real
 
-Substitui o OAuth do Manus. Levantamento e plano já feitos; branch
-`feat/login-google`. Aguardando Client ID e Client Secret do time de TI.
+Substituiu o OAuth do Manus. Regra de acesso: **o Google prova a identidade, o
+Cashmiles decide quem entra.** Primeiro login cria usuário pendente
+(`isActive: false`), sem sessão, até um Admin aprovar pela tela de Usuários.
+Exceção de bootstrap: e-mails em `OWNER_EMAILS` entram como Admin ativo
+automaticamente (ver comentário em `server/_core/env.ts`).
 
-Regra de acesso definida com o time: **o Google prova a identidade, o Cashmiles
-decide quem entra.** Primeiro login cria usuário pendente, sem acesso, até um
-Admin aprovar. Exceção de bootstrap: e-mails listados em `OWNER_EMAILS` viram
-Admin automaticamente.
+Entregue:
 
-Itens do plano:
+- `google-auth-library` para `generateAuthUrl`/`getToken`/`verifyIdToken`
+- `/api/auth/google/start` (state aleatório + PKCE S256, cookie assinado
+  `httpOnly`/`secure`/`sameSite=lax`, TTL 10 min) e `/api/auth/google/callback`
+  (valida `state` com `timingSafeEqual`, troca `code`, valida `id_token`)
+- `users.approvedAt`/`approvedBy` (migration `0034_thin_gressill.sql`)
+  distinguem pendente de desativado; tela de Usuários com os três estados
+- `openId` agora recebe o `sub` do Google; `oauth.ts`, `manusTypes.ts` e
+  `OAuthService` foram removidos de `sdk.ts`
+- Cookie de sessão: `sameSite=lax` (era `none`); validade `SESSION_TTL_MS` de
+  30 dias (era `ONE_YEAR_MS`, 1 ano — não fazia sentido com SSO)
+- Testes: `server/_core/googleAuth.test.ts`, `server/routers.usersApproval.test.ts`
 
-- `google-auth-library` (recomendada pela própria doc do Google — não
-  reimplementar validação de `id_token` à mão)
-- Endpoint server-side `/api/auth/google/start` gerando `state` aleatório
-  (`crypto.randomBytes(32)`) + PKCE, guardado em cookie assinado de ~10 min.
-  **O `state` atual é `btoa(redirectUri)` — previsível, não protege contra
-  CSRF.** Validar com `timingSafeEqual` no callback.
-- Callback `/api/auth/google/callback`: valida state, troca code, valida
-  `id_token`, extrai `sub`/`email`/`name`
-- Estado "pendente" para usuário novo; rota/tela para Admin aprovar
-- Trocar `openId` do Manus por `sub` do Google (mesma coluna, sem migração)
-- Descomissionar `OAUTH_SERVER_URL`, `manusTypes.ts`, `OAuthService`
-- Testes: state válido/ausente/divergente, usuário pendente barrado, bootstrap
+Pendente:
 
-Decisões adjacentes, a tratar junto: o cookie tem `sameSite=none`
-(`cookies.ts:45`) — deveria ser `lax`; e a validade de 1 ano (`ONE_YEAR_MS`) faz
-menos sentido com SSO, onde relogar é um clique.
+- Aplicar a migration 0034 (`pnpm db:push`) — não rodou neste ambiente por
+  falta de Docker/MySQL local ativo no momento do desenvolvimento
+- Validar o fluxo completo contra um projeto real no Google Cloud Console
+  (Client ID/Secret de teste) — nenhuma conta Google Workspace real foi usada
+  durante o desenvolvimento
 
 ### 2. Domínio e deploy
 
 Depende do item 1. Subdomínio com HTTPS, solicitado ao time de TI. Necessário
 para o redirect URI de produção do Google e para receber os webhooks da Sara.
+
+Ao cadastrar o redirect URI de produção no Google Cloud Console, gerar um
+Client Secret novo no mesmo passo. O atual foi transmitido por canal não
+seguro durante o desenvolvimento e não deve ir para produção.
 
 ### 3. Receptor do webhook da Sara
 
@@ -338,10 +347,13 @@ Nas próximas vezes, apenas `docker start mysql-ominichat`.
 ```
 DATABASE_URL=mysql://root:devlocal@localhost:3306/ominichat
 JWT_SECRET=<openssl rand -hex 32, mínimo 32 caracteres>
-VITE_APP_ID=cashmiles-local
 OWNER_OPEN_ID=local-admin
-VITE_OAUTH_PORTAL_URL=http://localhost:3000
 ```
+
+Para logar de verdade (não só via `pnpm dev:session`), configure também
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` e
+`OWNER_EMAILS` (ver `.env.example`) — sem isso, `/api/auth/google/start`
+responde 503.
 
 Não use `echo >> .env`: se o arquivo não terminar em quebra de linha, a variável
 nova cola na anterior e o dotenv lê as duas como um valor só. Edite no editor.

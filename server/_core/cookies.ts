@@ -42,7 +42,9 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // Login é sempre same-origin (Google Workspace, sem iframe de terceiro
+    // embutindo a app) — "lax" é suficiente e mais seguro que "none".
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

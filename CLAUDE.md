@@ -148,8 +148,21 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   popula essa tabela a partir de `conversations.status`. **Decisão de produto
   pendente com o time de CS:** essas tags devem espelhar o status
   automaticamente ou ser marcação manual do atendente? São produtos diferentes.
-- Filtro da tag "Automático" (`slug: auto`) retorna lista vazia. Bug
-  pré-existente, não investigado.
+- A tag "Automático" (`slug: auto`) foi removida de `DEFAULT_TAGS`
+  (`seedDefaults.ts`) e de `TAG_STATUS_MAP` (`Atendimentos.tsx`) — investigada
+  e resolvida, não é mais pendente. O filtro sempre retornava lista vazia, e
+  informava errado ao atendente ("nenhuma conversa automática" quando na
+  verdade o filtro nunca funcionou). Duas causas: dependia de
+  `conversationTagAssignments` (mesmo problema do bullet acima) e, mesmo com
+  atribuição manual, o client comparava `conversations.status === "auto"`,
+  valor que o enum (`Open`/`Waiting`/`Closed`) nunca produz — quebrado de
+  forma incondicional. Não havia semântica definida para a tag em nenhuma
+  story ou comentário de código. Bancos que já rodaram o seed antigo mantêm a
+  tag no banco, rebaixada de sistema para tag comum editável via
+  `scripts/downgrade-auto-tag.mjs` (roda uma vez, idempotente). Se o time de
+  CS quiser esse filtro de volta, a implementação mais provável é
+  `conversations.handledByAi = true`, com tratamento especial no servidor
+  (`tags.listUnified` em `routers.ts`), igual ao que já existe para `group`.
 - Chaves estrangeiras: as 55 tabelas não têm nenhuma. Decisão separada dos
   índices, com mais risco (cascade, registros órfãos).
 

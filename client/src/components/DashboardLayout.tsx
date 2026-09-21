@@ -120,7 +120,7 @@ const NAV_MODULES: NavModule[] = [
     icon: Inbox,
     label: "Atendimento",
     key: "atendimento",
-    color: "#00e5a0",
+    color: "var(--brand-400)", // mesma luminosidade do dourado do CRM e do azul de Estatísticas (~L 0.71-0.73), legível sobre a sidebar escura
     items: [
       // ── WhatsApp ──
       { icon: Inbox,          label: "Caixa de Entrada",     path: "/atendimentos", badge: "live", sectionHeader: "Atendimento via WhatsApp" },

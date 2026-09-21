@@ -14,19 +14,33 @@ import {
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
+  // Identificador de login. Guarda o e-mail normalizado (trim + lowercase) —
+  // não é mais o `sub` do Google (login por e-mail/senha, ver CLAUDE.md).
+  // Reaproveitado como estava para não tocar em sdk.ts/routeGuards.ts: tudo
+  // que já resolve usuário por openId continua funcionando sem mudança.
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["Admin", "Manager", "Agent"]).default("Agent").notNull(),
   avatarUrl: text("avatarUrl"),
+  // Hash argon2id da senha (server/_core/passwordHash.ts). Sempre presente —
+  // toda conta nasce com senha definida pelo Admin, sem cadastro público.
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  // true logo após criação pelo Admin ou após redefinição de senha — força a
+  // troca no próximo login antes de liberar o resto da aplicação. Evita senha
+  // temporária permanente ("123456" que ninguém troca).
+  mustChangePassword: boolean("mustChangePassword").default(true).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
-  // null = nunca aprovado (pendente, se isActive: false) ou usuário criado
-  // antes desta coluna existir (isActive: true, sem histórico de aprovação).
+  // Data de criação da conta — como só o Admin cria (sem cadastro público),
+  // criação e aprovação são o mesmo evento. Não existe mais estado "pendente":
+  // toda conta nasce aprovada. null só ocorre em conta criada antes desta
+  // mudança (bootstrap via OWNER_EMAILS, removido — ver scripts/create-admin.ts
+  // para o bootstrap atual do primeiro Admin).
   approvedAt: timestamp("approvedAt"),
-  // Admin (users.id) que aprovou o primeiro acesso. null quando aprovado via
-  // bootstrap automático de OWNER_EMAILS (sem aprovador humano) ou quando
-  // approvedAt também é null. Sem FK — mesmo padrão de createdBy/updatedBy
+  // Admin (users.id) que criou a conta. null quando criado pelo bootstrap de
+  // primeiro Admin (scripts/create-admin.ts, sem Admin humano por trás) ou em
+  // conta anterior a esta mudança. Sem FK — mesmo padrão de createdBy/updatedBy
   // já usado neste schema.
   approvedBy: int("approvedBy"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

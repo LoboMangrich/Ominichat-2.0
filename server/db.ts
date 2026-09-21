@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { UNUSABLE_PASSWORD_HASH } from './_core/passwordHash';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -18,7 +19,16 @@ export async function getDb() {
   return _db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
+// Partial: a maioria das chamadas só quer atualizar alguns campos de um
+// usuário que já existe (ex.: sdk.ts tocando lastSignedIn a cada request).
+// InsertUser exige passwordHash (NOT NULL sem default) porque é obrigatório
+// numa criação de verdade — mas essas chamadas nunca criam ninguém de fato,
+// então não faz sentido exigir a senha delas. O branch de INSERT abaixo cai
+// para UNUSABLE_PASSWORD_HASH quando o chamador não informa (ex.:
+// scripts/create-admin.ts sempre informa; scripts/dev-session.ts nunca).
+type UpsertUserInput = Partial<InsertUser> & Pick<InsertUser, "openId">;
+
+export async function upsertUser(user: UpsertUserInput): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
@@ -32,8 +42,17 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   try {
     const values: InsertUser = {
       openId: user.openId,
+      passwordHash: user.passwordHash ?? UNUSABLE_PASSWORD_HASH,
     };
     const updateSet: Record<string, unknown> = {};
+
+    if (user.passwordHash !== undefined) {
+      updateSet.passwordHash = user.passwordHash;
+    }
+    if (user.mustChangePassword !== undefined) {
+      values.mustChangePassword = user.mustChangePassword;
+      updateSet.mustChangePassword = user.mustChangePassword;
+    }
 
     const textFields = ["name", "email", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
@@ -65,12 +84,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
 
     // isActive/approvedAt/approvedBy: mesmo padrão do role acima — só entram
-    // em values/updateSet quando o chamador passa explicitamente. Quem
-    // decide QUANDO isso deve acontecer é o chamador (googleAuth.ts só passa
-    // esses campos enquanto o usuário segue pendente — ver isPendingUser),
-    // não este upsert genérico. Sem isso aqui, uma promoção de usuário já
-    // existente (ex.: e-mail adicionado a OWNER_EMAILS depois do primeiro
-    // login) gravaria só no INSERT e nunca persistiria no UPDATE.
+    // em values/updateSet quando o chamador passa explicitamente. Hoje só
+    // usersRouter.create (approvedAt/approvedBy na criação) e
+    // scripts/create-admin.ts (bootstrap do primeiro Admin) tocam nesses
+    // campos — login (passwordAuth.ts) nunca os grava.
     if (user.isActive !== undefined) {
       values.isActive = user.isActive;
       updateSet.isActive = user.isActive;

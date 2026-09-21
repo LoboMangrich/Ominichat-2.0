@@ -1,5 +1,7 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, MIN_PASSWORD_LENGTH } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { normalizeEmail } from "./_core/passwordAuth";
+import { hashPassword, verifyPassword } from "./_core/passwordHash";
 import { optionalEmail } from "./_core/validators";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
@@ -1130,12 +1132,7 @@ const usersRouter = router({
       role: users.role, isActive: users.isActive, approvedAt: users.approvedAt,
       approvedBy: users.approvedBy, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn,
     }).from(users)
-      // Pendentes de aprovação (isActive: false, nunca aprovados) no topo —
-      // é a única linha que exige ação do Admin, não pode se perder na lista.
-      .orderBy(
-        sql`(${users.isActive} = false AND ${users.approvedAt} IS NULL) DESC`,
-        users.name
-      );
+      .orderBy(users.name);
   }),
 
   updateRole: adminProcedure
@@ -1147,29 +1144,75 @@ const usersRouter = router({
       return { success: true };
     }),
 
+  // Sem estado "pendente" (ver CLAUDE.md): toda conta já nasce aprovada, só o
+  // Admin cria. approvedAt/approvedBy são fixados na criação e nunca mais
+  // tocados aqui — isto é só o toggle ativo/desativado.
   toggleActive: adminProcedure
     .input(z.object({ userId: z.number(), isActive: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      await db.update(users).set({ isActive: input.isActive }).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
+  // Só o Admin cria conta — não existe cadastro público. A pessoa recebe
+  // nome/e-mail/senha inicial diretamente do Admin, fora desta ferramenta.
+  create: adminProcedure
+    .input(z.object({
+      name: z.string().min(1, "Nome é obrigatório"),
+      email: z.string().email("E-mail inválido"),
+      role: z.enum(["Admin", "Manager", "Agent"]).default("Agent"),
+      initialPassword: z.string().min(
+        MIN_PASSWORD_LENGTH,
+        `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`
+      ),
+    }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
 
-      const updateSet: { isActive: boolean; approvedAt?: Date; approvedBy?: number } = {
-        isActive: input.isActive,
-      };
-
-      // Primeira aprovação (approvedAt ainda null): registra quem e quando.
-      // Reativação de alguém já aprovado antes NÃO sobrescreve esse registro
-      // original — é auditoria de primeira aprovação, não de cada toggle.
-      if (input.isActive) {
-        const [target] = await db.select({ approvedAt: users.approvedAt })
-          .from(users).where(eq(users.id, input.userId)).limit(1);
-        if (target && !target.approvedAt) {
-          updateSet.approvedAt = new Date();
-          updateSet.approvedBy = ctx.user.id;
-        }
+      const openId = normalizeEmail(input.email);
+      const [existing] = await db.select({ id: users.id }).from(users)
+        .where(eq(users.openId, openId)).limit(1);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
       }
 
-      await db.update(users).set(updateSet).where(eq(users.id, input.userId));
+      const passwordHash = await hashPassword(input.initialPassword);
+      const now = new Date();
+      await db.insert(users).values({
+        openId,
+        name: input.name,
+        email: input.email,
+        role: input.role,
+        loginMethod: "password",
+        passwordHash,
+        mustChangePassword: true,
+        isActive: true,
+        approvedAt: now,
+        approvedBy: ctx.user.id,
+      });
+      return { success: true };
+    }),
+
+  // Sem "esqueci minha senha": só o Admin redefine, e comunica a nova senha
+  // à pessoa fora desta ferramenta. Força troca no próximo login.
+  resetPassword: adminProcedure
+    .input(z.object({
+      userId: z.number(),
+      newPassword: z.string().min(
+        MIN_PASSWORD_LENGTH,
+        `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`
+      ),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      const passwordHash = await hashPassword(input.newPassword);
+      await db.update(users)
+        .set({ passwordHash, mustChangePassword: true })
+        .where(eq(users.id, input.userId));
       return { success: true };
     }),
 });
@@ -5481,6 +5524,34 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+    // Autoatendimento: o próprio usuário troca a senha (fluxo obrigatório
+    // quando mustChangePassword: true, mas disponível sempre — não precisa
+    // de um Admin pra trocar a própria senha por vontade própria). Diferente
+    // de usersRouter.resetPassword (Admin redefinindo a de outra pessoa):
+    // aqui exige a senha atual.
+    changePassword: protectedProcedure
+      .input(z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(
+          MIN_PASSWORD_LENGTH,
+          `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`
+        ),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+
+        const currentOk = await verifyPassword(ctx.user.passwordHash, input.currentPassword);
+        if (!currentOk) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Senha atual incorreta" });
+        }
+
+        const passwordHash = await hashPassword(input.newPassword);
+        await db.update(users)
+          .set({ passwordHash, mustChangePassword: false })
+          .where(eq(users.id, ctx.user.id));
+        return { success: true };
+      }),
   }),
   customers: customersRouter,
   conversations: conversationsRouter,

@@ -31,10 +31,9 @@ class SDKServer {
   }
 
   /**
-   * Cria o token de sessão da aplicação (JWT HS256, próprio — não é o token
-   * do Google). openId aqui é o `sub` do Google (login via
-   * server/_core/googleAuth.ts) ou o valor de OWNER_OPEN_ID (bootstrap local,
-   * scripts/dev-session.ts).
+   * Cria o token de sessão da aplicação (JWT HS256). openId aqui é o e-mail
+   * normalizado (login por senha, server/_core/passwordAuth.ts) ou o valor
+   * de OWNER_OPEN_ID (bootstrap local, scripts/dev-session.ts).
    */
   async createSessionToken(
     openId: string,

@@ -1,6 +1,7 @@
 export const getLoginUrl = () => {
-  // O servidor cuida de gerar state/PKCE e montar a URL de autorização do
-  // Google (server/_core/googleAuth.ts) — o client só precisa redirecionar
-  // para o endpoint que inicia o fluxo.
-  return "/api/auth/google/start";
+  // Login por e-mail/senha é inline — DashboardLayout já mostra o formulário
+  // quando não há sessão (ver LoginScreen). Isto só existe para o redirect de
+  // "sessão expirou no meio do uso" (client/src/main.tsx): volta pra raiz, que
+  // renderiza o formulário sozinha.
+  return "/";
 };

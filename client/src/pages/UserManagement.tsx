@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getPublicBaseUrl } from "@/lib/publicUrl";
+import { MIN_PASSWORD_LENGTH } from "@shared/const";
 import { Shield, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -19,7 +19,6 @@ const ROLE_COLORS: Record<string, string> = {
   Agent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
 };
 
-const PENDING_BADGE_COLOR = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
 const DISABLED_BADGE_COLOR = "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400";
 
 type UserRow = {
@@ -34,36 +33,75 @@ type UserRow = {
   lastSignedIn: Date | string;
 };
 
-// Deriva o estado a partir de isActive + approvedAt (sem coluna própria) —
-// ver CLAUDE.md > Backlog > 1 para a decisão completa.
-function getUserStatus(u: UserRow): "pending" | "active" | "disabled" {
-  if (u.isActive) return "active";
-  return u.approvedAt ? "disabled" : "pending";
-}
-
 function formatDate(value: Date | string): string {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
+function passwordFieldErrors(password: string, confirm: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`;
+  }
+  if (password !== confirm) {
+    return "As senhas não coincidem";
+  }
+  return null;
+}
+
 export default function UserManagement() {
   const { user } = useAuth();
-  const platformUrl = getPublicBaseUrl();
-  const [open, setOpen] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createRole, setCreateRole] = useState<"Admin" | "Manager" | "Agent">("Agent");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createConfirmPassword, setCreateConfirmPassword] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const [roleDialogUserId, setRoleDialogUserId] = useState<number | null>(null);
   const [editRole, setEditRole] = useState<string>("Agent");
 
+  const [resetDialogUserId, setResetDialogUserId] = useState<number | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+
   const { data: users, isLoading, refetch } = trpc.users.list.useQuery();
-  const updateRoleMutation = trpc.users.updateRole.useMutation({
-    onSuccess: () => { toast.success("Função atualizada!"); refetch(); setOpen(false); },
-    onError: (e) => toast.error(e.message),
+
+  const createMutation = trpc.users.create.useMutation({
+    onSuccess: () => {
+      toast.success("Usuário criado! Passe o e-mail e a senha inicial para a pessoa.");
+      refetch();
+      setCreateOpen(false);
+      setCreateName(""); setCreateEmail(""); setCreateRole("Agent");
+      setCreatePassword(""); setCreateConfirmPassword(""); setCreateError(null);
+    },
+    onError: (e) => setCreateError(e.message),
   });
-  const toggleActiveMutation = trpc.users.toggleActive.useMutation({
-    onSuccess: () => { refetch(); },
+
+  const updateRoleMutation = trpc.users.updateRole.useMutation({
+    onSuccess: () => { toast.success("Função atualizada!"); refetch(); setRoleDialogUserId(null); },
     onError: (e) => toast.error(e.message),
   });
 
-  // approvedBy referencia users.id — resolvido aqui mesmo, sem precisar de
-  // join no backend (a lista já traz todo mundo).
+  const resetPasswordMutation = trpc.users.resetPassword.useMutation({
+    onSuccess: () => {
+      toast.success("Senha redefinida! Passe a nova senha para a pessoa — ela vai precisar trocá-la no próximo login.");
+      setResetDialogUserId(null);
+      setResetPassword(""); setResetConfirmPassword(""); setResetError(null);
+    },
+    onError: (e) => setResetError(e.message),
+  });
+
+  const toggleActiveMutation = trpc.users.toggleActive.useMutation({
+    onSuccess: (_data, variables) => {
+      refetch();
+      if (!variables.isActive) {
+        toast.info("Conta desativada. Avise a pessoa diretamente — o login dela agora só mostra \"e-mail ou senha inválidos\", sem indicar o motivo.");
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const usersById = new Map((users ?? []).map(u => [u.id, u]));
 
   if (user?.role === "Agent") {
@@ -75,6 +113,21 @@ export default function UserManagement() {
       </div>
     );
   }
+
+  const handleCreateSubmit = () => {
+    setCreateError(null);
+    const passwordError = passwordFieldErrors(createPassword, createConfirmPassword);
+    if (passwordError) { setCreateError(passwordError); return; }
+    if (!createName.trim() || !createEmail.trim()) { setCreateError("Nome e e-mail são obrigatórios"); return; }
+    createMutation.mutate({ name: createName, email: createEmail, role: createRole, initialPassword: createPassword });
+  };
+
+  const handleResetSubmit = () => {
+    setResetError(null);
+    const passwordError = passwordFieldErrors(resetPassword, resetConfirmPassword);
+    if (passwordError) { setResetError(passwordError); return; }
+    if (resetDialogUserId) resetPasswordMutation.mutate({ userId: resetDialogUserId, newPassword: resetPassword });
+  };
 
   return (
     <div className="p-6 space-y-5 max-w-4xl mx-auto">
@@ -88,30 +141,53 @@ export default function UserManagement() {
             Gerencie membros da equipe e suas funções.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) setCreateError(null); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="gap-2">
               <UserPlus className="w-4 h-4" />
-              Convidar Usuário
+              Criar Usuário
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Convidar Membro da Equipe</DialogTitle>
+              <DialogTitle>Criar Usuário</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground">
-                Compartilhe o link da plataforma com o membro da equipe. Ele pode entrar com sua conta e será atribuído como Agente por padrão. Você pode alterar a função após o acesso.
+                Não existe cadastro público — defina uma senha inicial e passe nome, e-mail e senha para a pessoa
+                fora daqui. Ela vai precisar trocar a senha no primeiro login.
               </p>
               <div className="space-y-1.5">
-                <Label>URL da Plataforma</Label>
-                <div className="flex gap-2">
-                  <Input readOnly value={platformUrl} className="bg-muted font-mono text-xs" />
-                  <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(platformUrl); toast.success("Copiado!"); }}>
-                    Copiar
-                  </Button>
-                </div>
+                <Label>Nome</Label>
+                <Input value={createName} onChange={e => setCreateName(e.target.value)} />
               </div>
+              <div className="space-y-1.5">
+                <Label>E-mail</Label>
+                <Input type="email" value={createEmail} onChange={e => setCreateEmail(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Função</Label>
+                <Select value={createRole} onValueChange={v => setCreateRole(v as typeof createRole)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Admin">Administrador</SelectItem>
+                    <SelectItem value="Manager">Gerente</SelectItem>
+                    <SelectItem value="Agent">Atendente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Senha inicial</Label>
+                <Input type="password" minLength={MIN_PASSWORD_LENGTH} value={createPassword} onChange={e => setCreatePassword(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Confirmar senha inicial</Label>
+                <Input type="password" value={createConfirmPassword} onChange={e => setCreateConfirmPassword(e.target.value)} />
+              </div>
+              {createError && <p className="text-xs text-destructive">{createError}</p>}
+              <Button className="w-full" disabled={createMutation.isPending} onClick={handleCreateSubmit}>
+                {createMutation.isPending ? "Criando..." : "Criar Usuário"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -130,13 +206,13 @@ export default function UserManagement() {
             <div className="text-center py-12 text-muted-foreground">
               <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="font-medium">Nenhum usuário ainda</p>
-              <p className="text-sm mt-1">Compartilhe o link da plataforma para convidar membros.</p>
+              <p className="text-sm mt-1">Crie o primeiro membro da equipe.</p>
             </div>
           ) : (
             <div className="divide-y">
-              {users.map(u => {
-                const status = getUserStatus(u);
-                const approver = u.approvedBy ? usersById.get(u.approvedBy) : undefined;
+              {users.map((u: UserRow) => {
+                const isDisabled = !u.isActive;
+                const creator = u.approvedBy ? usersById.get(u.approvedBy) : undefined;
                 const canManage = user?.role === "Admin" && u.id !== user.id;
 
                 return (
@@ -148,27 +224,26 @@ export default function UserManagement() {
                       <div>
                         <p className="font-medium text-sm">{u.name ?? "Sem nome"}</p>
                         <p className="text-xs text-muted-foreground">{u.email ?? "Sem e-mail"}</p>
-                        {status === "disabled" && u.approvedAt && (
+                        {u.approvedAt && (
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Aprovado {approver ? `por ${approver.name ?? approver.email ?? "—"} ` : ""}
+                            Criado {creator ? `por ${creator.name ?? creator.email ?? "—"} ` : ""}
                             em {formatDate(u.approvedAt)}
                           </p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {status === "pending" && <Badge className={PENDING_BADGE_COLOR}>Pendente de aprovação</Badge>}
-                      {status === "disabled" && <Badge className={DISABLED_BADGE_COLOR}>Desativado</Badge>}
-                      {status === "active" && <Badge className={ROLE_COLORS[u.role] ?? ""}>{u.role}</Badge>}
+                      {isDisabled && <Badge className={DISABLED_BADGE_COLOR}>Desativado</Badge>}
+                      {!isDisabled && <Badge className={ROLE_COLORS[u.role] ?? ""}>{u.role}</Badge>}
 
-                      {canManage && status === "active" && (
-                        <Dialog>
+                      {canManage && (
+                        <Dialog open={roleDialogUserId === u.id} onOpenChange={(open) => setRoleDialogUserId(open ? u.id : null)}>
                           <DialogTrigger asChild>
                             <Button
                               variant="ghost"
                               size="sm"
                               className="text-xs"
-                              onClick={() => { setEditId(u.id); setEditRole(u.role); }}
+                              onClick={() => setEditRole(u.role)}
                             >
                               Alterar Função
                             </Button>
@@ -194,7 +269,7 @@ export default function UserManagement() {
                               <Button
                                 className="w-full"
                                 disabled={updateRoleMutation.isPending}
-                                onClick={() => editId && updateRoleMutation.mutate({ userId: editId, role: editRole as any })}
+                                onClick={() => updateRoleMutation.mutate({ userId: u.id, role: editRole as any })}
                               >
                                 {updateRoleMutation.isPending ? "Salvando..." : "Salvar Função"}
                               </Button>
@@ -203,18 +278,46 @@ export default function UserManagement() {
                         </Dialog>
                       )}
 
-                      {canManage && status === "pending" && (
-                        <Button
-                          size="sm"
-                          className="text-xs"
-                          disabled={toggleActiveMutation.isPending}
-                          onClick={() => toggleActiveMutation.mutate({ userId: u.id, isActive: true })}
+                      {canManage && (
+                        <Dialog
+                          open={resetDialogUserId === u.id}
+                          onOpenChange={(open) => {
+                            setResetDialogUserId(open ? u.id : null);
+                            if (!open) { setResetPassword(""); setResetConfirmPassword(""); setResetError(null); }
+                          }}
                         >
-                          Aprovar acesso
-                        </Button>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-xs">
+                              Redefinir Senha
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Redefinir Senha de {u.name}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                              <p className="text-sm text-muted-foreground">
+                                Não existe "esqueci minha senha" — defina uma nova senha e passe para a pessoa fora
+                                daqui. Ela vai precisar trocá-la no próximo login.
+                              </p>
+                              <div className="space-y-1.5">
+                                <Label>Nova senha</Label>
+                                <Input type="password" minLength={MIN_PASSWORD_LENGTH} value={resetPassword} onChange={e => setResetPassword(e.target.value)} />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label>Confirmar nova senha</Label>
+                                <Input type="password" value={resetConfirmPassword} onChange={e => setResetConfirmPassword(e.target.value)} />
+                              </div>
+                              {resetError && <p className="text-xs text-destructive">{resetError}</p>}
+                              <Button className="w-full" disabled={resetPasswordMutation.isPending} onClick={handleResetSubmit}>
+                                {resetPasswordMutation.isPending ? "Salvando..." : "Redefinir Senha"}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       )}
 
-                      {canManage && status === "active" && (
+                      {canManage && !isDisabled && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -226,7 +329,7 @@ export default function UserManagement() {
                         </Button>
                       )}
 
-                      {canManage && status === "disabled" && (
+                      {canManage && isDisabled && (
                         <Button
                           variant="outline"
                           size="sm"

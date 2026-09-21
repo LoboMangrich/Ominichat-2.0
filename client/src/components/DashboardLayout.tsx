@@ -13,9 +13,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getLoginUrl } from "@/const";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
+import { MIN_PASSWORD_LENGTH } from "@shared/const";
 import { useNewConversationNotification } from "@/hooks/useNewConversationNotification";
 import {
   BarChart3,
@@ -565,7 +567,7 @@ function SidebarInner({
 
 // ─── Login screen ─────────────────────────────────────────────────────────────
 
-function LoginScreen() {
+function AuthCardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="login-bg min-h-screen flex items-center justify-center p-4 relative">
       <div className="login-card flex flex-col items-center gap-7 p-10 max-w-sm w-full relative z-10">
@@ -583,16 +585,167 @@ function LoginScreen() {
           </div>
         </div>
         <div className="divider-premium w-full" />
-        <Button
-          onClick={() => { window.location.href = getLoginUrl(); }}
-          size="lg"
-          className="w-full font-bold text-sm tracking-wide btn-gold"
-          style={{ height: "46px", fontSize: "14px", borderRadius: "12px" }}
-        >
-          Entrar na plataforma
-        </Button>
+        {children}
       </div>
     </div>
+  );
+}
+
+const authButtonStyle = { height: "46px", fontSize: "14px", borderRadius: "12px" };
+
+function LoginScreen() {
+  const utils = trpc.useUtils();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setError(data?.error ?? "Não foi possível entrar. Tente novamente.");
+        return;
+      }
+      await utils.auth.me.invalidate();
+    } catch {
+      setError("Não foi possível entrar. Verifique sua conexão e tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AuthCardShell>
+      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3.5">
+        <div className="space-y-1.5 text-left">
+          <Label htmlFor="login-email">E-mail</Label>
+          <Input
+            id="login-email"
+            type="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5 text-left">
+          <Label htmlFor="login-password">Senha</Label>
+          <Input
+            id="login-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+          />
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <Button
+          type="submit"
+          disabled={submitting}
+          size="lg"
+          className="w-full font-bold text-sm tracking-wide btn-gold"
+          style={authButtonStyle}
+        >
+          {submitting ? "Entrando..." : "Entrar na plataforma"}
+        </Button>
+      </form>
+    </AuthCardShell>
+  );
+}
+
+/**
+ * Troca de senha obrigatória — toda conta nasce com mustChangePassword: true
+ * (criada pelo Admin ou após usersRouter.resetPassword). Bloqueia o resto da
+ * app até a pessoa trocar a senha temporária pela própria.
+ */
+function ForcedPasswordChangeScreen() {
+  const utils = trpc.useUtils();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const changePasswordMutation = trpc.auth.changePassword.useMutation({
+    onSuccess: () => { utils.auth.me.invalidate(); },
+    onError: e => setError(e.message),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(`A nova senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("As senhas não coincidem");
+      return;
+    }
+    changePasswordMutation.mutate({ currentPassword, newPassword });
+  };
+
+  return (
+    <AuthCardShell>
+      <p className="text-xs text-muted-foreground text-center -mt-2">
+        Defina sua própria senha para continuar.
+      </p>
+      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3.5">
+        <div className="space-y-1.5 text-left">
+          <Label htmlFor="change-current-password">Senha atual</Label>
+          <Input
+            id="change-current-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={currentPassword}
+            onChange={e => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5 text-left">
+          <Label htmlFor="change-new-password">Nova senha</Label>
+          <Input
+            id="change-new-password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={MIN_PASSWORD_LENGTH}
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5 text-left">
+          <Label htmlFor="change-confirm-password">Confirmar nova senha</Label>
+          <Input
+            id="change-confirm-password"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+          />
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <Button
+          type="submit"
+          disabled={changePasswordMutation.isPending}
+          size="lg"
+          className="w-full font-bold text-sm tracking-wide btn-gold"
+          style={authButtonStyle}
+        >
+          {changePasswordMutation.isPending ? "Salvando..." : "Salvar nova senha"}
+        </Button>
+      </form>
+    </AuthCardShell>
   );
 }
 
@@ -602,6 +755,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { loading, user } = useAuth();
   if (loading) return <DashboardLayoutSkeleton />;
   if (!user) return <LoginScreen />;
+  if ((user as any).mustChangePassword) return <ForcedPasswordChangeScreen />;
   return <DashboardLayoutContent>{children}</DashboardLayoutContent>;
 }
 

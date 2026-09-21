@@ -144,5 +144,20 @@ describe("passwordAuth", () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(db.getUserByOpenId).not.toHaveBeenCalled();
     });
+
+    // Regressão: falha de banco (ex.: MySQL fora do ar) sem try/catch derrubava
+    // o processo Node inteiro (unhandled rejection num handler Express fora do
+    // tRPC), não só a requisição — reproduzido manualmente rodando pnpm dev
+    // sem o container do MySQL de pé.
+    it("erro no banco: responde 500 em vez de deixar a rejeição escapar sem tratamento", async () => {
+      vi.mocked(db.getUserByOpenId).mockRejectedValue(new Error("ECONNREFUSED"));
+
+      const req = fakeReq({ email: "atendente@reinoeducacao.com", password: "qualquer-coisa" });
+      const res = fakeRes();
+      await expect(handleLogin(req, res)).resolves.toBeUndefined();
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.cookie).not.toHaveBeenCalled();
+    });
   });
 });

@@ -59,36 +59,46 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const openId = normalizeEmail(parsed.data.email);
-  const user = await db.getUserByOpenId(openId);
+  try {
+    const openId = normalizeEmail(parsed.data.email);
+    const user = await db.getUserByOpenId(openId);
 
-  // Verifica a senha mesmo quando o usuário não existe ou está desativado
-  // (contra UNUSABLE_PASSWORD_HASH) — nunca pula o hash, senão o tempo de
-  // resposta vaza por timing quais e-mails têm conta ativa no sistema.
-  // Mensagem genérica também para desativado, de propósito: distinguir
-  // "conta desativada" de "senha errada" aqui confirmaria pra quem está
-  // tentando logar que aquele e-mail existe no sistema. Quem desativa uma
-  // conta é sempre um Admin, que já sabe — o aviso à pessoa é
-  // responsabilidade dele, fora desse fluxo (ver CLAUDE.md).
-  const canAttemptLogin = Boolean(user?.isActive);
-  const hashToCheck = canAttemptLogin && user ? user.passwordHash : UNUSABLE_PASSWORD_HASH;
-  const passwordOk = await verifyPassword(hashToCheck, parsed.data.password);
+    // Verifica a senha mesmo quando o usuário não existe ou está desativado
+    // (contra UNUSABLE_PASSWORD_HASH) — nunca pula o hash, senão o tempo de
+    // resposta vaza por timing quais e-mails têm conta ativa no sistema.
+    // Mensagem genérica também para desativado, de propósito: distinguir
+    // "conta desativada" de "senha errada" aqui confirmaria pra quem está
+    // tentando logar que aquele e-mail existe no sistema. Quem desativa uma
+    // conta é sempre um Admin, que já sabe — o aviso à pessoa é
+    // responsabilidade dele, fora desse fluxo (ver CLAUDE.md).
+    const canAttemptLogin = Boolean(user?.isActive);
+    const hashToCheck = canAttemptLogin && user ? user.passwordHash : UNUSABLE_PASSWORD_HASH;
+    const passwordOk = await verifyPassword(hashToCheck, parsed.data.password);
 
-  if (!canAttemptLogin || !passwordOk || !user) {
-    res.status(401).json({ error: GENERIC_LOGIN_ERROR });
-    return;
+    if (!canAttemptLogin || !passwordOk || !user) {
+      res.status(401).json({ error: GENERIC_LOGIN_ERROR });
+      return;
+    }
+
+    const sessionToken = await sdk.createSessionToken(openId, {
+      name: user.name || "",
+      expiresInMs: SESSION_TTL_MS,
+    });
+
+    await db.upsertUser({ openId, lastSignedIn: new Date() });
+
+    const cookieOptions = getSessionCookieOptions(req);
+    res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_TTL_MS });
+    res.json({ success: true, mustChangePassword: user.mustChangePassword });
+  } catch (error) {
+    // Sem isto, uma falha de banco (ex.: MySQL fora do ar) derruba o processo
+    // Node inteiro — este handler roda fora do tRPC, que tem seu próprio
+    // tratamento de erro; um Express async handler sem try/catch propaga a
+    // rejeição como exceção não tratada. Mesmo padrão do callback do Google
+    // (server/_core/googleAuth.ts).
+    console.error("[PasswordAuth] Login falhou", error);
+    res.status(500).json({ error: "Não foi possível processar o login" });
   }
-
-  const sessionToken = await sdk.createSessionToken(openId, {
-    name: user.name || "",
-    expiresInMs: SESSION_TTL_MS,
-  });
-
-  await db.upsertUser({ openId, lastSignedIn: new Date() });
-
-  const cookieOptions = getSessionCookieOptions(req);
-  res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: SESSION_TTL_MS });
-  res.json({ success: true, mustChangePassword: user.mustChangePassword });
 }
 
 export function registerPasswordAuthRoutes(app: Express) {

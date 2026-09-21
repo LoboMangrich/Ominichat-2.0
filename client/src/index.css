@@ -473,6 +473,21 @@
    ═══════════════════════════════════════════════════════ */
 @layer base {
   @theme inline {
+    /* Expõe a escala --brand-* (azul, index.css :root) como classes Tailwind
+       reais (bg-brand-600, text-brand-50, etc.) — pra recolorir componentes
+       que usavam bg-emerald-*/text-emerald-* com um mapeamento mecânico
+       degrau-a-degrau, sem introduzir o azul padrão do Tailwind (matiz/croma
+       diferente do resto da marca). */
+    --color-brand-50:  var(--brand-50);
+    --color-brand-100: var(--brand-100);
+    --color-brand-200: var(--brand-200);
+    --color-brand-300: var(--brand-300);
+    --color-brand-400: var(--brand-400);
+    --color-brand-500: var(--brand-500);
+    --color-brand-600: var(--brand-600);
+    --color-brand-700: var(--brand-700);
+    --color-brand-800: var(--brand-800);
+    --color-brand-900: var(--brand-900);
     --color-background:         var(--background);
     --color-foreground:         var(--foreground);
     --color-card:               var(--card);

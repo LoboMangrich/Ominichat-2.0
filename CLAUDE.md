@@ -17,9 +17,11 @@ localmente de forma independente** — ver "Rodando localmente". O desvínculo d
 Manus está quase completo: branding, URLs, coletor de debug e módulos mortos
 foram removidos.
 
-O Manus não é mais usado para autenticação: o login com Google Workspace
-(PR #31) está mesclado na `main`. `oauth.ts`, `manusTypes.ts` e o
-`OAuthService` foram removidos.
+O Manus não é mais usado para autenticação. `oauth.ts`, `manusTypes.ts` e o
+`OAuthService` foram removidos. O login passou por duas fases: primeiro
+Google Workspace (PR #31), depois substituído por e-mail/senha próprio do
+Cashmiles (decisão de produto — ver "Autenticação" abaixo). Não existe mais
+nenhum provedor externo no caminho de login.
 
 O que ainda depende do Manus:
 
@@ -48,6 +50,7 @@ de confiar.
 pnpm install          # npm install QUEBRA — use pnpm
 pnpm dev              # dev server (tsx watch server/_core/index.ts)
 pnpm dev:session      # gera JWT de Admin local
+pnpm create-admin     # bootstrap do primeiro Admin (produção — ver "Autenticação")
 pnpm check            # tsc --noEmit
 pnpm test             # vitest run
 pnpm db:push          # drizzle-kit generate && migrate
@@ -70,6 +73,49 @@ drizzle/schema.ts     ~1.130 linhas, 55 tabelas, 33 migrations
 client/src/pages/     Telas (algumas com 1.000–1.700 linhas)
 client/src/lib/       Helpers compartilhados (publicUrl.ts)
 ```
+
+## Autenticação
+
+Login por e-mail/senha, gerenciado pelo próprio Cashmiles — substituiu o login
+com Google Workspace (decisão de produto). Sem cadastro público e sem
+"esqueci minha senha": só o Admin cria conta e redefine senha.
+
+- **Hash:** argon2id (`server/_core/passwordHash.ts`, pacote `argon2`).
+  Testado neste projeto sem atrito de build no Windows/pnpm — binário
+  pré-compilado, não passa por build script.
+- **Identificador de login:** `users.openId` guarda o e-mail normalizado
+  (trim + lowercase) — não é mais o `sub` do Google. Reaproveitado como
+  estava para não tocar em `sdk.ts`/`routeGuards.ts`.
+- **Senha mínima:** `MIN_PASSWORD_LENGTH` (`shared/const.ts`) = 10
+  caracteres, validado em `usersRouter.create`/`resetPassword` e
+  `auth.changePassword`.
+- **Troca obrigatória:** `users.mustChangePassword` força a pessoa a trocar
+  a senha temporária (definida pelo Admin na criação ou numa redefinição)
+  antes de usar o resto da app — ver `ForcedPasswordChangeScreen` em
+  `DashboardLayout.tsx`.
+- **Mensagem de login sempre genérica** ("E-mail ou senha inválidos"),
+  inclusive para conta desativada — decisão deliberada, não esquecimento.
+  Distinguir "senha errada" de "conta desativada" confirmaria pra quem está
+  tentando logar que aquele e-mail existe no sistema. Quem desativa uma
+  conta é sempre um Admin, que já sabe — avisar a pessoa é responsabilidade
+  dele, fora desse fluxo (a tela de Usuários mostra um lembrete ao
+  desativar). Timing também normalizado: e-mail inexistente roda
+  `argon2.verify` contra um hash-dummy (`UNUSABLE_PASSWORD_HASH`) mesmo
+  assim, pra não vazar por tempo de resposta quais e-mails têm conta.
+- **Rate limit:** 10 tentativas / 15 min, chave = IP + e-mail normalizado
+  (não só IP — um escritório inteiro pode sair pelo mesmo IP).
+  `server/_core/passwordAuth.ts`.
+- **Sem estado "pendente".** Só o Admin cria conta, e ela já nasce ativa —
+  criação e aprovação são o mesmo evento agora. `approvedAt`/`approvedBy`
+  continuam existindo no schema, mas passaram a registrar quando/quem criou
+  a conta, não uma aprovação de acesso pendente.
+- **Bootstrap do primeiro Admin em produção:** `pnpm create-admin`
+  (`scripts/create-admin.ts`), recebe `ADMIN_NAME`/`ADMIN_EMAIL`/
+  `ADMIN_PASSWORD` inline na invocação (nunca em `.env` — é senha em texto
+  puro). Só CLI, nunca rota HTTP — mesma regra de `scripts/dev-session.ts`
+  (bootstrap local, sem relação com este). Resolve o problema do ovo e da
+  galinha: sem cadastro público, um banco novo não tem ninguém pra criar o
+  primeiro Admin.
 
 ## Decisões de escopo — o que NÃO construir
 
@@ -108,6 +154,8 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 - Campos opcionais de formulário: use os helpers de `server/_core/validators.ts`.
   O front envia `""`, não `undefined` — `.optional()` sozinho não cobre isso.
 - Tags padrão são identificadas por `slug`, nunca por id numérico.
+- Senha de usuário: hash argon2id, mínimo `MIN_PASSWORD_LENGTH` caracteres,
+  nunca "esqueci minha senha" — ver "Autenticação".
 - Credenciais de canal ficam em `channelSettings` no banco, configuradas pela
   interface — **não** em variável de ambiente.
 - Exceção: segredos de verificação criptográfica (`META_APP_SECRET`,
@@ -123,12 +171,10 @@ Trabalhe um item até o fim antes de abrir o próximo.
 
 ### 1. Domínio e deploy
 
-Subdomínio com HTTPS, solicitado ao time de TI. Necessário para o redirect
-URI de produção do Google e para receber os webhooks da Sara.
-
-Ao cadastrar o redirect URI de produção no Google Cloud Console, gerar um
-Client Secret novo no mesmo passo. O atual foi transmitido por canal não
-seguro durante o desenvolvimento e não deve ir para produção.
+Subdomínio com HTTPS, solicitado ao time de TI. Necessário para receber os
+webhooks da Sara. Login não depende mais de redirect URI de provedor
+externo (e-mail/senha próprio — ver "Autenticação"); ao subir produção,
+rodar `pnpm create-admin` uma vez para criar o primeiro Admin.
 
 ### 2. Receptor do webhook da Sara
 
@@ -311,19 +357,14 @@ ninguém perceber. Para isso, o Cashmiles precisa vigiar a fila ativamente
     encaminhadores que não suportam header customizado. Evite quando possível:
     URL vaza em log de acesso/proxy/APM com mais facilidade que header.
   Fail-closed: sem `EMAIL_TICKET_SECRET` configurado, a rota nega sempre.
-- Os três estados de acesso de um usuário (ativo, pendente, desativado) são
-  derivados de `isActive` + `approvedAt` — não existe enum próprio.
-  `approvedAt` null = nunca aprovado = pendente; preenchido = já foi aprovado
-  (ativo) ou aprovado e depois revogado por um Admin (desativado, com
-  `isActive: false`).
-- `OWNER_EMAILS` é bootstrap de primeiro acesso, não controle de acesso
-  contínuo: é reavaliado a cada login só enquanto o usuário seguir pendente.
-  Remover um e-mail da lista **não revoga** o acesso de quem já é Admin — ver
-  `resolveNewUserAccess` em `server/_core/googleAuth.ts`.
-- **Pendente de validar:** o fluxo de conta pendente nunca foi testado de
-  verdade — falta confirmar com uma conta `@reinoeducacao.com` fora de
-  `OWNER_EMAILS` que o ciclo completo funciona: cai em pendente, aparece no
-  topo da lista de Usuários, um Admin aprova, o usuário entra.
+- Dois estados de acesso (ativo, desativado), derivados só de `isActive` —
+  não existe enum próprio. Não existe mais estado "pendente": sem cadastro
+  público, só o Admin cria conta, e ela já nasce ativa. `approvedAt`/
+  `approvedBy` continuam existindo, mas registram quando/quem **criou** a
+  conta, não uma aprovação de acesso pendente — ver "Autenticação".
+- Mensagem de login sempre genérica, mesmo para conta desativada — decisão
+  deliberada de segurança (não confirmar existência/estado de uma conta pela
+  resposta), não descuido. Ver "Autenticação" para o trade-off completo.
 
 ## Rodando localmente (Windows)
 
@@ -344,20 +385,18 @@ JWT_SECRET=<openssl rand -hex 32, mínimo 32 caracteres>
 OWNER_OPEN_ID=local-admin
 ```
 
-O login local agora é com Google Workspace. Para logar de verdade, configure
-também:
+O login local agora é e-mail/senha (ver "Autenticação"). Depois de rodar as
+migrations (passo 3), crie o primeiro Admin com:
 
-```
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
-OWNER_EMAILS=seu-email@reinoeducacao.com
+```bash
+ADMIN_NAME="Seu Nome" ADMIN_EMAIL=voce@reinoeducacao.com ADMIN_PASSWORD=senha-temporaria-local pnpm create-admin
 ```
 
-(ver `.env.example`) — sem isso, `/api/auth/google/start` responde 503.
+e logue pela tela normal com esse e-mail/senha (vai pedir troca de senha no
+primeiro login).
 
 `pnpm dev:session` continua disponível como atalho alternativo, que gera
-sessão de Admin sem passar pelo Google (ver "5. Sessão local" abaixo) —
+sessão de Admin sem precisar logar pela UI (ver "5. Sessão local" abaixo) —
 **estritamente para desenvolvimento**, nunca em produção.
 
 Não use `echo >> .env`: se o arquivo não terminar em quebra de linha, a variável
@@ -412,8 +451,3 @@ backdoor, e backdoor de desenvolvimento tende a sobreviver até produção.
 - Variável de ambiente é lida na inicialização (`ENV` em `server/_core/env.ts`
   é montado uma vez, no boot). Editar o `.env` com o servidor rodando não tem
   efeito — reiniciar `pnpm dev` depois de qualquer mudança.
-- Se um e-mail de `OWNER_EMAILS` logar antes de a variável estar configurada,
-  o usuário é criado pendente. Já corrigido: um pendente com e-mail na lista é
-  promovido no login seguinte (`resolveNewUserAccess` em `googleAuth.ts`). Mas
-  um usuário já desativado por um Admin (`approvedAt` preenchido) nunca é
-  reavaliado — a decisão humana permanece final.

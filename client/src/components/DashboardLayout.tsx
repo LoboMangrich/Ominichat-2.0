@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import { MIN_PASSWORD_LENGTH } from "@shared/const";
 import { useNewConversationNotification } from "@/hooks/useNewConversationNotification";
 import {
+  AlertCircle,
   BarChart3,
   Bell,
   BellOff,
@@ -570,16 +572,16 @@ function SidebarInner({
 function AuthCardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="login-bg min-h-screen flex items-center justify-center p-4 relative">
-      <div className="login-card flex flex-col items-center gap-7 p-10 max-w-sm w-full relative z-10">
-        <div className="flex flex-col items-center gap-4">
-          <LogoBubble size={80} />
+      <div className="login-card flex flex-col items-center gap-8 p-11 sm:p-12 max-w-sm w-full relative z-10">
+        <div className="flex flex-col items-center gap-5">
+          <LogoBubble size={88} />
           <div className="text-center">
             <h1 className="font-black block leading-none"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "32px", letterSpacing: "-0.04em", color: "#0D2010" }}>
+              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "32px", letterSpacing: "-0.04em", color: "var(--foreground)" }}>
               Cashmiles
             </h1>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] mt-1.5"
-              style={{ color: "rgba(139,105,20,0.70)" }}>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] mt-2"
+              style={{ color: "#8B6914" }}>
               Sucesso do Cliente
             </p>
           </div>
@@ -591,7 +593,20 @@ function AuthCardShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const authButtonStyle = { height: "46px", fontSize: "14px", borderRadius: "12px" };
+// Erro visível de verdade — não uma linha fina de texto fácil de não notar.
+function AuthFormError({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      className="w-full flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+    >
+      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+const authButtonStyle = { height: "48px", fontSize: "14px", borderRadius: "12px" };
 
 function LoginScreen() {
   const utils = trpc.useUtils();
@@ -625,13 +640,14 @@ function LoginScreen() {
 
   return (
     <AuthCardShell>
-      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3.5">
+      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
         <div className="space-y-1.5 text-left">
           <Label htmlFor="login-email">E-mail</Label>
           <Input
             id="login-email"
             type="email"
             autoComplete="username"
+            autoFocus
             required
             value={email}
             onChange={e => setEmail(e.target.value)}
@@ -648,14 +664,15 @@ function LoginScreen() {
             onChange={e => setPassword(e.target.value)}
           />
         </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <AuthFormError message={error} />}
         <Button
           type="submit"
           disabled={submitting}
           size="lg"
-          className="w-full font-bold text-sm tracking-wide btn-gold"
+          className="w-full font-bold text-sm tracking-wide btn-gold gap-2 mt-1"
           style={authButtonStyle}
         >
+          {submitting && <Spinner className="size-4" />}
           {submitting ? "Entrando..." : "Entrar na plataforma"}
         </Button>
       </form>
@@ -696,16 +713,17 @@ function ForcedPasswordChangeScreen() {
 
   return (
     <AuthCardShell>
-      <p className="text-xs text-muted-foreground text-center -mt-2">
+      <p className="text-sm text-muted-foreground text-center -mt-1">
         Defina sua própria senha para continuar.
       </p>
-      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3.5">
+      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
         <div className="space-y-1.5 text-left">
           <Label htmlFor="change-current-password">Senha atual</Label>
           <Input
             id="change-current-password"
             type="password"
             autoComplete="current-password"
+            autoFocus
             required
             value={currentPassword}
             onChange={e => setCurrentPassword(e.target.value)}
@@ -734,14 +752,15 @@ function ForcedPasswordChangeScreen() {
             onChange={e => setConfirmPassword(e.target.value)}
           />
         </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <AuthFormError message={error} />}
         <Button
           type="submit"
           disabled={changePasswordMutation.isPending}
           size="lg"
-          className="w-full font-bold text-sm tracking-wide btn-gold"
+          className="w-full font-bold text-sm tracking-wide btn-gold gap-2 mt-1"
           style={authButtonStyle}
         >
+          {changePasswordMutation.isPending && <Spinner className="size-4" />}
           {changePasswordMutation.isPending ? "Salvando..." : "Salvar nova senha"}
         </Button>
       </form>

@@ -75,7 +75,7 @@ export function CustomerMilestonesTab({ customerId }: Props) {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "oklch(0.45 0.05 155)" }}>
+        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
           Vitórias, Desafios & Marcos
         </p>
         <Button
@@ -104,7 +104,7 @@ export function CustomerMilestonesTab({ customerId }: Props) {
                   style={{
                     background: newType === t ? cfg.bg : "transparent",
                     border: `1px solid ${newType === t ? cfg.border : "rgba(0,0,0,0.08)"}`,
-                    color: newType === t ? cfg.color : "oklch(0.55 0.03 155)",
+                    color: newType === t ? cfg.color : "var(--muted-foreground)",
                   }}
                 >
                   <span>{cfg.emoji}</span>
@@ -146,7 +146,7 @@ export function CustomerMilestonesTab({ customerId }: Props) {
             className="text-[10px] px-2 py-0.5 rounded-full font-medium transition-all"
             style={{
               background: activeFilter === f ? "rgba(13,107,78,0.12)" : "rgba(0,0,0,0.04)",
-              color: activeFilter === f ? "oklch(0.35 0.08 155)" : "oklch(0.55 0.03 155)",
+              color: activeFilter === f ? "var(--muted-foreground)" : "var(--muted-foreground)",
               border: `1px solid ${activeFilter === f ? "rgba(13,107,78,0.25)" : "transparent"}`,
             }}
           >
@@ -156,13 +156,13 @@ export function CustomerMilestonesTab({ customerId }: Props) {
       </div>
 
       {/* List */}
-      {isLoading && <p className="text-xs" style={{ color: "oklch(0.55 0.05 155)" }}>Carregando...</p>}
+      {isLoading && <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>Carregando...</p>}
       {!isLoading && filtered.length === 0 && (
         <div className="text-center py-6">
-          <p className="text-xs" style={{ color: "oklch(0.65 0.03 155)" }}>
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
             {activeFilter === "all" ? "Nenhum registro ainda." : `Nenhuma ${TYPE_CONFIG[activeFilter as MilestoneType]?.label.toLowerCase()} registrada.`}
           </p>
-          <p className="text-[10px] mt-1" style={{ color: "oklch(0.70 0.03 155)" }}>
+          <p className="text-[10px] mt-1" style={{ color: "var(--muted-foreground)" }}>
             Clique em "Registrar" para adicionar.
           </p>
         </div>
@@ -180,14 +180,14 @@ export function CustomerMilestonesTab({ customerId }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold leading-snug" style={{ color: cfg.color }}>{m.title}</p>
                 {m.description && (
-                  <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "oklch(0.50 0.04 155)" }}>{m.description}</p>
+                  <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{m.description}</p>
                 )}
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px]" style={{ color: "oklch(0.65 0.03 155)" }}>
+                  <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
                     {new Date(m.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
                   {m.createdByName && (
-                    <span className="text-[10px]" style={{ color: "oklch(0.70 0.03 155)" }}>· {m.createdByName}</span>
+                    <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>· {m.createdByName}</span>
                   )}
                 </div>
               </div>

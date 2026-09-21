@@ -57,7 +57,7 @@ const FREQ_LABELS: Record<FrequencyType, string> = {
 const STATUS_CONFIG = {
   sent: { label: 'Enviado', color: '#0d6b4e', bg: 'rgba(13,107,78,0.10)', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   failed: { label: 'Falhou', color: '#b91c1c', bg: 'rgba(185,28,28,0.10)', icon: <XCircle className="w-3.5 h-3.5" /> },
-  skipped: { label: 'Pulado', color: 'oklch(0.55 0.05 155)', bg: 'rgba(0,0,0,0.06)', icon: <SkipForward className="w-3.5 h-3.5" /> },
+  skipped: { label: 'Pulado', color: 'var(--muted-foreground)', bg: 'rgba(0,0,0,0.06)', icon: <SkipForward className="w-3.5 h-3.5" /> },
   pending: { label: 'Pendente', color: '#9a6010', bg: 'rgba(201,130,39,0.10)', icon: <Clock className="w-3.5 h-3.5" /> },
 };
 
@@ -172,7 +172,7 @@ function CreateRuleModal({ open, onClose, onCreated }: { open: boolean; onClose:
                 rows={4}
                 className="text-sm"
               />
-              <p className="text-[10px]" style={{ color: 'oklch(0.55 0.05 155)' }}>
+              <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
                 A IA vai personalizar esta mensagem para cada cliente. Use as variáveis entre chaves duplas.
               </p>
             </div>
@@ -272,10 +272,10 @@ export default function CadenceAutomation() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold" style={{ color: 'oklch(0.20 0.06 155)' }}>
+          <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
             Régua de Sucesso Automatizada
           </h2>
-          <p className="text-xs mt-0.5" style={{ color: 'oklch(0.55 0.05 155)' }}>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
             Regras que executam automaticamente todos os dias — sem intervenção humana
           </p>
         </div>
@@ -315,7 +315,7 @@ export default function CadenceAutomation() {
           <div className="flex gap-4">
             <span className="text-xs"><span className="font-bold text-emerald-700">{todaySummary.sent}</span> enviadas</span>
             <span className="text-xs"><span className="font-bold text-red-700">{todaySummary.failed}</span> falhas</span>
-            <span className="text-xs"><span className="font-bold" style={{ color: 'oklch(0.55 0.05 155)' }}>{todaySummary.skipped}</span> puladas</span>
+            <span className="text-xs"><span className="font-bold" style={{ color: 'var(--muted-foreground)' }}>{todaySummary.skipped}</span> puladas</span>
           </div>
         </div>
       )}
@@ -329,7 +329,7 @@ export default function CadenceAutomation() {
             className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
             style={activeTab === tab
               ? { background: '#0d6b4e', color: 'white' }
-              : { color: 'oklch(0.55 0.05 155)' }
+              : { color: 'var(--muted-foreground)' }
             }
           >
             {tab === 'rules' ? `Regras (${rules.length})` : `Log de Execuções (${executions.length})`}
@@ -346,8 +346,8 @@ export default function CadenceAutomation() {
               style={{ background: 'rgba(13,107,78,0.04)', border: '1px dashed rgba(13,107,78,0.20)' }}
             >
               <div className="text-4xl">⚡</div>
-              <p className="text-sm font-semibold" style={{ color: 'oklch(0.30 0.06 155)' }}>Nenhuma regra criada ainda</p>
-              <p className="text-xs" style={{ color: 'oklch(0.55 0.05 155)' }}>
+              <p className="text-sm font-semibold" style={{ color: 'var(--muted-foreground)' }}>Nenhuma regra criada ainda</p>
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                 Crie regras para automatizar boas-vindas, check-ins mensais, alertas de renovação e muito mais.
               </p>
               <button
@@ -381,7 +381,7 @@ export default function CadenceAutomation() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold" style={{ color: 'oklch(0.20 0.06 155)' }}>{rule.name}</p>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{rule.name}</p>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                         {FREQ_LABELS[rule.executionFrequency as FrequencyType]}
                       </Badge>
@@ -393,17 +393,17 @@ export default function CadenceAutomation() {
                     </div>
 
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-[11px]" style={{ color: 'oklch(0.55 0.05 155)' }}>
+                      <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
                         🎯 {TRIGGER_LABELS[rule.triggerType as TriggerType]}
                         {rule.triggerType !== 'new_customer' && ` = ${rule.triggerValue}`}
                       </span>
-                      <span className="text-[11px]" style={{ color: 'oklch(0.55 0.05 155)' }}>
+                      <span className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
                         ⚡ {ACTION_LABELS[rule.actionType as ActionType]}
                       </span>
                     </div>
 
                     {rule.messageTemplate && (
-                      <p className="text-[11px] mt-1.5 line-clamp-2" style={{ color: 'oklch(0.50 0.05 155)', fontStyle: 'italic' }}>
+                      <p className="text-[11px] mt-1.5 line-clamp-2" style={{ color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
                         "{rule.messageTemplate.substring(0, 100)}{rule.messageTemplate.length > 100 ? '...' : ''}"
                       </p>
                     )}
@@ -419,7 +419,7 @@ export default function CadenceAutomation() {
                     >
                       {rule.isActive
                         ? <ToggleRight className="w-5 h-5" style={{ color: '#0d6b4e' }} />
-                        : <ToggleLeft className="w-5 h-5" style={{ color: 'oklch(0.55 0.05 155)' }} />
+                        : <ToggleLeft className="w-5 h-5" style={{ color: 'var(--muted-foreground)' }} />
                       }
                     </button>
                     <button
@@ -443,8 +443,8 @@ export default function CadenceAutomation() {
         <div className="space-y-2">
           {executions.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-sm" style={{ color: 'oklch(0.55 0.05 155)' }}>Nenhuma execução registrada ainda.</p>
-              <p className="text-xs mt-1" style={{ color: 'oklch(0.65 0.04 155)' }}>Clique em "Executar Agora" para rodar o engine manualmente.</p>
+              <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Nenhuma execução registrada ainda.</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>Clique em "Executar Agora" para rodar o engine manualmente.</p>
             </div>
           ) : (
             executions.map(exec => {
@@ -458,11 +458,11 @@ export default function CadenceAutomation() {
                   <div style={{ color: cfg.color }} className="mt-0.5 shrink-0">{cfg.icon}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs font-semibold" style={{ color: 'oklch(0.25 0.06 155)' }}>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--foreground)' }}>
                         {exec.customerName ?? `Cliente #${exec.customerId}`}
                       </p>
                       {exec.customerProgram && (
-                        <span className="text-[10px]" style={{ color: 'oklch(0.55 0.05 155)' }}>{exec.customerProgram}</span>
+                        <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{exec.customerProgram}</span>
                       )}
                       <Badge
                         variant="outline"
@@ -473,14 +473,14 @@ export default function CadenceAutomation() {
                       </Badge>
                     </div>
                     {exec.generatedMessage && (
-                      <p className="text-[11px] mt-1 line-clamp-2" style={{ color: 'oklch(0.45 0.05 155)', fontStyle: 'italic' }}>
+                      <p className="text-[11px] mt-1 line-clamp-2" style={{ color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
                         "{exec.generatedMessage.substring(0, 120)}{exec.generatedMessage.length > 120 ? '...' : ''}"
                       </p>
                     )}
                     {exec.errorMessage && (
                       <p className="text-[11px] mt-1" style={{ color: '#b91c1c' }}>Erro: {exec.errorMessage}</p>
                     )}
-                    <p className="text-[10px] mt-1" style={{ color: 'oklch(0.65 0.04 155)' }}>
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--muted-foreground)' }}>
                       {new Date(exec.executedAt).toLocaleString('pt-BR')}
                       {exec.healthScoreAtExecution != null && ` · Score: ${exec.healthScoreAtExecution}`}
                     </p>

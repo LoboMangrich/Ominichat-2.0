@@ -64,7 +64,7 @@ function SentimentDonut({ positive, neutral, negative }: { positive: number; neu
         {data.map(d => (
           <div key={d.name} className="flex items-center gap-1 text-xs">
             <div className="w-2.5 h-2.5 rounded-full" style={{ background: d.color }} />
-            <span style={{ color: "oklch(0.45 0.05 155)" }}>{d.name} <span className="font-bold" style={{ color: d.color }}>{d.value}%</span></span>
+            <span style={{ color: "var(--muted-foreground)" }}>{d.name} <span className="font-bold" style={{ color: d.color }}>{d.value}%</span></span>
           </div>
         ))}
       </div>
@@ -110,10 +110,10 @@ export default function CommunicationIntelligence() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black" style={{ color: "oklch(0.18 0.08 155)", fontFamily: "'Space Grotesk', sans-serif" }}>
+          <h1 className="text-2xl font-black" style={{ color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif" }}>
             Inteligência de Comunicação
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: "oklch(0.50 0.05 155)" }}>
+          <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
             IA analisa as mensagens dos seus clientes e gera insights acionáveis
           </p>
         </div>
@@ -133,10 +133,10 @@ export default function CommunicationIntelligence() {
                 onClick={() => setPeriod(opt.value)}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 style={period === opt.value ? {
-                  background: "oklch(0.49 0.19 155)",
+                  background: "var(--primary)",
                   color: "white",
                   boxShadow: "0 2px 8px rgba(13,107,78,0.30)",
-                } : { color: "oklch(0.45 0.05 155)" }}
+                } : { color: "var(--muted-foreground)" }}
               >
                 {opt.label}
               </button>
@@ -171,9 +171,9 @@ export default function CommunicationIntelligence() {
             boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
           }}
         >
-          <Brain className="w-14 h-14 mx-auto mb-4 opacity-20" style={{ color: "oklch(0.49 0.19 155)" }} />
-          <h3 className="text-lg font-bold mb-2" style={{ color: "oklch(0.25 0.08 155)" }}>Nenhuma análise ainda</h3>
-          <p className="text-sm mb-6" style={{ color: "oklch(0.50 0.05 155)" }}>
+          <Brain className="w-14 h-14 mx-auto mb-4 opacity-20" style={{ color: "var(--primary)" }} />
+          <h3 className="text-lg font-bold mb-2" style={{ color: "var(--foreground)" }}>Nenhuma análise ainda</h3>
+          <p className="text-sm mb-6" style={{ color: "var(--muted-foreground)" }}>
             Clique em "Analisar Agora" para a IA processar as mensagens dos últimos {period} dias e gerar insights sobre os seus clientes.
           </p>
           <Button onClick={() => analyzeMutation.mutate({ periodDays: period })} disabled={isAnalyzing} className="btn-gold">
@@ -191,20 +191,20 @@ export default function CommunicationIntelligence() {
               boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
             }}
           >
-            <Brain className="w-8 h-8 shrink-0" style={{ color: "oklch(0.49 0.19 155)" }} />
-            <p className="text-sm flex-1" style={{ color: "oklch(0.30 0.08 155)" }}>{latest.rawSummary}</p>
+            <Brain className="w-8 h-8 shrink-0" style={{ color: "var(--primary)" }} />
+            <p className="text-sm flex-1" style={{ color: "var(--muted-foreground)" }}>{latest.rawSummary}</p>
             <div className="flex gap-6 shrink-0 text-center">
               <div>
-                <div className="text-xl font-black" style={{ color: "oklch(0.18 0.08 155)" }}>{latest.totalMessages}</div>
-                <div className="text-[10px]" style={{ color: "oklch(0.55 0.05 155)" }}>Mensagens</div>
+                <div className="text-xl font-black" style={{ color: "var(--foreground)" }}>{latest.totalMessages}</div>
+                <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>Mensagens</div>
               </div>
               <div>
-                <div className="text-xl font-black" style={{ color: "oklch(0.18 0.08 155)" }}>{latest.totalConversations}</div>
-                <div className="text-[10px]" style={{ color: "oklch(0.55 0.05 155)" }}>Conversas</div>
+                <div className="text-xl font-black" style={{ color: "var(--foreground)" }}>{latest.totalConversations}</div>
+                <div className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>Conversas</div>
               </div>
               <div>
-                <div className="text-[10px] mb-0.5" style={{ color: "oklch(0.55 0.05 155)" }}>Última análise</div>
-                <div className="text-xs font-semibold" style={{ color: "oklch(0.35 0.08 155)" }}>
+                <div className="text-[10px] mb-0.5" style={{ color: "var(--muted-foreground)" }}>Última análise</div>
+                <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
                   {new Date(latest.analyzedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </div>
               </div>
@@ -222,7 +222,7 @@ export default function CommunicationIntelligence() {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
               }}
             >
-              <h3 className="text-sm font-bold mb-4" style={{ color: "oklch(0.25 0.08 155)" }}>Sentimento Geral</h3>
+              <h3 className="text-sm font-bold mb-4" style={{ color: "var(--foreground)" }}>Sentimento Geral</h3>
               <SentimentDonut
                 positive={latest.sentimentPositive}
                 neutral={latest.sentimentNeutral}
@@ -239,17 +239,17 @@ export default function CommunicationIntelligence() {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
               }}
             >
-              <h3 className="text-sm font-bold mb-4" style={{ color: "oklch(0.25 0.08 155)" }}>Temas Recorrentes</h3>
+              <h3 className="text-sm font-bold mb-4" style={{ color: "var(--foreground)" }}>Temas Recorrentes</h3>
               <div className="space-y-2.5">
                 {(latest.topics as any[] || []).map((topic: any, i: number) => (
                   <div key={i} className="flex items-center gap-2">
-                    <span className="text-xs font-black w-4 text-right shrink-0" style={{ color: "oklch(0.55 0.05 155)" }}>{i + 1}</span>
+                    <span className="text-xs font-black w-4 text-right shrink-0" style={{ color: "var(--muted-foreground)" }}>{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold truncate" style={{ color: "oklch(0.25 0.08 155)" }}>{topic.topic}</span>
+                        <span className="text-xs font-semibold truncate" style={{ color: "var(--foreground)" }}>{topic.topic}</span>
                         <div className="flex items-center gap-1 shrink-0">
                           <TrendIcon trend={topic.trend} />
-                          <span className="text-[10px] font-bold" style={{ color: "oklch(0.50 0.05 155)" }}>{topic.count}x</span>
+                          <span className="text-[10px] font-bold" style={{ color: "var(--muted-foreground)" }}>{topic.count}x</span>
                         </div>
                       </div>
                       <div className="h-1 rounded-full mt-1" style={{ background: "rgba(0,0,0,0.06)" }}>
@@ -257,7 +257,7 @@ export default function CommunicationIntelligence() {
                           className="h-full rounded-full"
                           style={{
                             width: `${Math.min(100, (topic.count / ((latest.topics as any[])[0]?.count || 1)) * 100)}%`,
-                            background: "oklch(0.49 0.19 155)",
+                            background: "var(--primary)",
                             opacity: 0.7,
                           }}
                         />
@@ -266,7 +266,7 @@ export default function CommunicationIntelligence() {
                   </div>
                 ))}
                 {(!latest.topics || (latest.topics as any[]).length === 0) && (
-                  <p className="text-xs text-center py-4" style={{ color: "oklch(0.60 0.05 155)" }}>Nenhum tema identificado</p>
+                  <p className="text-xs text-center py-4" style={{ color: "var(--muted-foreground)" }}>Nenhum tema identificado</p>
                 )}
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function CommunicationIntelligence() {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
               }}
             >
-              <h3 className="text-sm font-bold mb-4 flex items-center gap-1.5" style={{ color: "oklch(0.25 0.08 155)" }}>
+              <h3 className="text-sm font-bold mb-4 flex items-center gap-1.5" style={{ color: "var(--foreground)" }}>
                 <Lightbulb className="w-4 h-4" style={{ color: "#f59e0b" }} />
                 Sugestões da IA
               </h3>
@@ -304,12 +304,12 @@ export default function CommunicationIntelligence() {
                           style={{ background: `${catColor}18`, color: catColor }}
                         >{s.category}</span>
                       </div>
-                      <p className="text-xs leading-relaxed" style={{ color: "oklch(0.30 0.06 155)" }}>{s.text}</p>
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{s.text}</p>
                     </div>
                   );
                 })}
                 {(!latest.suggestions || (latest.suggestions as any[]).length === 0) && (
-                  <p className="text-xs text-center py-4" style={{ color: "oklch(0.60 0.05 155)" }}>Nenhuma sugestão disponível</p>
+                  <p className="text-xs text-center py-4" style={{ color: "var(--muted-foreground)" }}>Nenhuma sugestão disponível</p>
                 )}
               </div>
             </div>
@@ -325,11 +325,11 @@ export default function CommunicationIntelligence() {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.07)",
               }}
             >
-              <h3 className="text-sm font-bold mb-4" style={{ color: "oklch(0.25 0.08 155)" }}>Evolução do Sentimento</h3>
+              <h3 className="text-sm font-bold mb-4" style={{ color: "var(--foreground)" }}>Evolução do Sentimento</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={sentimentTrend} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "oklch(0.55 0.05 155)" }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "oklch(0.55 0.05 155)" }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ background: "white", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, fontSize: 11 }}
                     formatter={(v: any, name: string) => [`${v}%`, name.charAt(0).toUpperCase() + name.slice(1)]}
@@ -341,7 +341,7 @@ export default function CommunicationIntelligence() {
               </ResponsiveContainer>
               <div className="flex gap-4 justify-center mt-2">
                 {[{ label: "Positivo", color: "#0d6b4e" }, { label: "Neutro", color: "#9ca3af" }, { label: "Negativo", color: "#ef4444" }].map(l => (
-                  <div key={l.label} className="flex items-center gap-1 text-xs" style={{ color: "oklch(0.50 0.05 155)" }}>
+                  <div key={l.label} className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
                     <div className="w-3 h-0.5 rounded" style={{ background: l.color }} />
                     {l.label}
                   </div>

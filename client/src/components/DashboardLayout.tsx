@@ -24,47 +24,27 @@ import {
   Bell,
   BellOff,
   Bot,
-  BookOpen,
   Brain,
   Briefcase,
-  Building2,
-  Calendar,
   CheckSquare,
   ChevronDown,
   ChevronRight,
-  Clock,
-  CreditCard,
   Database,
-  FileText,
   Filter,
   FormInput,
-  GitBranch,
-  Globe,
   HeartPulse,
-  History,
   Inbox,
-  Instagram,
-  Key,
   LayoutDashboard,
   LogOut,
-  Mail,
   Megaphone,
   Menu,
   MessageCircle,
-  MessageSquare,
   PanelLeft,
-  Phone,
   Settings,
-  Shield,
   Sparkles,
-  Star,
   Tag,
-  Target,
-  TrendingUp,
   Users,
   UserCheck,
-  Webhook,
-  Workflow,
   Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -96,7 +76,6 @@ type NavLeaf = {
   label: string;
   path: string;
   badge?: "live";
-  soon?: boolean;
   sectionHeader?: string; // optional section divider label above this item
 };
 
@@ -124,21 +103,6 @@ const NAV_MODULES: NavModule[] = [
       { icon: Users,          label: "Grupos",               path: "/groups" },
       // ── Sara IA ──
       { icon: Bot,            label: "Sara IA (Suporte)",    path: "/sara", sectionHeader: "Atendimento via Sara IA" },
-      // ── E-mail ──
-      { icon: Mail,           label: "Caixa de Entrada",     path: "/atendimentos?canal=email", soon: true, sectionHeader: "Atendimento via E-mail" },
-      { icon: Mail,           label: "Caixa de Saída",       path: "/atendimentos?canal=email&view=saida", soon: true },
-      { icon: Mail,           label: "Respondidos",          path: "/atendimentos?canal=email&view=respondidos", soon: true },
-      { icon: Mail,           label: "Não Respondidos",      path: "/atendimentos?canal=email&view=nao-respondidos", soon: true },
-      // ── Em Breve ──
-      { icon: Instagram,      label: "Instagram Direct",     path: "/atendimentos?canal=instagram", soon: true, sectionHeader: "Em Breve" },
-      { icon: MessageCircle,  label: "Facebook Messenger",   path: "/atendimentos?canal=facebook", soon: true },
-      { icon: Phone,          label: "Telegram",             path: "/atendimentos?canal=telegram", soon: true },
-      { icon: Globe,          label: "Chat do Site",         path: "/atendimentos?canal=chat", soon: true },
-      { icon: MessageSquare,  label: "SMS",                  path: "/atendimentos?canal=sms", soon: true },
-      { icon: Phone,          label: "Voz (VoIP)",           path: "/atendimentos?canal=voz", soon: true },
-      { icon: Globe,          label: "LinkedIn",             path: "/atendimentos?canal=linkedin", soon: true },
-      { icon: Globe,          label: "TikTok",               path: "/atendimentos?canal=tiktok", soon: true },
-      { icon: Globe,          label: "X (Twitter)",          path: "/atendimentos?canal=twitter", soon: true },
     ],
   },
   {
@@ -148,22 +112,11 @@ const NAV_MODULES: NavModule[] = [
     color: "#c9a227",
     items: [
       { icon: Users,          label: "Clientes",             path: "/customers" },
-      { icon: BookOpen,       label: "Carteiras",            path: "/customers?view=carteiras", soon: true },
       { icon: UserCheck,      label: "Novos Clientes",       path: "/new-clients" },
-      { icon: Building2,      label: "Empresas",             path: "/customers?view=empresas", soon: true },
-      { icon: Briefcase,      label: "Negócios",             path: "/customers?view=negocios", soon: true },
-      { icon: TrendingUp,     label: "Pipeline",             path: "/customers?view=pipeline", soon: true },
-      { icon: GitBranch,         label: "Funil Comercial",      path: "/customers?view=funil", soon: true },
-      { icon: Target,         label: "Oportunidades",        path: "/customers?view=oportunidades", soon: true },
-      { icon: Calendar,       label: "Agenda",               path: "/customers?view=agenda", soon: true },
       { icon: Bell,           label: "Alertas",              path: "/alerts" },
       { icon: CheckSquare,    label: "Tarefas Comerciais",   path: "/tasks" },
       { icon: FormInput,      label: "Formulários",          path: "/forms" },
       { icon: Sparkles,       label: "Campanhas",            path: "/campaigns" },
-      { icon: History,        label: "Histórico do Cliente", path: "/customers?view=historico", soon: true },
-      { icon: FileText,       label: "Documentos",           path: "/customers?view=docs", soon: true },
-      { icon: MessageSquare,  label: "Anotações",            path: "/customers?view=notas", soon: true },
-      { icon: Clock,          label: "Timeline",             path: "/customers?view=timeline", soon: true },
     ],
   },
   {
@@ -175,30 +128,17 @@ const NAV_MODULES: NavModule[] = [
       { icon: LayoutDashboard, label: "Painel",           path: "/" },
       { icon: HeartPulse,      label: "Indicadores",         path: "/indicators/health" },
       { icon: BarChart3,       label: "Produtividade & Métricas", path: "/metrics" },
-      { icon: Target,          label: "Metas",               path: "/indicators/health?view=metas", soon: true },
-      { icon: Clock,           label: "Tempo Médio",         path: "/indicators/health?view=tma", soon: true },
-      { icon: TrendingUp,      label: "Conversões",          path: "/indicators/health?view=conversoes", soon: true },
-      { icon: CreditCard,      label: "Receita",             path: "/indicators/health?view=receita", soon: true },
-      { icon: Shield,          label: "Auditoria",           path: "/indicators/health?view=auditoria", soon: true },
-      { icon: FileText,        label: "Logs",                path: "/indicators/health?view=logs", soon: true },
-      { icon: FileText,        label: "Exportações",         path: "/indicators/health?view=exports", soon: true },
     ],
   },
 ];
 
 const SETTINGS_ITEMS: NavLeaf[] = [
   { icon: Users,        label: "Usuários",          path: "/users" },
-  { icon: Shield,       label: "Permissões",        path: "/settings?tab=permissions", soon: true },
   { icon: Zap,          label: "Integrações",       path: "/integrations" },
-  { icon: Key,          label: "API",               path: "/settings?tab=api", soon: true },
-  { icon: Webhook,      label: "Webhooks",          path: "/settings?tab=webhooks", soon: true },
   // Item "IA" oculto: os 6 agentes internos foram desativados, o atendimento
   // migrou para a Sara via API externa (tela /sara). Rota /ia-automation e
   // código continuam intactos — remover este comentário para reexibir.
   // { icon: Bot,          label: "IA",                path: "/ia-automation" },
-  { icon: Workflow,     label: "Automações",        path: "/ia-automation?view=automacoes", soon: true },
-  { icon: CreditCard,   label: "Financeiro",        path: "/settings?tab=financeiro", soon: true },
-  { icon: Star,         label: "Assinatura",        path: "/settings?tab=assinatura", soon: true },
   { icon: Settings,     label: "Preferências",      path: "/settings" },
 ];
 
@@ -281,14 +221,10 @@ function NavLeafBtn({ item, ctx }: { item: NavLeaf; ctx: SidebarCtx }) {
       )}
       <button
         onClick={() => {
-          if (item.soon) {
-            import("sonner").then(({ toast }) => toast.info("Em breve disponível!"));
-            return;
-          }
           ctx.navigate(item.path);
           ctx.closeMobile();
         }}
-        className={`nav-leaf${active ? " nav-leaf--active" : ""}${item.soon ? " nav-leaf--soon" : ""}`}
+        className={`nav-leaf${active ? " nav-leaf--active" : ""}`}
         title={!ctx.isOpen ? item.label : undefined}
       >
         {active && <div className="nav-leaf__shine" />}
@@ -296,7 +232,6 @@ function NavLeafBtn({ item, ctx }: { item: NavLeaf; ctx: SidebarCtx }) {
         {ctx.isOpen && (
           <>
             <span className="nav-leaf__label">{item.label}</span>
-            {item.soon && <span className="nav-soon-badge">em breve</span>}
             {badgeCount && <span className="nav-badge">{badgeCount}</span>}
           </>
         )}

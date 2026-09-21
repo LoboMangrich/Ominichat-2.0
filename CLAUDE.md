@@ -262,6 +262,76 @@ atendimento) sem reescrever o núcleo.
 CPF é dado pessoal sensível: definir quem pode ver, mascarar por padrão na
 interface, nunca logar.
 
+## Roadmap de interface — itens removidos do menu
+
+Em 2026, 37 itens de menu marcados `soon: true` (`client/src/components/DashboardLayout.tsx`,
+`NAV_MODULES`/`SETTINGS_ITEMS`) foram **removidos** — não escondidos, removidos —
+por apontarem pra telas que não existem. Cada um resolvia pra uma rota já
+existente com um parâmetro de query diferente (`?canal=`, `?view=`, `?tab=`),
+mas nenhuma dessas páginas lê esses parâmetros — verificado antes de remover,
+não é suposição. Diferente do caso das páginas órfãs (existiam e funcionavam,
+só faltava o link): aqui a funcionalidade em si não existe.
+
+**Isto não é código perdido — é roadmap movido para onde ele deveria estar.**
+O caminho pra reativar qualquer item é: implementar a tela/funcionalidade de
+verdade, então devolver a entrada correspondente em `NAV_MODULES`/
+`SETTINGS_ITEMS` (sem `soon: true` — esse campo foi removido do tipo `NavLeaf`
+junto, ficava sem nenhum uso depois da remoção, assim como a classe CSS
+`.nav-soon-badge`/`.nav-leaf--soon`).
+
+### Atendimento (13 itens)
+
+E-mail (sectionHeader "Atendimento via E-mail" — inteira, ficaria sem nenhum
+item se um único sobrasse):
+- Caixa de Entrada — `/atendimentos?canal=email`
+- Caixa de Saída — `/atendimentos?canal=email&view=saida`
+- Respondidos — `/atendimentos?canal=email&view=respondidos`
+- Não Respondidos — `/atendimentos?canal=email&view=nao-respondidos`
+
+Em Breve (sectionHeader "Em Breve" — inteira):
+- Instagram Direct — `/atendimentos?canal=instagram`
+- Facebook Messenger — `/atendimentos?canal=facebook`
+- Telegram — `/atendimentos?canal=telegram`
+- Chat do Site — `/atendimentos?canal=chat`
+- SMS — `/atendimentos?canal=sms`
+- Voz (VoIP) — `/atendimentos?canal=voz`
+- LinkedIn — `/atendimentos?canal=linkedin`
+- TikTok — `/atendimentos?canal=tiktok`
+- X (Twitter) — `/atendimentos?canal=twitter`
+
+### CRM (11 itens)
+
+- Carteiras — `/customers?view=carteiras`
+- Empresas — `/customers?view=empresas`
+- Negócios — `/customers?view=negocios`
+- Pipeline — `/customers?view=pipeline`
+- Funil Comercial — `/customers?view=funil`
+- Oportunidades — `/customers?view=oportunidades`
+- Agenda — `/customers?view=agenda`
+- Histórico do Cliente — `/customers?view=historico`
+- Documentos — `/customers?view=docs`
+- Anotações — `/customers?view=notas`
+- Timeline — `/customers?view=timeline`
+
+### Estatísticas (7 itens)
+
+- Metas — `/indicators/health?view=metas`
+- Tempo Médio — `/indicators/health?view=tma`
+- Conversões — `/indicators/health?view=conversoes`
+- Receita — `/indicators/health?view=receita`
+- Auditoria — `/indicators/health?view=auditoria`
+- Logs — `/indicators/health?view=logs`
+- Exportações — `/indicators/health?view=exports`
+
+### Configurações (6 itens)
+
+- Permissões — `/settings?tab=permissions`
+- API — `/settings?tab=api`
+- Webhooks — `/settings?tab=webhooks`
+- Automações — `/ia-automation?view=automacoes`
+- Financeiro — `/settings?tab=financeiro`
+- Assinatura — `/settings?tab=assinatura`
+
 ## LGPD e dados pessoais
 
 O sistema processa conversas reais com clientes: nome, telefone, e-mail,

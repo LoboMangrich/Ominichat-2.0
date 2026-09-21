@@ -129,7 +129,7 @@ function GroupConversationPanel({ item, onClose }: { item: ChatItem; onClose: ()
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-card shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white shrink-0">
+          <div className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white shrink-0">
             <Users className="w-4 h-4" />
           </div>
           <div>
@@ -144,7 +144,7 @@ function GroupConversationPanel({ item, onClose }: { item: ChatItem; onClose: ()
                   <Bot className="w-2.5 h-2.5 mr-0.5" /> IA Ativa
                 </Badge>
               ) : (
-                <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                <Badge className="text-[10px] px-1.5 py-0 bg-brand-500/20 text-brand-400 border-brand-500/30">
                   <User className="w-2.5 h-2.5 mr-0.5" /> Humano
                 </Badge>
               )}
@@ -164,7 +164,7 @@ function GroupConversationPanel({ item, onClose }: { item: ChatItem; onClose: ()
               "h-8 text-xs",
               aiEnabled
                 ? "border-purple-400 text-purple-400 hover:bg-purple-900/20"
-                : "border-emerald-400 text-emerald-400 hover:bg-emerald-900/20"
+                : "border-brand-400 text-brand-400 hover:bg-brand-900/20"
             )}
             onClick={() => group && toggleAi.mutate({ groupId: actualGroupId, aiAutoReply: !aiEnabled })}
             disabled={toggleAi.isPending || !group}
@@ -197,15 +197,15 @@ function GroupConversationPanel({ item, onClose }: { item: ChatItem; onClose: ()
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-between px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 shrink-0">
-          <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-brand-50 dark:bg-brand-900/20 border-b border-brand-200 dark:border-brand-800 shrink-0">
+          <div className="flex items-center gap-2 text-xs text-brand-700 dark:text-brand-300">
             <User className="w-3.5 h-3.5" />
             <span className="font-medium">Humano no controle</span>
-            <span className="text-emerald-500 dark:text-emerald-400">— você está respondendo manualmente</span>
+            <span className="text-brand-500 dark:text-brand-400">— você está respondendo manualmente</span>
           </div>
           <button
             onClick={() => group && toggleAi.mutate({ groupId: actualGroupId, aiAutoReply: true })}
-            className="text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 font-medium underline underline-offset-2"
+            className="text-xs text-brand-700 dark:text-brand-300 hover:text-brand-900 dark:hover:text-brand-100 font-medium underline underline-offset-2"
           >
             Ativar IA
           </button>
@@ -237,13 +237,13 @@ function GroupConversationPanel({ item, onClose }: { item: ChatItem; onClose: ()
                 isAi
                   ? "bg-purple-600 text-white rounded-br-sm"
                   : isAgent
-                  ? "bg-emerald-600 text-white rounded-br-sm"
+                  ? "bg-brand-600 text-white rounded-br-sm"
                   : "bg-card text-foreground border rounded-bl-sm"
               )}>
                 {/* Sender label for group context */}
                 <span className={cn(
                   "text-[10px] font-semibold block mb-0.5",
-                  isAi ? "text-purple-200" : isAgent ? "text-emerald-200" : "text-muted-foreground"
+                  isAi ? "text-purple-200" : isAgent ? "text-brand-200" : "text-muted-foreground"
                 )}>
                   {senderLabel(msg.senderType, msg.senderName)}
                   {isAi && <Sparkles className="w-2.5 h-2.5 inline ml-1" />}
@@ -282,7 +282,7 @@ function GroupConversationPanel({ item, onClose }: { item: ChatItem; onClose: ()
         </Button>
         <Button
           size="icon"
-          className="shrink-0 h-9 w-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
+          className="shrink-0 h-9 w-9 bg-brand-600 hover:bg-brand-700 text-white rounded-full"
           onClick={handleSend}
           disabled={!text.trim() || sendGroupMsg.isPending}
         >
@@ -374,7 +374,7 @@ function TagManagerModal({ open, onClose }: { open: boolean; onClose: () => void
           />
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+            className="bg-brand-600 hover:bg-brand-700 text-white shrink-0"
             disabled={!newTagName.trim() || createTag.isPending}
             onClick={() => createTag.mutate({ name: newTagName.trim() })}
           >
@@ -464,7 +464,7 @@ export default function Atendimentos() {
             className={cn(
               "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap border",
               !selectedTagId
-                ? "bg-emerald-600 text-white border-emerald-600"
+                ? "bg-brand-600 text-white border-brand-600"
                 : "bg-transparent text-muted-foreground border-border hover:bg-muted"
             )}
           >
@@ -477,7 +477,7 @@ export default function Atendimentos() {
               className={cn(
                 "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap border",
                 selectedTagId === tag.id
-                  ? "bg-emerald-600 text-white border-emerald-600"
+                  ? "bg-brand-600 text-white border-brand-600"
                   : "bg-transparent text-muted-foreground border-border hover:bg-muted"
               )}
             >
@@ -516,13 +516,13 @@ export default function Atendimentos() {
                 onClick={() => setSelectedItem(isSelected ? null : item)}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-border/40",
-                  isSelected ? "bg-emerald-50 dark:bg-emerald-950/20" : "hover:bg-muted/50"
+                  isSelected ? "bg-brand-50 dark:bg-brand-950/20" : "hover:bg-muted/50"
                 )}
               >
                 {/* Avatar */}
                 <div className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0",
-                  item.type === "group" ? "bg-emerald-600" : avatarColor(item.name)
+                  item.type === "group" ? "bg-brand-600" : avatarColor(item.name)
                 )}>
                   {item.type === "group" ? <Users className="w-5 h-5" /> : initials(item.name)}
                 </div>

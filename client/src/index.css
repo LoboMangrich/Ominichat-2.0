@@ -7,26 +7,38 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════
-   PALETA CASHMILES — Esmeralda Real + Ouro Metálico
+   PALETA CASHMILES — Azul Real + Ouro Metálico
+   Matiz 250 (azul da logo, client/public/cashmiles-icon.png).
+   Migrado do verde (matiz 155) preservando luminosidade/croma de cada
+   degrau — só o matiz mudou. Ouro mantido: agora fica ~170° de distância
+   do azul (quase complementar), contraste maior que tinha com o verde
+   (~75° de distância) — e "ouro" combina tematicamente com o nome
+   Cashmiles (cash/milhas = recompensa). Ver CLAUDE.md para o registro
+   completo da decisão.
    ═══════════════════════════════════════════════════════ */
 :root {
-  /* Esmeralda */
-  --emerald-50:  oklch(0.97 0.03 155);
-  --emerald-100: oklch(0.93 0.06 155);
-  --emerald-200: oklch(0.87 0.10 155);
-  --emerald-300: oklch(0.78 0.15 155);
-  --emerald-400: oklch(0.68 0.18 155);
-  --emerald-500: oklch(0.58 0.20 155);
-  --emerald-600: oklch(0.49 0.19 155);
-  --emerald-700: oklch(0.40 0.17 155);
-  --emerald-800: oklch(0.30 0.14 155);
-  --emerald-900: oklch(0.20 0.10 155);
+  /* Brand (azul) */
+  --brand-50:  oklch(0.97 0.03 250);
+  --brand-100: oklch(0.93 0.06 250);
+  --brand-200: oklch(0.87 0.10 250);
+  --brand-300: oklch(0.78 0.15 250);
+  --brand-400: oklch(0.68 0.18 250);
+  --brand-500: oklch(0.58 0.20 250);
+  --brand-600: oklch(0.49 0.19 250);
+  --brand-700: oklch(0.40 0.17 250);
+  --brand-800: oklch(0.30 0.14 250);
+  --brand-900: oklch(0.20 0.10 250);
 
-  /* Ouro Metálico */
+  /* Ouro Metálico — acento, não muda com o rebrand */
   --gold-light:  oklch(0.88 0.12 85);
   --gold-mid:    oklch(0.76 0.14 80);
   --gold-deep:   oklch(0.60 0.12 78);
   --gold-glow:   oklch(0.82 0.16 82);
+  /* Texto escuro sobre ouro — ligeiramente azulado em vez de esverdeado, e
+     recalibrado para passar WCAG AA (4.5:1) contra TODOS os stops do
+     gradiente de .btn-gold, inclusive o mais escuro (ver .btn-gold abaixo:
+     o stop escuro original, #8B6914, só dava 3.35:1 com a cor antiga). */
+  --gold-text: #040a11;
 
   /* Superfícies glassmorphism */
   --glass-white:       rgba(255, 255, 255, 0.78);
@@ -38,33 +50,33 @@
   --glass-shadow-xl:   0 20px 60px rgba(0, 0, 0, 0.14), 0 2px 0 rgba(255,255,255,1) inset, 0 0 0 1px rgba(255,255,255,0.90);
 
   /* Tokens semânticos — Light Mode Iluminado */
-  --background:        oklch(0.980 0.008 155);   /* quase branco com toque verde */
-  --foreground:        oklch(0.12 0.05 155);      /* verde escuro para texto */
+  --background:        oklch(0.980 0.008 250);   /* quase branco com toque azul */
+  --foreground:        oklch(0.12 0.05 250);      /* azul escuro para texto */
   --card:              oklch(1 0 0);
-  --card-foreground:   oklch(0.12 0.05 155);
+  --card-foreground:   oklch(0.12 0.05 250);
   --popover:           oklch(1 0 0);
-  --popover-foreground:oklch(0.12 0.05 155);
-  --primary:           oklch(0.45 0.19 155);     /* verde médio vibrante */
-  --primary-foreground:oklch(0.98 0.01 155);
-  --secondary:         oklch(0.95 0.03 155);
-  --secondary-foreground:oklch(0.25 0.10 155);
-  --muted:             oklch(0.96 0.015 155);
-  --muted-foreground:  oklch(0.45 0.06 155);
-  --accent:            oklch(0.95 0.03 155);
-  --accent-foreground: oklch(0.25 0.10 155);
-  --destructive:       oklch(0.55 0.22 25);
-  --border:            oklch(0.90 0.03 155);
-  --input:             oklch(0.95 0.02 155);
-  --ring:              oklch(0.45 0.19 155);
+  --popover-foreground:oklch(0.12 0.05 250);
+  --primary:           oklch(0.45 0.19 250);     /* azul médio vibrante */
+  --primary-foreground:oklch(0.98 0.01 250);
+  --secondary:         oklch(0.95 0.03 250);
+  --secondary-foreground:oklch(0.25 0.10 250);
+  --muted:             oklch(0.96 0.015 250);
+  --muted-foreground:  oklch(0.45 0.06 250);
+  --accent:            oklch(0.95 0.03 250);
+  --accent-foreground: oklch(0.25 0.10 250);
+  --destructive:       oklch(0.55 0.22 25);      /* vermelho — semântico, não de marca, não muda */
+  --border:            oklch(0.90 0.03 250);
+  --input:             oklch(0.95 0.02 250);
+  --ring:              oklch(0.45 0.19 250);
   --radius: 0.75rem;
 
-  /* Sidebar — verde médio vibrante (como na imagem de referência) */
-  --sidebar:                oklch(0.38 0.17 155);
-  --sidebar-foreground:     oklch(0.98 0.01 155);
+  /* Sidebar — azul médio vibrante (como na imagem de referência) */
+  --sidebar:                oklch(0.38 0.17 250);
+  --sidebar-foreground:     oklch(0.98 0.01 250);
   --sidebar-primary:        oklch(0.82 0.16 82);   /* ouro */
-  --sidebar-primary-foreground: oklch(0.10 0.04 155);
-  --sidebar-accent:         oklch(0.45 0.18 155);
-  --sidebar-accent-foreground: oklch(0.98 0.01 155);
+  --sidebar-primary-foreground: oklch(0.10 0.04 250);
+  --sidebar-accent:         oklch(0.45 0.18 250);
+  --sidebar-accent-foreground: oklch(0.98 0.01 250);
   --sidebar-border:         rgba(255,255,255,0.12);
   --sidebar-ring:           oklch(0.82 0.16 82);
   --sidebar-width: 252px;
@@ -95,15 +107,15 @@
     letter-spacing: -0.025em;
   }
 
-  /* Scrollbar ultra-fina esmeralda */
+  /* Scrollbar ultra-fina azul */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, oklch(0.49 0.19 155), oklch(0.76 0.14 80));
+    background: linear-gradient(180deg, oklch(0.49 0.19 250), oklch(0.76 0.14 80));
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.49 0.19 155);
+    background: oklch(0.49 0.19 250);
   }
 
   .flex { min-width: 0; min-height: 0; }
@@ -173,10 +185,14 @@
     box-shadow: 0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.05);
   }
 
-  /* Botão dourado metálico */
+  /* Botão dourado metálico. Stop escuro do gradiente recalibrado de #8B6914
+     para #AD8620 — com a cor original, o texto só alcançava 3.35:1 de
+     contraste ali (WCAG AA exige 4.5:1 para texto normal); mesmo preto puro
+     não resolvia (4.13:1). Clarear o stop mantém a leitura "dourado
+     profundo" e fecha em 5.87:1. */
   .btn-gold {
-    background: linear-gradient(135deg, #8B6914 0%, #C9A227 40%, #E8C547 70%, #C9A227 100%);
-    color: #0D2010;
+    background: linear-gradient(135deg, #AD8620 0%, #C9A227 40%, #E8C547 70%, #C9A227 100%);
+    color: var(--gold-text);
     font-weight: 700;
     border: 1px solid rgba(255,255,255,0.40);
     box-shadow:
@@ -218,7 +234,7 @@
   /* Badge ouro */
   .badge-gold {
     background: linear-gradient(135deg, #C9A227, #E8C547);
-    color: #0D2010;
+    color: var(--gold-text);
     font-weight: 800;
     font-size: 10px;
     padding: 2px 8px;
@@ -227,15 +243,15 @@
     letter-spacing: 0.02em;
   }
 
-  /* Badge esmeralda */
-  .badge-emerald {
-    background: linear-gradient(135deg, oklch(0.40 0.17 155), oklch(0.49 0.19 155));
+  /* Badge de marca (azul) */
+  .badge-brand {
+    background: linear-gradient(135deg, oklch(0.40 0.17 250), oklch(0.49 0.19 250));
     color: white;
     font-weight: 700;
     font-size: 10px;
     padding: 2px 8px;
     border-radius: 99px;
-    box-shadow: 0 0 10px rgba(52,168,83,0.30);
+    box-shadow: 0 0 10px rgba(0,123,234,0.30);
   }
 
   /* Divisor premium */
@@ -251,18 +267,20 @@
     );
   }
 
-  /* Fundo da página principal — neutro com toque verde muito sutil */
+  /* Fundo da página principal — neutro com toque azul muito sutil */
   .page-bg {
     background: #f7f8f7;
   }
 
-  /* Fundo da tela de login */
+  /* Fundo da tela de login — modo claro: azuis claros e branco, sem fundo
+     escuro. Camadas radiais suaves em brand-100/200 sobre branco, mais uma
+     pitada de ouro bem discreta (marca registrada da paleta, não domina). */
   .login-bg {
     background:
-      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(52,168,83,0.25) 0%, transparent 55%),
-      radial-gradient(ellipse 50% 40% at 100% 100%, rgba(201,162,39,0.12) 0%, transparent 55%),
-      radial-gradient(ellipse 40% 30% at 0% 60%, rgba(52,168,83,0.10) 0%, transparent 55%),
-      linear-gradient(160deg, #0f4020 0%, #1a5c32 30%, #0a2d18 60%, #071f11 100%);
+      radial-gradient(ellipse 70% 55% at 15% 0%, oklch(0.93 0.06 250 / 0.55) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 100% 15%, oklch(0.87 0.10 250 / 0.40) 0%, transparent 55%),
+      radial-gradient(ellipse 55% 45% at 50% 100%, rgba(201,162,39,0.08) 0%, transparent 55%),
+      linear-gradient(160deg, #ffffff 0%, oklch(0.97 0.03 250) 45%, oklch(0.93 0.06 250) 100%);
     position: relative;
     overflow: hidden;
   }
@@ -272,7 +290,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+    background-image: radial-gradient(rgba(0,40,100,0.06) 1px, transparent 1px);
     background-size: 28px 28px;
     pointer-events: none;
   }
@@ -286,19 +304,20 @@
       -45deg,
       transparent,
       transparent 80px,
-      rgba(201,162,39,0.04) 80px,
-      rgba(201,162,39,0.04) 81px
+      rgba(201,162,39,0.05) 80px,
+      rgba(201,162,39,0.05) 81px
     );
     pointer-events: none;
   }
 
-  /* Card de login */
+  /* Card de login — branco sólido, sombra azulada suave em vez de preta */
   .login-card {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.98);
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgba(255, 255, 255, 1);
     border-radius: 24px;
     box-shadow:
-      0 32px 80px rgba(0, 0, 0, 0.25),
+      0 32px 80px oklch(0.45 0.19 250 / 0.16),
+      0 8px 24px oklch(0.45 0.19 250 / 0.08),
       0 2px 0 rgba(255,255,255,1) inset;
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
@@ -310,18 +329,18 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(145deg, rgba(255,255,255,0.55) 0%, transparent 50%);
+    background: linear-gradient(145deg, rgba(255,255,255,0.65) 0%, transparent 50%);
     pointer-events: none;
     border-radius: inherit;
   }
 
   /* Faixa de acento colorida no topo dos KPI cards */
-  .kpi-accent-emerald::after {
+  .kpi-accent-brand::after {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 3px;
-    background: linear-gradient(90deg, oklch(0.40 0.17 155), oklch(0.58 0.20 155));
+    background: linear-gradient(90deg, oklch(0.40 0.17 250), oklch(0.58 0.20 250));
     border-radius: 16px 16px 0 0;
   }
 
@@ -363,14 +382,14 @@
 
   .input-glass:focus {
     background: rgba(255,255,255,0.95);
-    border-color: oklch(0.49 0.19 155);
-    box-shadow: 0 0 0 3px rgba(52,168,83,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    border-color: oklch(0.49 0.19 250);
+    box-shadow: 0 0 0 3px rgba(0,123,234,0.12), 0 2px 8px rgba(0,0,0,0.06);
     outline: none;
   }
 
-  /* Glow esmeralda para elementos ativos */
-  .glow-emerald {
-    box-shadow: 0 0 20px rgba(52,168,83,0.25), 0 0 40px rgba(52,168,83,0.10);
+  /* Glow de marca (azul) para elementos ativos */
+  .glow-brand {
+    box-shadow: 0 0 20px rgba(0,123,234,0.25), 0 0 40px rgba(0,123,234,0.10);
   }
 
   /* Glow dourado para elementos de destaque */
@@ -385,7 +404,7 @@
     font-weight: 800;
     letter-spacing: -0.04em;
     line-height: 1;
-    color: oklch(0.15 0.04 155);
+    color: oklch(0.15 0.04 250);
   }
 
   /* Cabeçalho de página padrão */
@@ -412,12 +431,12 @@
     box-shadow: 0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.05);
   }
 
-  .stat-card-emerald::after {
+  .stat-card-brand::after {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 3px;
-    background: linear-gradient(90deg, oklch(0.40 0.17 155), oklch(0.58 0.20 155), oklch(0.68 0.18 155));
+    background: linear-gradient(90deg, oklch(0.40 0.17 250), oklch(0.58 0.20 250), oklch(0.68 0.18 250));
     border-radius: 18px 18px 0 0;
   }
 
@@ -454,6 +473,21 @@
    ═══════════════════════════════════════════════════════ */
 @layer base {
   @theme inline {
+    /* Expõe a escala --brand-* (azul, index.css :root) como classes Tailwind
+       reais (bg-brand-600, text-brand-50, etc.) — pra recolorir componentes
+       que usavam bg-emerald-*/text-emerald-* com um mapeamento mecânico
+       degrau-a-degrau, sem introduzir o azul padrão do Tailwind (matiz/croma
+       diferente do resto da marca). */
+    --color-brand-50:  var(--brand-50);
+    --color-brand-100: var(--brand-100);
+    --color-brand-200: var(--brand-200);
+    --color-brand-300: var(--brand-300);
+    --color-brand-400: var(--brand-400);
+    --color-brand-500: var(--brand-500);
+    --color-brand-600: var(--brand-600);
+    --color-brand-700: var(--brand-700);
+    --color-brand-800: var(--brand-800);
+    --color-brand-900: var(--brand-900);
     --color-background:         var(--background);
     --color-foreground:         var(--foreground);
     --color-card:               var(--card);
@@ -582,7 +616,7 @@
   }
   .nav-module-icon--active {
     background: rgba(255,255,255,0.14) !important;
-    color: var(--mod-color, #00ffa0) !important;
+    color: var(--mod-color, var(--primary)) !important;
     border-color: rgba(255,255,255,0.18) !important;
   }
 
@@ -685,9 +719,14 @@
     color: rgba(255,255,255,0.50);
     transition: color 0.15s ease;
   }
+  /* Bug (independente do rebrand): antes era verde neon fixo pra qualquer
+     módulo ativo — o ícone do item ativo dentro de "Estatísticas" (azul) ou
+     "CRM" (ouro) acendia verde do mesmo jeito, ignorando --mod-color.
+     Agora acompanha a cor do módulo (--mod-color, setado em NAV_MODULES via
+     DashboardLayout.tsx), com --primary como fallback. */
   .nav-leaf--active .nav-leaf__icon {
-    color: #00ffa0;
-    filter: drop-shadow(0 0 5px rgba(0,255,160,0.60));
+    color: var(--mod-color, var(--primary));
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mod-color, var(--primary)) 60%, transparent));
   }
   .nav-leaf:hover:not(.nav-leaf--active) .nav-leaf__icon {
     color: rgba(255,255,255,0.80);

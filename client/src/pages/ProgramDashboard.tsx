@@ -17,7 +17,7 @@ function daysSince(date: string | Date | null | undefined): number | null {
 }
 
 function HealthBar({ score }: { score: number | null | undefined }) {
-  if (score === null || score === undefined) return <span className="text-xs" style={{ color: "oklch(0.65 0.04 155)" }}>—</span>;
+  if (score === null || score === undefined) return <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>—</span>;
   const color = score >= 75 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
   return (
     <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ function ProgramCard({
           ? "linear-gradient(135deg, rgba(0,180,100,0.10), rgba(0,160,90,0.06))"
           : "#fff",
         border: isSelected
-          ? "1.5px solid oklch(0.55 0.18 155)"
+          ? "1.5px solid var(--primary)"
           : "1px solid rgba(0,0,0,0.08)",
         borderRadius: 14,
         padding: "18px 20px",
@@ -61,10 +61,10 @@ function ProgramCard({
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="font-bold text-base leading-tight" style={{ color: "oklch(0.20 0.08 155)" }}>
+          <h3 className="font-bold text-base leading-tight" style={{ color: "var(--foreground)" }}>
             {prog.program}
           </h3>
-          <p className="text-xs mt-0.5" style={{ color: "oklch(0.55 0.04 155)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
             {prog.total} cliente{prog.total !== 1 ? "s" : ""}
           </p>
         </div>
@@ -79,8 +79,8 @@ function ProgramCard({
             </span>
           )}
           {isSelected
-            ? <ChevronUp size={14} style={{ color: "oklch(0.55 0.18 155)" }} />
-            : <ChevronRight size={14} style={{ color: "oklch(0.65 0.04 155)" }} />
+            ? <ChevronUp size={14} style={{ color: "var(--primary)" }} />
+            : <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
           }
         </div>
       </div>
@@ -95,7 +95,7 @@ function ProgramCard({
         ].map(({ label, value, color, bg }) => (
           <div key={label} className="rounded-xl p-2 text-center" style={{ background: bg }}>
             <p className="text-base font-bold" style={{ color }}>{value}</p>
-            <p className="text-[10px]" style={{ color: "oklch(0.55 0.04 155)" }}>{label}</p>
+            <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{label}</p>
           </div>
         ))}
       </div>
@@ -103,10 +103,10 @@ function ProgramCard({
       {/* Índice de Saúde */}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-medium flex items-center gap-1" style={{ color: "oklch(0.55 0.04 155)" }}>
+          <span className="text-[10px] font-medium flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
             <Activity size={10} /> Índice de Saúde Médio
           </span>
-          <span className="text-[10px]" style={{ color: "oklch(0.65 0.04 155)" }}>
+          <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
             {prog.avgHealthScore !== null ? `${prog.avgHealthScore}/100` : "—"}
           </span>
         </div>
@@ -123,11 +123,11 @@ function ProgramCard({
           <div key={label} className="text-center">
             <p
               className="text-sm font-bold"
-              style={{ color: urgent && value > 0 ? "#dc2626" : "oklch(0.30 0.06 155)" }}
+              style={{ color: urgent && value > 0 ? "#dc2626" : "var(--muted-foreground)" }}
             >
               {value}
             </p>
-            <p className="text-[10px]" style={{ color: "oklch(0.65 0.04 155)" }}>Renov. {label}</p>
+            <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>Renov. {label}</p>
           </div>
         ))}
       </div>
@@ -157,7 +157,7 @@ function ClientRow({ client }: { client: any }) {
   const neverContacted = !client.lastInteractionAt;
   const pendingContact = neverContacted || (daysSinceContact !== null && daysSinceContact > 7);
 
-  const ss = statusStyle[client.status] || { bg: "rgba(0,0,0,0.05)", color: "oklch(0.50 0.04 155)" };
+  const ss = statusStyle[client.status] || { bg: "rgba(0,0,0,0.05)", color: "var(--muted-foreground)" };
 
   return (
     <div
@@ -172,7 +172,7 @@ function ClientRow({ client }: { client: any }) {
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
         style={{
-          background: "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.45 0.16 155))",
+          background: "linear-gradient(135deg, var(--brand-500), var(--primary))",
           color: "#fff",
         }}
       >
@@ -182,7 +182,7 @@ function ClientRow({ client }: { client: any }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-semibold text-sm truncate" style={{ color: "oklch(0.20 0.08 155)" }}>
+          <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>
             {client.name}
           </p>
           {pendingContact && (
@@ -194,10 +194,10 @@ function ClientRow({ client }: { client: any }) {
             </span>
           )}
         </div>
-        <p className="text-xs truncate" style={{ color: "oklch(0.60 0.04 155)" }}>
+        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
           {client.program || "Sem programa"}
           {daysSinceEntry !== null && (
-            <span className="ml-2" style={{ color: "oklch(0.70 0.04 155)" }}>
+            <span className="ml-2" style={{ color: "var(--muted-foreground)" }}>
               · Entrou há {daysSinceEntry}d
             </span>
           )}
@@ -269,10 +269,10 @@ export default function ProgramDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "oklch(0.20 0.08 155)" }}>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
             Visão por Programa
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: "oklch(0.55 0.04 155)" }}>
+          <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
             Acompanhe cada produto e saiba quem precisa de atenção agora
           </p>
         </div>
@@ -300,8 +300,8 @@ export default function ProgramDashboard() {
                 <Icon size={18} style={{ color }} />
               </div>
               <div>
-                <p className="text-2xl font-bold" style={{ color: "oklch(0.20 0.08 155)" }}>{value}</p>
-                <p className="text-xs" style={{ color: "oklch(0.55 0.04 155)" }}>{label}</p>
+                <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>{value}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</p>
               </div>
             </div>
           </div>
@@ -337,9 +337,9 @@ export default function ProgramDashboard() {
           className="p-12 text-center rounded-2xl"
           style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.07)" }}
         >
-          <Users size={40} className="mx-auto mb-3" style={{ color: "oklch(0.75 0.04 155)" }} />
-          <p className="font-medium" style={{ color: "oklch(0.55 0.04 155)" }}>Nenhum programa encontrado</p>
-          <p className="text-sm mt-1" style={{ color: "oklch(0.65 0.04 155)" }}>
+          <Users size={40} className="mx-auto mb-3" style={{ color: "var(--muted-foreground)" }} />
+          <p className="font-medium" style={{ color: "var(--muted-foreground)" }}>Nenhum programa encontrado</p>
+          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
             Os programas aparecem automaticamente quando clientes são cadastrados com um produto
           </p>
         </div>
@@ -357,10 +357,10 @@ export default function ProgramDashboard() {
           style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}
         >
           <div>
-            <h2 className="font-bold" style={{ color: "oklch(0.20 0.08 155)" }}>
+            <h2 className="font-bold" style={{ color: "var(--foreground)" }}>
               {selectedProgram ? `Clientes — ${selectedProgram}` : "Todos os Clientes"}
             </h2>
-            <p className="text-xs mt-0.5" style={{ color: "oklch(0.60 0.04 155)" }}>
+            <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
               {displayClients.length} cliente{displayClients.length !== 1 ? "s" : ""}
               {filterPending && ` aguardando contato`}
             </p>
@@ -371,7 +371,7 @@ export default function ProgramDashboard() {
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
               style={{
                 background: filterPending ? "rgba(245,158,11,0.12)" : "rgba(0,0,0,0.05)",
-                color: filterPending ? "#d97706" : "oklch(0.50 0.04 155)",
+                color: filterPending ? "#d97706" : "var(--muted-foreground)",
                 border: filterPending ? "1px solid rgba(245,158,11,0.25)" : "1px solid transparent",
               }}
             >
@@ -408,8 +408,8 @@ export default function ProgramDashboard() {
             displayClients.map(client => <ClientRow key={client.id} client={client} />)
           ) : (
             <div className="py-10 text-center">
-              <MessageSquare size={28} className="mx-auto mb-2" style={{ color: "oklch(0.75 0.04 155)" }} />
-              <p className="text-sm" style={{ color: "oklch(0.60 0.04 155)" }}>
+              <MessageSquare size={28} className="mx-auto mb-2" style={{ color: "var(--muted-foreground)" }} />
+              <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
                 {filterPending ? "Todos os clientes estão em dia!" : "Nenhum cliente encontrado"}
               </p>
             </div>

@@ -1011,7 +1011,7 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
                     className="text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-colors"
                     style={transcribeMode
                       ? { background: "rgba(139,92,246,0.15)", color: "#7c3aed" }
-                      : { background: "rgba(0,0,0,0.06)", color: "oklch(0.55 0.04 155)" }
+                      : { background: "rgba(0,0,0,0.06)", color: "var(--muted-foreground)" }
                     }
                     title={transcribeMode ? "Modo: transcrever para texto" : "Modo: enviar áudio"}
                   >

@@ -45,14 +45,14 @@ export function SubTabBar({ tabs }: { tabs: SubTab[] }) {
               onClick={() => setLocation(tab.path)}
               onMouseEnter={(e) => {
                 if (!active) {
-                  (e.currentTarget as HTMLButtonElement).style.background = "oklch(0.95 0.02 155)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "oklch(0.25 0.08 155)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--accent)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--foreground)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (!active) {
                   (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                  (e.currentTarget as HTMLButtonElement).style.color = "oklch(0.50 0.04 155)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--muted-foreground)";
                 }
               }}
               style={{
@@ -71,8 +71,8 @@ export function SubTabBar({ tabs }: { tabs: SubTab[] }) {
                 fontSize: "13.5px",
                 fontWeight: active ? 700 : 500,
                 letterSpacing: active ? "0.01em" : "0",
-                background: active ? "oklch(0.22 0.08 155)" : "transparent",
-                color: active ? "#ffffff" : "oklch(0.50 0.04 155)",
+                background: active ? "oklch(0.22 0.08 250)" : "transparent",
+                color: active ? "#ffffff" : "var(--muted-foreground)",
                 boxShadow: active ? "0 2px 8px rgba(0,80,40,0.18)" : "none",
               }}
             >

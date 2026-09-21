@@ -14,6 +14,7 @@ import type { InsertUser, User } from "../../drizzle/schema";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
+import { UNUSABLE_PASSWORD_HASH } from "./passwordHash";
 import { safeCompare } from "./routeGuards";
 import { sdk } from "./sdk";
 
@@ -131,6 +132,11 @@ export function buildUserUpsertInput(params: {
 }): InsertUser {
   const base: InsertUser = {
     openId: params.sub,
+    // Login com Google está sendo substituído por e-mail/senha (ver
+    // CLAUDE.md) — este arquivo inteiro sai numa fatia futura. Placeholder
+    // só para satisfazer o NOT NULL de passwordHash enquanto o arquivo
+    // ainda existe; login por senha nunca vai bater contra este hash.
+    passwordHash: UNUSABLE_PASSWORD_HASH,
     name: params.name,
     email: params.email,
     loginMethod: "google",

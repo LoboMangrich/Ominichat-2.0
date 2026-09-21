@@ -873,11 +873,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px)",
           borderBottom: "1px solid rgba(0,0,0,0.06)", boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
         }}>
-          <button onClick={() => setMobileOpen(true)} className="p-1.5 rounded-lg" style={{ color: "#0a3d1f" }}>
+          <button onClick={() => setMobileOpen(true)} className="p-1.5 rounded-lg" style={{ color: "var(--foreground)" }}>
             <Menu style={{ width: 20, height: 20 }} />
           </button>
           <LogoBubble size={30} />
-          <span className="font-bold text-sm" style={{ color: "#0D4020", fontFamily: "'Space Grotesk',sans-serif" }}>
+          <span className="font-bold text-sm" style={{ color: "var(--foreground)", fontFamily: "'Space Grotesk',sans-serif" }}>
             Cashmiles Sucesso do Cliente
           </span>
         </div>

@@ -85,10 +85,13 @@ const LOGO_URL = "/cashmiles-icon.png";
 const MODULES_OPEN_KEY = "cs-modules-open";
 const SIDEBAR_OPEN_KEY = "cs-sidebar-open";
 
+// Mesmo tratamento visual de sempre (gradiente diagonal + dois glows radiais),
+// só que ligado aos tokens de marca (index.css) em vez de hex/rgba verde
+// independentes — antes SIDEBAR_BG não tinha nenhuma relação com --sidebar.
 const SIDEBAR_BG = [
-  "radial-gradient(ellipse 200% 35% at 50% 0%, rgba(0,255,160,0.28) 0%, transparent 50%)",
-  "radial-gradient(ellipse 100% 60% at 100% 25%, rgba(0,255,160,0.15) 0%, transparent 55%)",
-  "linear-gradient(160deg, #1a2e22 0%, #152519 30%, #0f1e14 60%, #0a1810 100%)",
+  "radial-gradient(ellipse 200% 35% at 50% 0%, rgba(0,123,234,0.28) 0%, transparent 50%)",
+  "radial-gradient(ellipse 100% 60% at 100% 25%, rgba(0,123,234,0.15) 0%, transparent 55%)",
+  "linear-gradient(160deg, var(--sidebar) 0%, var(--brand-800) 30%, var(--brand-900) 60%, var(--foreground) 100%)",
 ].join(", ");
 
 // ─── Types ────────────────────────────────────────────────────────────────────

@@ -124,7 +124,7 @@ function GroupList({
                   background: isActive
                     ? "linear-gradient(135deg, rgba(0,180,100,0.10), rgba(0,160,90,0.06))"
                     : "transparent",
-                  borderLeft: isActive ? "3px solid oklch(0.55 0.18 155)" : "3px solid transparent",
+                  borderLeft: isActive ? "3px solid var(--primary)" : "3px solid transparent",
                   borderBottom: "1px solid rgba(0,0,0,0.04)",
                 }}
               >
@@ -134,7 +134,7 @@ function GroupList({
                     className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 font-bold text-sm"
                     style={{
                       background: isActive
-                        ? "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.45 0.16 155))"
+                        ? "linear-gradient(135deg, var(--brand-500), var(--primary))"
                         : "linear-gradient(135deg, rgba(0,0,0,0.08), rgba(0,0,0,0.05))",
                       color: isActive ? "#fff" : "var(--muted-foreground)",
                     }}
@@ -187,7 +187,7 @@ function GroupList({
 
                     {lastMsg?.content && (
                       <p className="text-xs mt-0.5 truncate" style={{ color: "var(--muted-foreground)" }}>
-                        <span style={{ color: lastMsg.senderType === "agent" ? "oklch(0.45 0.16 155)" : "var(--muted-foreground)" }}>
+                        <span style={{ color: lastMsg.senderType === "agent" ? "var(--primary)" : "var(--muted-foreground)" }}>
                           {lastMsg.senderType === "agent" ? "Você: " : lastMsg.senderName ? `${lastMsg.senderName}: ` : ""}
                         </span>
                         {lastMsg.content}
@@ -277,7 +277,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
           style={{
-            background: "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.45 0.16 155))",
+            background: "linear-gradient(135deg, var(--brand-500), var(--primary))",
             color: "#fff",
           }}
         >
@@ -354,7 +354,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
                   className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
                   style={{
                     background: isAgent
-                      ? "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.45 0.16 155))"
+                      ? "linear-gradient(135deg, var(--brand-500), var(--primary))"
                       : "rgba(0,0,0,0.08)",
                   }}
                 >
@@ -378,7 +378,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
                     className="px-3 py-2 rounded-2xl text-sm leading-relaxed"
                     style={{
                       background: isAgent
-                        ? "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.48 0.16 155))"
+                        ? "linear-gradient(135deg, var(--brand-500), var(--primary))"
                         : "#fff",
                       color: isAgent ? "#fff" : "var(--foreground)",
                       boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
@@ -433,7 +433,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
             size="sm"
             className="shrink-0 h-9 px-3"
             style={{
-              background: message.trim() ? "oklch(0.55 0.18 155)" : "rgba(0,0,0,0.08)",
+              background: message.trim() ? "var(--primary)" : "rgba(0,0,0,0.08)",
               color: message.trim() ? "#fff" : "var(--muted-foreground)",
               border: "none",
               borderRadius: 10,
@@ -472,7 +472,7 @@ export default function Groups() {
               className="w-16 h-16 rounded-2xl flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, rgba(0,180,100,0.12), rgba(0,160,90,0.06))" }}
             >
-              <MessageSquare className="w-8 h-8" style={{ color: "oklch(0.55 0.18 155)" }} />
+              <MessageSquare className="w-8 h-8" style={{ color: "var(--primary)" }} />
             </div>
             <div>
               <h3 className="font-bold text-base" style={{ color: "var(--foreground)" }}>

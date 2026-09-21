@@ -71,7 +71,7 @@ export function SubTabBar({ tabs }: { tabs: SubTab[] }) {
                 fontSize: "13.5px",
                 fontWeight: active ? 700 : 500,
                 letterSpacing: active ? "0.01em" : "0",
-                background: active ? "oklch(0.22 0.08 155)" : "transparent",
+                background: active ? "oklch(0.22 0.08 250)" : "transparent",
                 color: active ? "#ffffff" : "var(--muted-foreground)",
                 boxShadow: active ? "0 2px 8px rgba(0,80,40,0.18)" : "none",
               }}

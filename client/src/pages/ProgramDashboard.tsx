@@ -51,7 +51,7 @@ function ProgramCard({
           ? "linear-gradient(135deg, rgba(0,180,100,0.10), rgba(0,160,90,0.06))"
           : "#fff",
         border: isSelected
-          ? "1.5px solid oklch(0.55 0.18 155)"
+          ? "1.5px solid var(--primary)"
           : "1px solid rgba(0,0,0,0.08)",
         borderRadius: 14,
         padding: "18px 20px",
@@ -79,7 +79,7 @@ function ProgramCard({
             </span>
           )}
           {isSelected
-            ? <ChevronUp size={14} style={{ color: "oklch(0.55 0.18 155)" }} />
+            ? <ChevronUp size={14} style={{ color: "var(--primary)" }} />
             : <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
           }
         </div>
@@ -172,7 +172,7 @@ function ClientRow({ client }: { client: any }) {
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
         style={{
-          background: "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.45 0.16 155))",
+          background: "linear-gradient(135deg, var(--brand-500), var(--primary))",
           color: "#fff",
         }}
       >

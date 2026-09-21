@@ -133,7 +133,7 @@ export default function CommunicationIntelligence() {
                 onClick={() => setPeriod(opt.value)}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 style={period === opt.value ? {
-                  background: "oklch(0.49 0.19 155)",
+                  background: "var(--primary)",
                   color: "white",
                   boxShadow: "0 2px 8px rgba(13,107,78,0.30)",
                 } : { color: "var(--muted-foreground)" }}
@@ -171,7 +171,7 @@ export default function CommunicationIntelligence() {
             boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
           }}
         >
-          <Brain className="w-14 h-14 mx-auto mb-4 opacity-20" style={{ color: "oklch(0.49 0.19 155)" }} />
+          <Brain className="w-14 h-14 mx-auto mb-4 opacity-20" style={{ color: "var(--primary)" }} />
           <h3 className="text-lg font-bold mb-2" style={{ color: "var(--foreground)" }}>Nenhuma análise ainda</h3>
           <p className="text-sm mb-6" style={{ color: "var(--muted-foreground)" }}>
             Clique em "Analisar Agora" para a IA processar as mensagens dos últimos {period} dias e gerar insights sobre os seus clientes.
@@ -191,7 +191,7 @@ export default function CommunicationIntelligence() {
               boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
             }}
           >
-            <Brain className="w-8 h-8 shrink-0" style={{ color: "oklch(0.49 0.19 155)" }} />
+            <Brain className="w-8 h-8 shrink-0" style={{ color: "var(--primary)" }} />
             <p className="text-sm flex-1" style={{ color: "var(--muted-foreground)" }}>{latest.rawSummary}</p>
             <div className="flex gap-6 shrink-0 text-center">
               <div>
@@ -257,7 +257,7 @@ export default function CommunicationIntelligence() {
                           className="h-full rounded-full"
                           style={{
                             width: `${Math.min(100, (topic.count / ((latest.topics as any[])[0]?.count || 1)) * 100)}%`,
-                            background: "oklch(0.49 0.19 155)",
+                            background: "var(--primary)",
                             opacity: 0.7,
                           }}
                         />

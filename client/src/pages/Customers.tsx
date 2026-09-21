@@ -476,7 +476,7 @@ export default function Customers() {
                   style={isSelected ? {
                     background: "rgba(255,255,255,0.92)",
                     border: "1px solid rgba(255,255,255,1)",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,1) inset, 2px 0 0 oklch(0.49 0.19 155) inset",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,1) inset, 2px 0 0 var(--primary) inset",
                     transform: "translateX(2px)",
                   } : {
                     background: "rgba(255,255,255,0.55)",
@@ -786,7 +786,7 @@ export default function Customers() {
                                       contentStyle={{ background: "white", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, fontSize: 10, padding: "4px 8px" }}
                                       formatter={(v: any) => [`${v}`, "Score"]}
                                     />
-                                    <Line type="monotone" dataKey="score" stroke="oklch(0.49 0.19 155)" strokeWidth={1.5} dot={{ r: 2, fill: "oklch(0.49 0.19 155)" }} />
+                                    <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={1.5} dot={{ r: 2, fill: "var(--primary)" }} />
                                   </LineChart>
                                 </ResponsiveContainer>
                               </div>

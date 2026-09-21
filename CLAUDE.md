@@ -164,6 +164,20 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
   existe um único valor por deploy, que nunca varia por registro; são usados
   só para validar assinatura, nunca editados pela interface; e ficam fora de
   backups e dumps.
+- **Cor nova sempre vem de token** (`client/src/index.css` — `--foreground`,
+  `--muted-foreground`, `--primary`, `--brand-*`, etc.), nunca hex/oklch cru
+  em `style={{}}`. Achado numa varredura (2026): 221 pontos com
+  `oklch(..., 155)` — o matiz verde de antes do rebrand pra azul — escritos
+  direto no JSX, nunca tinham passado pelo sistema de tokens. Corrigido, mas
+  existe **um segundo sistema de cor hardcoded** ainda não tratado: `#0d6b4e`
+  e variantes (`rgba(13,107,78,...)`), escrito à mão em `CadenceAutomation.tsx`,
+  `CommunicationIntelligence.tsx`, `Conversations.tsx`, `CustomerMilestonesTab.tsx`,
+  `Customers.tsx`, `JourneyTab.tsx` — majoritariamente uso semântico (status
+  "ativo"/"conectado", não cor de marca), por isso não foi mexido nessa rodada.
+  Não reproduza esse padrão em código novo.
+- **Pendência registrada, não corrigida**: `client/src/components/TranscriptsTab.tsx`
+  roda um tema escuro próprio (`#1a2332` etc.), independente do resto da app
+  clara — já destoava antes do rebrand de azul, continua destoando depois.
 
 ## Backlog — em ordem
 

@@ -205,7 +205,7 @@ function ConvCard({ conv, onClick, onLabelClick }: { conv: any; onClick: () => v
               </span>
             )}
             {unread && (
-              <div className="w-2 h-2 rounded-full" style={{ background: "oklch(0.49 0.19 155)", boxShadow: "0 0 6px rgba(52,168,83,0.50)" }} />
+              <div className="w-2 h-2 rounded-full" style={{ background: "var(--primary)", boxShadow: "0 0 6px rgba(0,123,234,0.50)" }} />
             )}
           </div>
         </div>
@@ -597,7 +597,7 @@ export default function Conversations() {
                 style={isActive ? {
                   color: "var(--foreground)",
                   fontWeight: 700,
-                  borderBottom: "2px solid oklch(0.49 0.19 155)",
+                  borderBottom: "2px solid var(--primary)",
                 } : {
                   color: "var(--muted-foreground)",
                   borderBottom: "2px solid transparent",

@@ -355,6 +355,17 @@ ninguém perceber. Para isso, o Cashmiles precisa vigiar a fila ativamente
   (payload da Meta). Os outros são imprecisão interna.
 - Não existe script de lint. Import morto e afins passam despercebidos —
   `tsc --noEmit` não acusa.
+- **Bloco `@theme` (Tailwind 4, `client/src/index.css`) só aceita custom
+  properties e `@keyframes` no corpo dele — nenhum comentário `/* */`.** Um
+  comentário ali derruba a compilação do CSS **inteiro**, não só daquele
+  bloco. O sintoma não parece nada com a causa: a página carrega sem
+  nenhum estilo (texto claro sobre fundo branco, como se as variáveis CSS
+  não existissem), sobrevive a hard refresh (não é cache — o CSS nunca
+  chegou a compilar), e `tsc --noEmit`/`pnpm check` não acusam nada (é erro
+  de CSS, não de TypeScript). O erro real só aparece no overlay de erro do
+  Vite no navegador — **não** no terminal do `pnpm dev`. Se a UI carregar
+  "crua", esse é o primeiro lugar a olhar antes de suspeitar de cache ou
+  processo zumbi.
 
 ## Segurança — regras invioláveis
 

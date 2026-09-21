@@ -94,8 +94,7 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
     // Sem isto, uma falha de banco (ex.: MySQL fora do ar) derruba o processo
     // Node inteiro — este handler roda fora do tRPC, que tem seu próprio
     // tratamento de erro; um Express async handler sem try/catch propaga a
-    // rejeição como exceção não tratada. Mesmo padrão do callback do Google
-    // (server/_core/googleAuth.ts).
+    // rejeição como exceção não tratada.
     console.error("[PasswordAuth] Login falhou", error);
     res.status(500).json({ error: "Não foi possível processar o login" });
   }

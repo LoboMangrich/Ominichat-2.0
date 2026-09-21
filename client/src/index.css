@@ -471,13 +471,19 @@
 /* ═══════════════════════════════════════════════════════
    SHADCN/UI — Overrides com glassmorphism
    ═══════════════════════════════════════════════════════ */
+/* @theme só aceita custom properties e @keyframes ali dentro — nenhum
+   comentário /* */ , senão o Tailwind 4 derruba a compilação do CSS inteiro
+   (foi exatamente isso que quebrou a página, achado no overlay de erro do
+   Vite). Comentário explicando --color-brand-* fica aqui fora, antes do
+   bloco.
+
+   Expõe a escala --brand-* (azul, index.css :root) como classes Tailwind
+   reais (bg-brand-600, text-brand-50, etc.) — pra recolorir componentes que
+   usavam bg-emerald-*/text-emerald-* com um mapeamento mecânico
+   degrau-a-degrau, sem introduzir o azul padrão do Tailwind (matiz/croma
+   diferente do resto da marca). */
 @layer base {
   @theme inline {
-    /* Expõe a escala --brand-* (azul, index.css :root) como classes Tailwind
-       reais (bg-brand-600, text-brand-50, etc.) — pra recolorir componentes
-       que usavam bg-emerald-*/text-emerald-* com um mapeamento mecânico
-       degrau-a-degrau, sem introduzir o azul padrão do Tailwind (matiz/croma
-       diferente do resto da marca). */
     --color-brand-50:  var(--brand-50);
     --color-brand-100: var(--brand-100);
     --color-brand-200: var(--brand-200);

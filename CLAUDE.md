@@ -178,6 +178,13 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 - **Pendência registrada, não corrigida**: `client/src/components/TranscriptsTab.tsx`
   roda um tema escuro próprio (`#1a2332` etc.), independente do resto da app
   clara — já destoava antes do rebrand de azul, continua destoando depois.
+- **Pendência registrada, não corrigida**: classes Tailwind `emerald-*`/`green-*`
+  ainda de cor de marca antiga (não status) em `client/src/pages/PublicForm.tsx`
+  (fundo inteiro da página pública de formulário + botão de submit — única
+  tela vista por cliente externo) e `client/src/pages/ConversationDetail.tsx`
+  (mesmo padrão "cor do atendente humano" já corrigido em `Atendimentos.tsx`,
+  ~47 ocorrências, tela de detalhe da mesma conversa). Adiado de propósito,
+  não esquecido.
 
 ## Backlog — em ordem
 

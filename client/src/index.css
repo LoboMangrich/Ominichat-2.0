@@ -601,7 +601,7 @@
   }
   .nav-module-icon--active {
     background: rgba(255,255,255,0.14) !important;
-    color: var(--mod-color, #00ffa0) !important;
+    color: var(--mod-color, var(--primary)) !important;
     border-color: rgba(255,255,255,0.18) !important;
   }
 
@@ -704,9 +704,14 @@
     color: rgba(255,255,255,0.50);
     transition: color 0.15s ease;
   }
+  /* Bug (independente do rebrand): antes era verde neon fixo pra qualquer
+     módulo ativo — o ícone do item ativo dentro de "Estatísticas" (azul) ou
+     "CRM" (ouro) acendia verde do mesmo jeito, ignorando --mod-color.
+     Agora acompanha a cor do módulo (--mod-color, setado em NAV_MODULES via
+     DashboardLayout.tsx), com --primary como fallback. */
   .nav-leaf--active .nav-leaf__icon {
-    color: #00ffa0;
-    filter: drop-shadow(0 0 5px rgba(0,255,160,0.60));
+    color: var(--mod-color, var(--primary));
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mod-color, var(--primary)) 60%, transparent));
   }
   .nav-leaf:hover:not(.nav-leaf--active) .nav-leaf__icon {
     color: rgba(255,255,255,0.80);

@@ -69,10 +69,10 @@ function GroupList({
       <div className="px-4 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="font-bold text-base" style={{ color: "oklch(0.20 0.08 155)" }}>
+            <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>
               Grupos WhatsApp
             </h2>
-            <p className="text-xs" style={{ color: "oklch(0.55 0.04 155)" }}>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               {groups.length} grupo{groups.length !== 1 ? "s" : ""} monitorado{groups.length !== 1 ? "s" : ""}
             </p>
           </div>
@@ -81,11 +81,11 @@ function GroupList({
             className="p-1.5 rounded-lg transition-colors hover:bg-black/5"
             title="Atualizar"
           >
-            <RefreshCw className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.04 155)" }} />
+            <RefreshCw className="w-3.5 h-3.5" style={{ color: "var(--muted-foreground)" }} />
           </button>
         </div>
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "oklch(0.60 0.04 155)" }} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--muted-foreground)" }} />
           <Input
             placeholder="Pesquisar grupos..."
             value={search}
@@ -100,12 +100,12 @@ function GroupList({
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <RefreshCw className="w-5 h-5 animate-spin" style={{ color: "oklch(0.55 0.04 155)" }} />
+            <RefreshCw className="w-5 h-5 animate-spin" style={{ color: "var(--muted-foreground)" }} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2 px-4 text-center">
-            <Users className="w-8 h-8" style={{ color: "oklch(0.70 0.04 155)" }} />
-            <p className="text-sm" style={{ color: "oklch(0.55 0.04 155)" }}>
+            <Users className="w-8 h-8" style={{ color: "var(--muted-foreground)" }} />
+            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
               {search ? "Nenhum grupo encontrado" : "Nenhum grupo cadastrado"}
             </p>
           </div>
@@ -136,7 +136,7 @@ function GroupList({
                       background: isActive
                         ? "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.45 0.16 155))"
                         : "linear-gradient(135deg, rgba(0,0,0,0.08), rgba(0,0,0,0.05))",
-                      color: isActive ? "#fff" : "oklch(0.40 0.06 155)",
+                      color: isActive ? "#fff" : "var(--muted-foreground)",
                     }}
                   >
                     {group.groupName.charAt(0).toUpperCase()}
@@ -147,7 +147,7 @@ function GroupList({
                     <div className="flex items-center justify-between gap-1">
                       <span
                         className="font-semibold text-sm truncate"
-                        style={{ color: isActive ? "oklch(0.20 0.10 155)" : "oklch(0.25 0.06 155)" }}
+                        style={{ color: isActive ? "var(--foreground)" : "var(--foreground)" }}
                       >
                         {group.groupName}
                       </span>
@@ -160,7 +160,7 @@ function GroupList({
                             {group.openAlerts as number}
                           </span>
                         )}
-                        <span className="text-[10px]" style={{ color: "oklch(0.65 0.04 155)" }}>
+                        <span className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
                           {formatTime(lastMsg?.timestamp as string | Date | null | undefined)}
                         </span>
                       </div>
@@ -179,15 +179,15 @@ function GroupList({
                           {GROUP_TYPE_LABEL[group.groupType] || group.groupType}
                         </span>
                       )}
-                      <span className="text-[10px] flex items-center gap-0.5" style={{ color: "oklch(0.65 0.04 155)" }}>
+                      <span className="text-[10px] flex items-center gap-0.5" style={{ color: "var(--muted-foreground)" }}>
                         <Users className="w-2.5 h-2.5" />
                         {group.participantCount || 0}
                       </span>
                     </div>
 
                     {lastMsg?.content && (
-                      <p className="text-xs mt-0.5 truncate" style={{ color: "oklch(0.60 0.04 155)" }}>
-                        <span style={{ color: lastMsg.senderType === "agent" ? "oklch(0.45 0.16 155)" : "oklch(0.60 0.04 155)" }}>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: "var(--muted-foreground)" }}>
+                        <span style={{ color: lastMsg.senderType === "agent" ? "oklch(0.45 0.16 155)" : "var(--muted-foreground)" }}>
                           {lastMsg.senderType === "agent" ? "Você: " : lastMsg.senderName ? `${lastMsg.senderName}: ` : ""}
                         </span>
                         {lastMsg.content}
@@ -244,7 +244,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "oklch(0.55 0.04 155)" }} />
+        <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--muted-foreground)" }} />
       </div>
     );
   }
@@ -252,7 +252,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
   if (!group) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-sm" style={{ color: "oklch(0.55 0.04 155)" }}>Grupo não encontrado.</p>
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Grupo não encontrado.</p>
       </div>
     );
   }
@@ -286,7 +286,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-bold text-sm truncate" style={{ color: "oklch(0.20 0.08 155)" }}>
+            <h3 className="font-bold text-sm truncate" style={{ color: "var(--foreground)" }}>
               {group.groupName}
             </h3>
             {group.groupType && (
@@ -302,7 +302,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
               </span>
             )}
           </div>
-          <p className="text-xs" style={{ color: "oklch(0.60 0.04 155)" }}>
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
             {group.participantCount || 0} participantes
             {group.isMonitored ? (
               <span className="ml-2 inline-flex items-center gap-0.5" style={{ color: "#10b981" }}>
@@ -321,7 +321,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
           className="p-1.5 rounded-lg hover:bg-black/5 transition-colors"
           title="Atualizar mensagens"
         >
-          <RefreshCw className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.04 155)" }} />
+          <RefreshCw className="w-3.5 h-3.5" style={{ color: "var(--muted-foreground)" }} />
         </button>
       </div>
 
@@ -329,12 +329,12 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: "rgba(0,0,0,0.015)" }}>
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-            <MessageSquare className="w-10 h-10" style={{ color: "oklch(0.75 0.04 155)" }} />
+            <MessageSquare className="w-10 h-10" style={{ color: "var(--muted-foreground)" }} />
             <div>
-              <p className="font-semibold text-sm" style={{ color: "oklch(0.40 0.06 155)" }}>
+              <p className="font-semibold text-sm" style={{ color: "var(--muted-foreground)" }}>
                 Nenhuma mensagem ainda
               </p>
-              <p className="text-xs mt-1" style={{ color: "oklch(0.60 0.04 155)" }}>
+              <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
                 As mensagens do grupo aparecerão aqui quando chegarem via webhook.
               </p>
             </div>
@@ -363,7 +363,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
                   ) : isAgent ? (
                     <User className="w-3.5 h-3.5 text-white" />
                   ) : (
-                    <span className="text-[10px] font-bold" style={{ color: "oklch(0.40 0.06 155)" }}>
+                    <span className="text-[10px] font-bold" style={{ color: "var(--muted-foreground)" }}>
                       {(msg.senderName || "?").charAt(0).toUpperCase()}
                     </span>
                   )}
@@ -371,7 +371,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
 
                 {/* Bubble */}
                 <div className={`max-w-[72%] ${isAgent ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
-                  <span className="text-[10px] font-medium px-1" style={{ color: "oklch(0.60 0.04 155)" }}>
+                  <span className="text-[10px] font-medium px-1" style={{ color: "var(--muted-foreground)" }}>
                     {msg.senderName || msg.senderId}
                   </span>
                   <div
@@ -380,14 +380,14 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
                       background: isAgent
                         ? "linear-gradient(135deg, oklch(0.55 0.18 155), oklch(0.48 0.16 155))"
                         : "#fff",
-                      color: isAgent ? "#fff" : "oklch(0.20 0.06 155)",
+                      color: isAgent ? "#fff" : "var(--foreground)",
                       boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
                       borderRadius: isAgent ? "18px 4px 18px 18px" : "4px 18px 18px 18px",
                     }}
                   >
                     {msg.content}
                   </div>
-                  <span className="text-[10px] px-1 flex items-center gap-0.5" style={{ color: "oklch(0.65 0.04 155)" }}>
+                  <span className="text-[10px] px-1 flex items-center gap-0.5" style={{ color: "var(--muted-foreground)" }}>
                     <Clock className="w-2.5 h-2.5" />
                     {formatFullTime(msg.timestamp)}
                   </span>
@@ -434,7 +434,7 @@ function GroupChat({ groupId, onBack }: { groupId: string; onBack: () => void })
             className="shrink-0 h-9 px-3"
             style={{
               background: message.trim() ? "oklch(0.55 0.18 155)" : "rgba(0,0,0,0.08)",
-              color: message.trim() ? "#fff" : "oklch(0.60 0.04 155)",
+              color: message.trim() ? "#fff" : "var(--muted-foreground)",
               border: "none",
               borderRadius: 10,
             }}
@@ -475,10 +475,10 @@ export default function Groups() {
               <MessageSquare className="w-8 h-8" style={{ color: "oklch(0.55 0.18 155)" }} />
             </div>
             <div>
-              <h3 className="font-bold text-base" style={{ color: "oklch(0.25 0.08 155)" }}>
+              <h3 className="font-bold text-base" style={{ color: "var(--foreground)" }}>
                 Selecione um grupo
               </h3>
-              <p className="text-sm mt-1" style={{ color: "oklch(0.55 0.04 155)" }}>
+              <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
                 Clique em um grupo à esquerda para ver o histórico de mensagens e conversar com o time.
               </p>
             </div>

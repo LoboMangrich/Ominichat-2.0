@@ -47,7 +47,7 @@ const NewClients = lazy(() => import("./NewClients"));
 export function getConversationStatusDisplay(status: string | null | undefined): { color: string; label: string } {
   if (status === "Open") return { color: "#0d6b4e", label: "Aberto" };
   if (status === "Waiting") return { color: "#9a6010", label: "Aguardando" };
-  return { color: "oklch(0.55 0.05 155)", label: "Fechado" };
+  return { color: "var(--muted-foreground)", label: "Fechado" };
 }
 
 // ─── CustomerTasksTab ─────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ function CustomerTasksTab({ customerId }: { customerId: number }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-bold" style={{ color: 'oklch(0.45 0.05 155)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tarefas do Cliente</p>
+      <p className="text-xs font-bold" style={{ color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tarefas do Cliente</p>
       {/* New task form */}
       <div className="flex gap-2">
         <input
@@ -78,13 +78,13 @@ function CustomerTasksTab({ customerId }: { customerId: number }) {
           onKeyDown={e => e.key === 'Enter' && newTitle.trim() && createTask.mutate({ customerId, title: newTitle.trim(), priority: newPriority })}
           placeholder="Nova tarefa..."
           className="flex-1 text-xs px-3 py-2 rounded-lg border outline-none"
-          style={{ background: 'rgba(13,107,78,0.06)', borderColor: 'rgba(13,107,78,0.15)', color: 'oklch(0.35 0.05 155)' }}
+          style={{ background: 'rgba(13,107,78,0.06)', borderColor: 'rgba(13,107,78,0.15)', color: 'var(--muted-foreground)' }}
         />
         <select
           value={newPriority}
           onChange={e => setNewPriority(e.target.value as any)}
           className="text-xs px-2 py-2 rounded-lg border outline-none"
-          style={{ background: 'rgba(13,107,78,0.06)', borderColor: 'rgba(13,107,78,0.15)', color: 'oklch(0.35 0.05 155)' }}
+          style={{ background: 'rgba(13,107,78,0.06)', borderColor: 'rgba(13,107,78,0.15)', color: 'var(--muted-foreground)' }}
         >
           <option value="low">Baixa</option>
           <option value="medium">Média</option>
@@ -93,9 +93,9 @@ function CustomerTasksTab({ customerId }: { customerId: number }) {
         </select>
       </div>
       {/* Task list */}
-      {isLoading && <p className="text-xs" style={{ color: 'oklch(0.55 0.05 155)' }}>Carregando...</p>}
+      {isLoading && <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Carregando...</p>}
       {!isLoading && taskList.length === 0 && (
-        <p className="text-xs" style={{ color: 'oklch(0.55 0.05 155)' }}>Nenhuma tarefa ainda. Adicione acima.</p>
+        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Nenhuma tarefa ainda. Adicione acima.</p>
       )}
       {taskList.map((task: any) => (
         <div key={task.id} className="flex items-start gap-2 p-2 rounded-lg" style={{ background: 'rgba(13,107,78,0.04)', border: '1px solid rgba(13,107,78,0.10)' }}>
@@ -107,10 +107,10 @@ function CustomerTasksTab({ customerId }: { customerId: number }) {
             {task.status === 'done' && <span style={{ color: 'white', fontSize: 9 }}>✓</span>}
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-xs" style={{ color: task.status === 'done' ? 'oklch(0.65 0.03 155)' : 'oklch(0.35 0.05 155)', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>{task.title}</p>
+            <p className="text-xs" style={{ color: task.status === 'done' ? 'var(--muted-foreground)' : 'var(--muted-foreground)', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>{task.title}</p>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-[10px] font-medium" style={{ color: priorityColors[task.priority] ?? '#6366f1' }}>{task.priority}</span>
-              <span className="text-[10px]" style={{ color: 'oklch(0.65 0.05 155)' }}>{task.status}</span>
+              <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>{task.status}</span>
             </div>
           </div>
         </div>
@@ -296,9 +296,9 @@ export default function Customers() {
             style={activeTab === "all" ? {
               background: "rgba(255,255,255,0.95)",
               boxShadow: "0 2px 8px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,1) inset",
-              color: "oklch(0.20 0.08 155)",
+              color: "var(--foreground)",
               fontWeight: 700,
-            } : { color: "oklch(0.50 0.05 155)" }}
+            } : { color: "var(--muted-foreground)" }}
           >
             <User className="w-4 h-4" />
             Todos os Clientes
@@ -313,9 +313,9 @@ export default function Customers() {
             style={activeTab === "new" ? {
               background: "rgba(255,255,255,0.95)",
               boxShadow: "0 2px 8px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,1) inset",
-              color: "oklch(0.20 0.08 155)",
+              color: "var(--foreground)",
               fontWeight: 700,
-            } : { color: "oklch(0.50 0.05 155)" }}
+            } : { color: "var(--muted-foreground)" }}
           >
             <UserPlus className="w-4 h-4" />
             Novos Clientes
@@ -416,7 +416,7 @@ export default function Customers() {
         }}
       >
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "oklch(0.55 0.05 155)" }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--muted-foreground)" }} />
           <Input
             placeholder="Buscar por nome, email ou telefone..."
             value={search}
@@ -508,7 +508,7 @@ export default function Customers() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm truncate" style={{ color: "oklch(0.20 0.08 155)" }}>{c.name}</p>
+                      <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>{c.name}</p>
                       {cfg && (
                         <span
                           className="text-[10px] font-bold px-2 py-0.5 rounded-full"
@@ -518,7 +518,7 @@ export default function Customers() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: "oklch(0.50 0.05 155)" }}>
+                    <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
                       {c.email && <span className="flex items-center gap-1 truncate"><Mail className="w-3 h-3" />{c.email}</span>}
                       {c.program && (
                         <span className="flex items-center gap-1 flex-wrap">
@@ -553,10 +553,10 @@ export default function Customers() {
                     )}
                     <button
                       className="h-7 w-7 flex items-center justify-center rounded-lg transition-all"
-                      style={{ color: "oklch(0.50 0.05 155)" }}
+                      style={{ color: "var(--muted-foreground)" }}
                       onClick={e => { e.stopPropagation(); setLocation(`/atendimentos?customerId=${c.id}`); }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(13,107,78,0.12)"; (e.currentTarget as HTMLElement).style.color = "#0d6b4e"; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; (e.currentTarget as HTMLElement).style.color = "oklch(0.50 0.05 155)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)"; }}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                     </button>
@@ -607,7 +607,7 @@ export default function Customers() {
                       <span className="text-lg font-black" style={{ color: "#0d6b4e" }}>{selectedCustomer.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                      <p className="text-base font-bold" style={{ color: "oklch(0.18 0.08 155)", fontFamily: "'Space Grotesk', sans-serif" }}>{selectedCustomer.name}</p>
+                      <p className="text-base font-bold" style={{ color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif" }}>{selectedCustomer.name}</p>
                       {statusConfig[selectedCustomer.status] && (
                         <span
                           className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block"
@@ -627,7 +627,7 @@ export default function Customers() {
                       <DropdownMenuTrigger asChild>
                         <button
                           className="h-7 w-7 flex items-center justify-center rounded-lg transition-all"
-                          style={{ color: "oklch(0.55 0.05 155)" }}
+                          style={{ color: "var(--muted-foreground)" }}
                           title="Exportar histórico"
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.06)"; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; }}
@@ -646,7 +646,7 @@ export default function Customers() {
                     </DropdownMenu>
                     <button
                       className="h-7 w-7 flex items-center justify-center rounded-lg text-lg leading-none transition-all"
-                      style={{ color: "oklch(0.55 0.05 155)" }}
+                      style={{ color: "var(--muted-foreground)" }}
                       onClick={() => setSelectedCustomer(null)}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.06)"; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; }}
@@ -675,7 +675,7 @@ export default function Customers() {
                     className="flex-1 text-xs font-semibold py-2 transition-all border-b-2"
                     style={panelTab === tab.id
                       ? { color: '#0d6b4e', borderColor: '#0d6b4e' }
-                      : { color: 'oklch(0.55 0.05 155)', borderColor: 'transparent' }
+                      : { color: 'var(--muted-foreground)', borderColor: 'transparent' }
                     }
                   >{tab.label}</button>
                 ))}
@@ -686,26 +686,26 @@ export default function Customers() {
               {panelTab === 'profile' && <>
                 <div className="space-y-2 text-sm">
                   {selectedCustomer.email && (
-                    <div className="flex items-center gap-2" style={{ color: "oklch(0.45 0.05 155)" }}>
-                      <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: "oklch(0.55 0.10 155)" }} />
+                    <div className="flex items-center gap-2" style={{ color: "var(--muted-foreground)" }}>
+                      <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted-foreground)" }} />
                       <span className="truncate">{selectedCustomer.email}</span>
                     </div>
                   )}
                   {selectedCustomer.phone && (
-                    <div className="flex items-center gap-2" style={{ color: "oklch(0.45 0.05 155)" }}>
-                      <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: "oklch(0.55 0.10 155)" }} />
+                    <div className="flex items-center gap-2" style={{ color: "var(--muted-foreground)" }}>
+                      <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted-foreground)" }} />
                       <span>{selectedCustomer.phone}</span>
                     </div>
                   )}
                   {selectedCustomer.company && (
-                    <div className="flex items-center gap-2" style={{ color: "oklch(0.45 0.05 155)" }}>
-                      <Building2 className="w-3.5 h-3.5 shrink-0" style={{ color: "oklch(0.55 0.10 155)" }} />
+                    <div className="flex items-center gap-2" style={{ color: "var(--muted-foreground)" }}>
+                      <Building2 className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted-foreground)" }} />
                       <span>{selectedCustomer.company}</span>
                     </div>
                   )}
                   {selectedCustomer.program && (
-                    <div className="flex items-center gap-2" style={{ color: "oklch(0.45 0.05 155)" }}>
-                      <Tag className="w-3.5 h-3.5 shrink-0" style={{ color: "oklch(0.55 0.10 155)" }} />
+                    <div className="flex items-center gap-2" style={{ color: "var(--muted-foreground)" }}>
+                      <Tag className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted-foreground)" }} />
                       <span>{selectedCustomer.program}</span>
                     </div>
                   )}
@@ -719,7 +719,7 @@ export default function Customers() {
                         style={{ background: "rgba(13,107,78,0.08)", border: "1px solid rgba(13,107,78,0.15)" }}
                       >
                         <div className="text-lg font-black" style={{ color: "#0d6b4e" }}>{selectedCustomer.npsScore}</div>
-                        <div className="text-xs" style={{ color: "oklch(0.50 0.05 155)" }}>Nota NPS</div>
+                        <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Nota NPS</div>
                       </div>
                     )}
                     {selectedCustomer.csatScore != null && (
@@ -728,7 +728,7 @@ export default function Customers() {
                         style={{ background: "rgba(52,130,246,0.08)", border: "1px solid rgba(52,130,246,0.15)" }}
                       >
                         <div className="text-lg font-black" style={{ color: "#1d4ed8" }}>{selectedCustomer.csatScore}</div>
-                        <div className="text-xs" style={{ color: "oklch(0.50 0.05 155)" }}>Nota CSAT</div>
+                        <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Nota CSAT</div>
                       </div>
                     )}
                   </div>
@@ -739,7 +739,7 @@ export default function Customers() {
                   <div>
                     <button
                       className="w-full flex items-center justify-between text-xs font-bold py-1"
-                      style={{ color: "oklch(0.45 0.05 155)", textTransform: "uppercase", letterSpacing: "0.08em" }}
+                      style={{ color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em" }}
                       onClick={() => setShowHsBreakdown(v => !v)}
                     >
                       <span className="flex items-center gap-1.5">
@@ -764,7 +764,7 @@ export default function Customers() {
                               const barBg = val >= 70 ? "rgba(13,107,78,0.15)" : val >= 40 ? "rgba(201,130,39,0.15)" : "rgba(220,38,38,0.15)";
                               return (
                                 <div key={key}>
-                                  <div className="flex justify-between text-[10px] mb-0.5" style={{ color: "oklch(0.50 0.05 155)" }}>
+                                  <div className="flex justify-between text-[10px] mb-0.5" style={{ color: "var(--muted-foreground)" }}>
                                     <span>{label} <span className="opacity-60">({weight})</span></span>
                                     <span className="font-bold" style={{ color }}>{val}</span>
                                   </div>
@@ -777,11 +777,11 @@ export default function Customers() {
                             {/* Índice de Saúde History Chart */}
                             {hsChartData.length >= 2 && (
                               <div className="pt-2 border-t" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-                                <p className="text-[9px] font-bold mb-1.5 uppercase tracking-wide" style={{ color: "oklch(0.55 0.05 155)" }}>Histórico</p>
+                                <p className="text-[9px] font-bold mb-1.5 uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>Histórico</p>
                                 <ResponsiveContainer width="100%" height={60}>
                                   <LineChart data={hsChartData} margin={{ top: 2, right: 4, bottom: 2, left: -28 }}>
-                                    <XAxis dataKey="date" tick={{ fontSize: 8, fill: "oklch(0.60 0.04 155)" }} axisLine={false} tickLine={false} />
-                                    <YAxis domain={[0, 100]} tick={{ fontSize: 8, fill: "oklch(0.60 0.04 155)" }} axisLine={false} tickLine={false} />
+                                    <XAxis dataKey="date" tick={{ fontSize: 8, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                                    <YAxis domain={[0, 100]} tick={{ fontSize: 8, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                                     <Tooltip
                                       contentStyle={{ background: "white", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, fontSize: 10, padding: "4px 8px" }}
                                       formatter={(v: any) => [`${v}`, "Score"]}
@@ -794,7 +794,7 @@ export default function Customers() {
                             <div className="pt-1 border-t" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
                               <button
                                 className="text-[10px] font-medium w-full text-center py-0.5 rounded"
-                                style={{ color: "oklch(0.45 0.10 155)" }}
+                                style={{ color: "var(--muted-foreground)" }}
                                 onClick={() => recalcSingleMutation.mutate({ customerId: selectedCustomer.id })}
                               >
                                 {recalcSingleMutation.isPending ? "Recalculando..." : "↺ Recalcular agora"}
@@ -802,7 +802,7 @@ export default function Customers() {
                             </div>
                           </>
                         ) : (
-                          <p className="text-[10px] text-center" style={{ color: "oklch(0.55 0.05 155)" }}>Carregando breakdown...</p>
+                          <p className="text-[10px] text-center" style={{ color: "var(--muted-foreground)" }}>Carregando breakdown...</p>
                         )}
                       </div>
                     )}
@@ -812,15 +812,15 @@ export default function Customers() {
                 {/* Purchase History Section */}
                 {customerPurchases.length > 0 && (
                   <div className="rounded-xl p-3 space-y-2" style={{ background: "rgba(13,107,78,0.05)", border: "1px solid rgba(13,107,78,0.12)" }}>
-                    <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: "oklch(0.45 0.05 155)" }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: "var(--muted-foreground)" }}>
                       <ShoppingBag className="w-3 h-3" />
                       Compras
                     </p>
                     {customerPurchases.slice(0, 5).map((p: any) => (
                       <div key={p.id} className="flex items-start justify-between gap-2 pb-2 border-b last:border-0 last:pb-0" style={{ borderColor: "rgba(13,107,78,0.10)" }}>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-semibold truncate" style={{ color: "oklch(0.28 0.08 155)" }}>{p.productName ?? 'Produto'}</p>
-                          <p className="text-[10px]" style={{ color: "oklch(0.55 0.05 155)" }}>
+                          <p className="text-[11px] font-semibold truncate" style={{ color: "var(--foreground)" }}>{p.productName ?? 'Produto'}</p>
+                          <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
                             {new Date(p.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                             {p.status && <span className="ml-1 opacity-70">· {p.status}</span>}
                           </p>
@@ -834,17 +834,17 @@ export default function Customers() {
                       </div>
                     ))}
                     {customerPurchases.length > 5 && (
-                      <p className="text-[10px] text-center" style={{ color: "oklch(0.55 0.05 155)" }}>+{customerPurchases.length - 5} compra(s) anterior(es)</p>
+                      <p className="text-[10px] text-center" style={{ color: "var(--muted-foreground)" }}>+{customerPurchases.length - 5} compra(s) anterior(es)</p>
                     )}
                   </div>
                 )}
 
                 {/* Channel History Section */}
                 <div>
-                  <p className="text-xs font-bold" style={{ color: "oklch(0.45 0.05 155)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Últimas Interações</p>
+                  <p className="text-xs font-bold" style={{ color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Últimas Interações</p>
                   <div className="mt-2 rounded-xl p-3 space-y-2" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.06)" }}>
                     {!lastInteractions || lastInteractions.length === 0 ? (
-                      <p className="text-[11px] text-center py-2" style={{ color: "oklch(0.55 0.05 155)" }}>Nenhuma interação registrada</p>
+                      <p className="text-[11px] text-center py-2" style={{ color: "var(--muted-foreground)" }}>Nenhuma interação registrada</p>
                     ) : (
                       lastInteractions.map((conv: any) => {
                         const channelIcon = conv.channel === 'whatsapp' ? '📱' : conv.channel === 'email' ? '📧' : conv.channel === 'instagram' ? '📸' : conv.channel === 'telegram' ? '✈️' : '💬';
@@ -870,8 +870,8 @@ export default function Customers() {
                                 <span className="text-[10px] font-bold" style={{ color: statusColor }}>{statusLabel}</span>
                                 {conv.handledByAi && <span className="text-[9px] px-1 rounded" style={{ background: 'rgba(13,107,78,0.10)', color: '#0d6b4e' }}>IA</span>}
                               </div>
-                              <p className="text-[10px]" style={{ color: "oklch(0.55 0.05 155)" }}>{timeAgo}</p>
-                              {conv.subject && <p className="text-[10px] truncate" style={{ color: "oklch(0.40 0.05 155)" }}>{conv.subject}</p>}
+                              <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{timeAgo}</p>
+                              {conv.subject && <p className="text-[10px] truncate" style={{ color: "var(--muted-foreground)" }}>{conv.subject}</p>}
                             </div>
                           </div>
                         );
@@ -896,7 +896,7 @@ export default function Customers() {
                   openChat={() => setLocation(`/atendimentos?customerId=${selectedCustomer.id}`)}
                 />
                 <div className="border-t pt-3" style={{ borderColor: 'rgba(0,0,0,0.07)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: 'oklch(0.45 0.05 155)' }}>Tarefas Avulsas</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--muted-foreground)' }}>Tarefas Avulsas</p>
                   <CustomerTasksTab customerId={selectedCustomer.id} />
                 </div>
               </div>}
@@ -909,14 +909,14 @@ export default function Customers() {
                     className="flex items-center gap-1.5 w-full text-left"
                     onClick={() => setShowNotes(v => !v)}
                   >
-                    <p className="text-xs font-bold flex-1" style={{ color: "oklch(0.45 0.05 155)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Notas do Time</p>
-                    {showNotes ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.05 155)" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "oklch(0.55 0.05 155)" }} />}
+                    <p className="text-xs font-bold flex-1" style={{ color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Notas do Time</p>
+                    {showNotes ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--muted-foreground)" }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--muted-foreground)" }} />}
                   </button>
                   {showNotes && (
                     <div className="mt-2 space-y-2">
                       <div className="rounded-xl p-3 space-y-2" style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.06)" }}>
                         {!customerNotes || customerNotes.length === 0 ? (
-                          <p className="text-[11px] text-center py-1" style={{ color: "oklch(0.55 0.05 155)" }}>Nenhuma nota registrada</p>
+                          <p className="text-[11px] text-center py-1" style={{ color: "var(--muted-foreground)" }}>Nenhuma nota registrada</p>
                         ) : (
                           customerNotes.map((note: any) => {
                             const typeIcon = note.type === 'call' ? '📞' : note.type === 'meeting' ? '🤝' : note.type === 'email' ? '📧' : note.type === 'whatsapp' ? '📱' : '📝';
@@ -924,9 +924,9 @@ export default function Customers() {
                               <div key={note.id} className="pb-2 border-b last:border-0 last:pb-0" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
                                 <div className="flex items-start gap-1.5">
                                   <span className="text-sm mt-0.5 flex-shrink-0">{typeIcon}</span>
-                                  <p className="text-[11px]" style={{ color: "oklch(0.30 0.06 155)" }}>{note.content}</p>
+                                  <p className="text-[11px]" style={{ color: "var(--muted-foreground)" }}>{note.content}</p>
                                 </div>
-                                <p className="text-[10px] mt-0.5 ml-5" style={{ color: "oklch(0.55 0.05 155)" }}>
+                                <p className="text-[10px] mt-0.5 ml-5" style={{ color: "var(--muted-foreground)" }}>
                                   {note.createdByName} · {new Date(note.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
@@ -949,7 +949,7 @@ export default function Customers() {
                               className="text-[10px] font-medium px-2 py-0.5 rounded-full transition-all"
                               style={noteType === opt.value
                                 ? { background: "rgba(13,107,78,0.18)", color: "#0d6b4e", border: "1px solid rgba(13,107,78,0.30)" }
-                                : { background: "rgba(0,0,0,0.05)", color: "oklch(0.50 0.05 155)", border: "1px solid transparent" }
+                                : { background: "rgba(0,0,0,0.05)", color: "var(--muted-foreground)", border: "1px solid transparent" }
                               }
                             >{opt.label}</button>
                           ))}

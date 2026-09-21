@@ -170,7 +170,7 @@ function ConvCard({ conv, onClick, onLabelClick }: { conv: any; onClick: () => v
           <div className="flex items-center gap-1.5 min-w-0">
             <span
               className="text-sm truncate"
-              style={{ color: unread ? "oklch(0.18 0.08 155)" : "oklch(0.45 0.05 155)", fontWeight: unread ? 700 : 500 }}
+              style={{ color: unread ? "var(--foreground)" : "var(--muted-foreground)", fontWeight: unread ? 700 : 500 }}
             >
               {conv.customer?.name ?? `Atendimento #${conv.id}`}
             </span>
@@ -178,13 +178,13 @@ function ConvCard({ conv, onClick, onLabelClick }: { conv: any; onClick: () => v
               <Bot className="w-3.5 h-3.5 shrink-0" style={{ color: "#6d28d9" }} />
             )}
           </div>
-          <span className="text-[11px] shrink-0 ml-2" style={{ color: "oklch(0.55 0.04 155)" }}>
+          <span className="text-[11px] shrink-0 ml-2" style={{ color: "var(--muted-foreground)" }}>
             {timeAgo(conv.updatedAt)}
           </span>
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs truncate flex-1" style={{ color: unread ? "oklch(0.30 0.06 155)" : "oklch(0.52 0.04 155)" }}>
+          <p className="text-xs truncate flex-1" style={{ color: unread ? "var(--muted-foreground)" : "var(--muted-foreground)" }}>
             {lastMsg?.content
               ? lastMsg.content.substring(0, 60)
               : conv.subject ?? "Sem mensagens"}
@@ -377,7 +377,7 @@ export default function Conversations() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen max-h-screen overflow-hidden" style={{ background: "oklch(0.960 0.010 155)" }}>
+    <div className="flex flex-col h-screen max-h-screen overflow-hidden" style={{ background: "var(--background)" }}>
 
       {/* ── Header ── */}
       <div
@@ -391,8 +391,8 @@ export default function Conversations() {
       >
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-lg font-black" style={{ color: "oklch(0.18 0.08 155)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>Atendimentos</h1>
-            <p className="text-xs" style={{ color: "oklch(0.50 0.05 155)" }}>{total} no total</p>
+            <h1 className="text-lg font-black" style={{ color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>Atendimentos</h1>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{total} no total</p>
           </div>
           <div className="flex items-center gap-2">
             {/* Label filter */}
@@ -551,7 +551,7 @@ export default function Conversations() {
 
         {/* Search bar */}
         <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "oklch(0.55 0.05 155)" }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "var(--muted-foreground)" }} />
           <input
             ref={searchRef}
             value={searchQuery}
@@ -562,7 +562,7 @@ export default function Conversations() {
               background: "rgba(255,255,255,0.75)",
               border: "1px solid rgba(255,255,255,0.90)",
               boxShadow: "0 2px 8px rgba(0,0,0,0.04), 0 1px 0 rgba(255,255,255,0.95) inset",
-              color: "oklch(0.20 0.08 155)",
+              color: "var(--foreground)",
               outline: "none",
             }}
             onFocus={e => {
@@ -595,11 +595,11 @@ export default function Conversations() {
                 onClick={() => { setActiveTab(tab.id); setPage(1); }}
                 className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all whitespace-nowrap relative"
                 style={isActive ? {
-                  color: "oklch(0.20 0.08 155)",
+                  color: "var(--foreground)",
                   fontWeight: 700,
                   borderBottom: "2px solid oklch(0.49 0.19 155)",
                 } : {
-                  color: "oklch(0.52 0.05 155)",
+                  color: "var(--muted-foreground)",
                   borderBottom: "2px solid transparent",
                 }}
               >
@@ -613,7 +613,7 @@ export default function Conversations() {
                       color: "#0d6b4e",
                     } : {
                       background: "rgba(0,0,0,0.06)",
-                      color: "oklch(0.50 0.05 155)",
+                      color: "var(--muted-foreground)",
                     }}
                   >
                     {count}

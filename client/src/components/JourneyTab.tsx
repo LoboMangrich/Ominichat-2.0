@@ -27,7 +27,7 @@ const PHASE_CONFIG = {
   onboarding: { label: "Onboarding", color: "#1d4ed8", bg: "rgba(29,78,216,0.10)", icon: "🚀" },
   monthly: { label: "Acompanhamento", color: "#0d6b4e", bg: "rgba(13,107,78,0.10)", icon: "📅" },
   renewal: { label: "Renovação", color: "#9a6010", bg: "rgba(201,130,39,0.10)", icon: "🔄" },
-  manual: { label: "Manual", color: "oklch(0.50 0.05 155)", bg: "rgba(0,0,0,0.06)", icon: "📝" },
+  manual: { label: "Manual", color: "var(--muted-foreground)", bg: "rgba(0,0,0,0.06)", icon: "📝" },
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -78,8 +78,8 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
           style={{ background: "rgba(13,107,78,0.06)", border: "1px dashed rgba(13,107,78,0.25)" }}
         >
           <div className="text-3xl">🗺️</div>
-          <p className="text-sm font-semibold" style={{ color: "oklch(0.30 0.06 155)" }}>Jornada não iniciada</p>
-          <p className="text-xs" style={{ color: "oklch(0.55 0.05 155)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>Jornada não iniciada</p>
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
             Inicie o protocolo de jornada para criar automaticamente as tarefas de onboarding, acompanhamento mensal e renovação para este cliente.
           </p>
           <button
@@ -100,7 +100,7 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
           <Zap className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#9a6010" }} />
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "#9a6010" }}>Sugestão da IA</p>
-            <p className="text-xs" style={{ color: "oklch(0.35 0.05 155)" }}>{aiSuggestion}</p>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{aiSuggestion}</p>
             <button
               onClick={openChat}
               className="mt-1.5 text-[10px] font-bold flex items-center gap-1"
@@ -140,7 +140,7 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
               }
             >
               <div className="text-base">{cfg.icon}</div>
-              <p className="text-[9px] font-bold mt-0.5 leading-tight" style={{ color: isActive ? cfg.color : "oklch(0.55 0.05 155)" }}>
+              <p className="text-[9px] font-bold mt-0.5 leading-tight" style={{ color: isActive ? cfg.color : "var(--muted-foreground)" }}>
                 {cfg.label}
               </p>
               {prog.total > 0 && (
@@ -168,7 +168,7 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
           <Zap className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#9a6010" }} />
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "#9a6010" }}>Próxima ação sugerida pela IA</p>
-            <p className="text-xs font-medium" style={{ color: "oklch(0.30 0.06 155)" }}>{nextPending.title}</p>
+            <p className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>{nextPending.title}</p>
             {nextPending.dueDate && (
               <p className="text-[10px] mt-0.5" style={{ color: PRIORITY_COLOR[nextPending.priority] ?? "#0d6b4e" }}>
                 Prazo: {new Date(nextPending.dueDate).toLocaleDateString('pt-BR')}
@@ -198,13 +198,13 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
       {/* Phase task list */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "oklch(0.45 0.05 155)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
             {PHASE_CONFIG[displayPhase as keyof typeof PHASE_CONFIG]?.label ?? displayPhase} — {phaseProgress(displayPhase).done}/{phaseProgress(displayPhase).total} concluídas
           </p>
         </div>
 
         {phaseTasks.length === 0 ? (
-          <p className="text-xs text-center py-3" style={{ color: "oklch(0.60 0.04 155)" }}>
+          <p className="text-xs text-center py-3" style={{ color: "var(--muted-foreground)" }}>
             Nenhuma tarefa nesta fase
           </p>
         ) : (
@@ -218,7 +218,7 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
               >
                 <Circle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: PRIORITY_COLOR[task.priority] ?? "#0d6b4e" }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold" style={{ color: "oklch(0.25 0.06 155)" }}>{task.title}</p>
+                  <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>{task.title}</p>
                   {task.dueDate && (
                     <p className="text-[10px] mt-0.5" style={{ color: PRIORITY_COLOR[task.priority] ?? "#0d6b4e" }}>
                       Prazo: {new Date(task.dueDate).toLocaleDateString('pt-BR')}
@@ -237,7 +237,7 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
                       onClick={() => skipTask(task.id)}
                       disabled={isSkipping}
                       className="text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1"
-                      style={{ background: "rgba(0,0,0,0.06)", color: "oklch(0.50 0.05 155)" }}
+                      style={{ background: "rgba(0,0,0,0.06)", color: "var(--muted-foreground)" }}
                     >
                       <SkipForward className="w-2.5 h-2.5" /> Pular
                     </button>
@@ -256,7 +256,7 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
                     style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.05)" }}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: "#0d6b4e" }} />
-                    <p className="text-[11px]" style={{ color: "oklch(0.60 0.04 155)", textDecoration: "line-through" }}>{task.title}</p>
+                    <p className="text-[11px]" style={{ color: "var(--muted-foreground)", textDecoration: "line-through" }}>{task.title}</p>
                   </div>
                 ))}
               </div>
@@ -271,8 +271,8 @@ export function JourneyTab({ customer, journeyTasks, completeTask, skipTask, ini
                     className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl"
                     style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.05)" }}
                   >
-                    <SkipForward className="w-3.5 h-3.5 shrink-0" style={{ color: "oklch(0.60 0.04 155)" }} />
-                    <p className="text-[11px]" style={{ color: "oklch(0.65 0.03 155)", textDecoration: "line-through" }}>{task.title}</p>
+                    <SkipForward className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted-foreground)" }} />
+                    <p className="text-[11px]" style={{ color: "var(--muted-foreground)", textDecoration: "line-through" }}>{task.title}</p>
                   </div>
                 ))}
               </div>

@@ -40,7 +40,6 @@ import {
   LogOut,
   Megaphone,
   Menu,
-  MessageCircle,
   PanelLeft,
   Settings,
   Sparkles,
@@ -102,8 +101,10 @@ const NAV_MODULES: NavModule[] = [
     color: "var(--brand-400)", // mesma luminosidade do dourado do CRM e do azul de Estatísticas (~L 0.71-0.73), legível sobre a sidebar escura
     items: [
       // ── WhatsApp ──
-      { icon: Inbox,          label: "Caixa de Entrada",     path: "/atendimentos", badge: "live", sectionHeader: "Atendimento via WhatsApp" },
-      { icon: MessageCircle,  label: "Todas as Conversas",   path: "/atendimentos?canal=whatsapp" },
+      // "Caixa de Entrada" e "Todas as Conversas" apontavam para a mesma tela (/atendimentos):
+      // ?canal=whatsapp nunca foi lido em Atendimentos.tsx, então os dois itens eram idênticos.
+      // Removido o segundo, renomeado o que ficou.
+      { icon: Inbox,          label: "Conversas",            path: "/atendimentos", badge: "live", sectionHeader: "Atendimento via WhatsApp" },
       { icon: Megaphone,      label: "Disparos em Massa",    path: "/broadcasts" },
       { icon: Users,          label: "Grupos",               path: "/groups" },
       // ── Sara IA ──

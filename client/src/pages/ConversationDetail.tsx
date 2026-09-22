@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
@@ -609,16 +608,16 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
             <Sparkles className="w-3.5 h-3.5 mr-1.5" />
             {aiMutation.isPending ? "Analisando..." : "Analisar IA"}
           </Button>
-          <Select value={conv.status} onValueChange={v => statusMutation.mutate({ id: convId, status: v as any })}>
-            <SelectTrigger className="h-8 w-36 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => statusMutation.mutate({ id: convId, status: "Closed" })}
+            disabled={statusMutation.isPending || conv.status === "Closed"}
+          >
+            <X className="w-3.5 h-3.5 mr-1.5" />
+            {conv.status === "Closed" ? "Conversa encerrada" : statusMutation.isPending ? "Finalizando..." : "Finalizar conversa"}
+          </Button>
         </div>
       </div>
 

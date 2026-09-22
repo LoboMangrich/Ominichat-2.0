@@ -22,12 +22,18 @@ describe("Conversations — QUEUE_TABS envia o valor real do enum, não o rótul
     expect(QUEUE_TABS.find(t => t.id === "open")?.status).toBe("Open");
   });
 
-  it("aba 'Aguardando' filtra por Waiting", () => {
-    expect(QUEUE_TABS.find(t => t.id === "waiting")?.status).toBe("Waiting");
-  });
-
   it("aba 'Finalizados' filtra por Closed", () => {
     expect(QUEUE_TABS.find(t => t.id === "closed")?.status).toBe("Closed");
+  });
+
+  // Regressão intencional: não existe mais aba "Aguardando"/Waiting. O único ponto que gravava
+  // esse status era o seletor de 3 opções em ConversationDetail.tsx, substituído por um botão
+  // único "Finalizar conversa" (→ Closed) — nada mais no app escreve "Waiting" em conversations.
+  // Uma aba filtrando por um status nunca gravado sempre mostraria zero, o mesmo padrão de bug
+  // de filtro-morto já corrigido várias vezes neste arquivo. Ver CLAUDE.md para a decisão de
+  // produto pendente antes de reintroduzir.
+  it("não existe mais aba 'waiting' — Waiting ficou sem nenhum ponto de escrita no app", () => {
+    expect(QUEUE_TABS.find(t => t.id === "waiting")).toBeUndefined();
   });
 });
 

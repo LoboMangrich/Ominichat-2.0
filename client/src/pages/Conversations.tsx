@@ -91,13 +91,16 @@ function timeAgo(date: Date | null | string | number) {
 
 // ─── Queue tabs ───────────────────────────────────────────────────────────────
 
-type QueueTab = "all" | "open" | "waiting" | "closed" | "ai" | "group";
+type QueueTab = "all" | "open" | "closed" | "ai" | "group";
 // `status` aqui é o valor do enum conversations.status no banco (drizzle/schema.ts) — sempre em
 // inglês. Nunca usar o rótulo em português aqui: é enviado direto como filtro para conversations.list.
+// Sem aba "Waiting"/"Aguardando" de propósito: o único ponto que gravava esse status era o seletor
+// de 3 opções em ConversationDetail.tsx, substituído por um botão único "Finalizar conversa" (→
+// Closed). Sem nenhuma escrita de "Waiting" em lugar nenhum do app, essa aba sempre mostraria zero
+// — o enum continua existindo no schema; decisão de reintroduzir fica registrada no CLAUDE.md.
 export const QUEUE_TABS: { id: QueueTab; label: string; icon: string; status?: "Open" | "Waiting" | "Closed"; aiOnly?: boolean; groupOnly?: boolean; activeColor: string; badgeColor: string }[] = [
   { id: "all",     label: "Todos",       icon: "#",  activeColor: "border-slate-500 text-slate-700 dark:text-slate-300",    badgeColor: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
   { id: "open",    label: "Em Aberto",   icon: "🟣", status: "Open",    activeColor: "border-violet-500 text-violet-700 dark:text-violet-300",  badgeColor: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
-  { id: "waiting", label: "Aguardando",  icon: "⏳", status: "Waiting", activeColor: "border-amber-500 text-amber-700 dark:text-amber-300",    badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
   { id: "ai",      label: "Automático",  icon: "🤖", aiOnly: true,      activeColor: "border-purple-500 text-purple-700 dark:text-purple-300", badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
   { id: "group",   label: "Grupo",       icon: "👥", groupOnly: true,   activeColor: "border-blue-500 text-blue-700 dark:text-blue-300",       badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
   { id: "closed",  label: "Finalizados", icon: "✅", status: "Closed",  activeColor: "border-slate-400 text-slate-600 dark:text-slate-400",   badgeColor: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
@@ -357,7 +360,6 @@ export default function Conversations() {
     return {
       all: total,
       open: all.filter(c => c.status === "Open").length,
-      waiting: all.filter(c => c.status === "Waiting").length,
       closed: all.filter(c => c.status === "Closed").length,
       ai: all.filter(c => c.handledByAi).length,
       group: all.filter(c => (c.channel as string) === "group").length,

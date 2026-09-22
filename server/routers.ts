@@ -1266,6 +1266,13 @@ const ghlRouter = router({
 });
 
 // ─── Upsell Router ────────────────────────────────────────────────────────────
+// PENDÊNCIA REGISTRADA (CLAUDE.md, seção "Correções pendentes") — não corrigida de propósito
+// nesta rodada de validação de status/filtros. .list abaixo consulta a tabela `referrals`, não
+// `upsellOpportunities`, com o enum errado (referrals.status/.type em vez de
+// upsellOpportunities.status). Nenhum código do client chama trpc.upsell.* — a tela "Indicações &
+// Upsell" usa trpc.referrals.* com type: "Upsell" na própria tabela referrals. Decisão de produto
+// pendente antes de mexer aqui: a tabela upsellOpportunities está abandonada, ou este router é
+// que está errado? Não é descuido — o "as any" abaixo fica até essa decisão.
 const upsellRouter = router({
   list: protectedProcedure
     .input(z.object({ status: z.string().optional(), type: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))

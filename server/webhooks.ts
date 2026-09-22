@@ -10,6 +10,7 @@ import { eq, or, lte, and, desc } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { startJourneyForCustomer } from "./playbookEngine";
 import { routeConversationToAgent } from "./conversationRouter";
+import { findOrCreateOpenConversation } from "./conversationLookup";
 
 /**
  * Trigger AI auto-reply for a conversation if it is handled by AI.
@@ -567,15 +568,7 @@ export function registerWebhooks(app: Express) {
               customerId = nc.id;
             }
 
-            // Find or create open conversation
-            const openConvs = await db.select().from(conversations).where(eq(conversations.customerId, customerId)).limit(1);
-            let conversationId: number;
-            if (openConvs.length && openConvs[0].status !== "Closed") {
-              conversationId = openConvs[0].id;
-            } else {
-              const [nc] = await db.insert(conversations).values({ customerId, channel: "instagram", status: "Open" }).$returningId();
-              conversationId = nc.id;
-            }
+            const conversationId = await findOrCreateOpenConversation(db, customerId, "instagram");
 
             const { messages: messagesTable } = await import("../drizzle/schema");
             await db.insert(messagesTable).values({ conversationId, senderType: "customer", content: messageText });
@@ -620,15 +613,7 @@ export function registerWebhooks(app: Express) {
         customerId = nc.id;
       }
 
-      // Find or create open conversation
-      const openConvs = await db.select().from(conversations).where(eq(conversations.customerId, customerId)).limit(1);
-      let conversationId: number;
-      if (openConvs.length && openConvs[0].status !== "Closed") {
-        conversationId = openConvs[0].id;
-      } else {
-        const [nc] = await db.insert(conversations).values({ customerId, channel: "telegram", status: "Open" }).$returningId();
-        conversationId = nc.id;
-      }
+      const conversationId = await findOrCreateOpenConversation(db, customerId, "telegram");
 
        const { messages: messagesTable } = await import("../drizzle/schema");
       await db.insert(messagesTable).values({ conversationId, senderType: "customer", content: text });
@@ -753,22 +738,7 @@ export function registerWebhooks(app: Express) {
                     customerId = newCustomer.id;
                   }
 
-                  // Find open conversation or create new one
-                  const openConversations = await db.select().from(conversations)
-                    .where(eq(conversations.customerId, customerId))
-                    .limit(1);
-
-                  let conversationId: number;
-                  if (openConversations.length && openConversations[0].status !== "Closed") {
-                    conversationId = openConversations[0].id;
-                  } else {
-                    const [newConv] = await db.insert(conversations).values({
-                      customerId,
-                      channel: "whatsapp",
-                      status: "Open",
-                    }).$returningId();
-                    conversationId = newConv.id;
-                  }
+                  const conversationId = await findOrCreateOpenConversation(db, customerId, "whatsapp");
 
                   // Insert the message
                   const { messages: messagesTable } = await import("../drizzle/schema");
@@ -1081,16 +1051,7 @@ export function registerWebhooks(app: Express) {
         const [newCustomer] = await db.insert(customers).values({ name: senderName, phone: from, status: "New" }).$returningId();
         customerId = newCustomer.id;
       }
-      // Find open conversation or create new one
-      const openConversations = await db.select().from(conversations)
-        .where(eq(conversations.customerId, customerId)).limit(1);
-      let conversationId: number;
-      if (openConversations.length && openConversations[0].status !== "Closed") {
-        conversationId = openConversations[0].id;
-      } else {
-        const [newConv] = await db.insert(conversations).values({ customerId, channel: "whatsapp", status: "Open" }).$returningId();
-        conversationId = newConv.id;
-      }
+      const conversationId = await findOrCreateOpenConversation(db, customerId, "whatsapp");
       // Insert the message
       const { messages: messagesTable } = await import("../drizzle/schema");
       await db.insert(messagesTable).values({ conversationId, senderType: "customer", content: messageText });
@@ -1146,16 +1107,7 @@ export function registerWebhooks(app: Express) {
         const [newCustomer] = await db.insert(customers).values({ name: senderName, phone: from, status: "New" }).$returningId();
         customerId = newCustomer.id;
       }
-      // Find open conversation or create new one
-      const openConversations = await db.select().from(conversations)
-        .where(eq(conversations.customerId, customerId)).limit(1);
-      let conversationId: number;
-      if (openConversations.length && openConversations[0].status !== "Closed") {
-        conversationId = openConversations[0].id;
-      } else {
-        const [newConv] = await db.insert(conversations).values({ customerId, channel: "whatsapp", status: "Open" }).$returningId();
-        conversationId = newConv.id;
-      }
+      const conversationId = await findOrCreateOpenConversation(db, customerId, "whatsapp");
       // Insert the incoming message
       const { messages: messagesTable } = await import("../drizzle/schema");
       await db.insert(messagesTable).values({ conversationId, senderType: "customer", content: messageText });

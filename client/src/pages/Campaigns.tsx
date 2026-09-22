@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Megaphone, Plus, Send, Trash2, Users, Bot, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { ALL_FILTER_SENTINEL, clearAllSentinel, CUSTOMER_STATUS_FILTER_OPTIONS } from "./Campaigns.filters";
+import { customers } from "../../../drizzle/schema";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Rascunho",
@@ -46,7 +47,7 @@ export default function Campaigns() {
   const [message, setMessage] = useState("");
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [filterProgram, setFilterProgram] = useState<string>("");
-  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<(typeof customers.status.enumValues)[number] | "">("");
   const [healthRange, setHealthRange] = useState<[number, number]>([0, 100]);
 
   // Stable filter input for preview (avoid infinite re-renders)
@@ -54,7 +55,7 @@ export default function Campaigns() {
     filterMinHealthScore?: number;
     filterMaxHealthScore?: number;
     filterProgram?: string;
-    filterStatus?: string;
+    filterStatus?: (typeof customers.status.enumValues)[number];
   }>({});
 
   const { data: campaignsList = [] } = trpc.campaigns.list.useQuery();
@@ -217,7 +218,7 @@ export default function Campaigns() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Status do cliente</Label>
-                    <Select value={filterStatus} onValueChange={v => setFilterStatus(clearAllSentinel(v))}>
+                    <Select value={filterStatus} onValueChange={v => setFilterStatus(clearAllSentinel(v) as any)}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>

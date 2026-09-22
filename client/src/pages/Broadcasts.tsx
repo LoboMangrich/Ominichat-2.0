@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Megaphone, Plus, Send, Clock, Users, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { customers } from "../../../drizzle/schema";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-slate-100 text-slate-600",
@@ -35,10 +36,17 @@ function formatDate(date: Date | string | null | undefined): string {
 export default function Broadcasts() {
   const [activeTab, setActiveTab] = useState<"broadcasts" | "alerts">("broadcasts");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newBroadcast, setNewBroadcast] = useState({
+  const [newBroadcast, setNewBroadcast] = useState<{
+    title: string;
+    content: string;
+    channel: "whatsapp" | "email" | "instagram" | "telegram";
+    scheduledAt: string;
+    filterProgram: string;
+    filterStatus: (typeof customers.status.enumValues)[number] | "";
+  }>({
     title: "",
     content: "",
-    channel: "whatsapp" as const,
+    channel: "whatsapp",
     scheduledAt: "",
     filterProgram: "",
     filterStatus: "",
@@ -164,7 +172,7 @@ export default function Broadcasts() {
                     </div>
                     <div>
                       <Label className="text-xs">Situação</Label>
-                      <Select value={newBroadcast.filterStatus || "all"} onValueChange={v => setNewBroadcast(p => ({ ...p, filterStatus: v === "all" ? "" : v }))}>
+                      <Select value={newBroadcast.filterStatus || "all"} onValueChange={v => setNewBroadcast(p => ({ ...p, filterStatus: (v === "all" ? "" : v) as any }))}>
                         <SelectTrigger className="h-8 text-sm">
                           <SelectValue placeholder="Todos" />
                         </SelectTrigger>

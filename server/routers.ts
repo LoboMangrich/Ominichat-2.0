@@ -46,7 +46,7 @@ const customersRouter = router({
   list: protectedProcedure
     .input(z.object({
       search: z.string().optional(),
-      status: z.string().optional(),
+      status: z.enum(customers.status.enumValues).optional(),
       program: z.string().optional(),
       page: z.number().default(1),
       limit: z.number().default(20),
@@ -64,7 +64,7 @@ const customersRouter = router({
           like(customers.phone, `%${input.search}%`)
         ));
       }
-      if (input.status) conditions.push(eq(customers.status, input.status as any));
+      if (input.status) conditions.push(eq(customers.status, input.status));
       if (input.program) conditions.push(eq(customers.program, input.program));
       const results = await db.select().from(customers)
         .where(conditions.length ? and(...conditions) : undefined)
@@ -897,14 +897,14 @@ const surveysRouter = router({
 // ─── Referrals Router ─────────────────────────────────────────────────────────
 const referralsRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.string().optional(), type: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .input(z.object({ status: z.enum(referrals.status.enumValues).optional(), type: z.enum(referrals.type.enumValues).optional(), page: z.number().default(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { referrals: [], total: 0 };
       const offset = (input.page - 1) * input.limit;
       const conditions: any[] = [];
-      if (input.status) conditions.push(eq(referrals.status, input.status as any));
-      if (input.type) conditions.push(eq(referrals.type, input.type as any));
+      if (input.status) conditions.push(eq(referrals.status, input.status));
+      if (input.type) conditions.push(eq(referrals.type, input.type));
       const results = await db.select().from(referrals)
         .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(desc(referrals.createdAt))
@@ -917,7 +917,7 @@ const referralsRouter = router({
     .input(z.object({
       customerId: z.number().optional(),
       referrerId: z.number().optional(),
-      type: z.enum(["Referral", "Upsell"]).default("Referral"),
+      type: z.enum(referrals.type.enumValues).default("Referral"),
       referredName: z.string().optional(),
       referredEmail: z.string().optional(),
       referredPhone: z.string().optional(),
@@ -935,7 +935,7 @@ const referralsRouter = router({
     }),
 
   updateStatus: protectedProcedure
-    .input(z.object({ id: z.number(), status: z.enum(["Pending", "Contacted", "Converted", "Lost"]) }))
+    .input(z.object({ id: z.number(), status: z.enum(referrals.status.enumValues) }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
@@ -2729,7 +2729,7 @@ const broadcastsRouter = router({
       channel: z.enum(['whatsapp', 'email', 'instagram', 'telegram']).default('whatsapp'),
       scheduledAt: z.date().optional(),
       filterProgram: z.string().optional(),
-      filterStatus: z.string().optional(),
+      filterStatus: z.enum(customers.status.enumValues).optional(),
       filterTag: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -2741,7 +2741,7 @@ const broadcastsRouter = router({
       if (customerDb) {
         const conditions = [];
         if (input.filterProgram) conditions.push(like(customers.program, `%${input.filterProgram}%`));
-        if (input.filterStatus) conditions.push(eq(customers.status as any, input.filterStatus));
+        if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus));
         const [row] = await customerDb.select({ count: count() }).from(customers)
           .where(conditions.length > 0 ? and(...conditions) : sql`1=1`);
         totalRecipients = row?.count ?? 0;
@@ -4262,7 +4262,7 @@ const campaignsRouter = router({
       filterMinHealthScore: z.number().optional(),
       filterMaxHealthScore: z.number().optional(),
       filterProgram: z.string().optional(),
-      filterStatus: z.string().optional(),
+      filterStatus: z.enum(customers.status.enumValues).optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -4271,7 +4271,7 @@ const campaignsRouter = router({
       if (input.filterMinHealthScore !== undefined) conditions.push(gte(customers.healthScore, input.filterMinHealthScore));
       if (input.filterMaxHealthScore !== undefined) conditions.push(lte(customers.healthScore, input.filterMaxHealthScore));
       if (input.filterProgram) conditions.push(eq(customers.program, input.filterProgram));
-      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus as any));
+      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus));
       const result = await db.select({
         id: customers.id,
         name: customers.name,
@@ -4292,7 +4292,7 @@ const campaignsRouter = router({
       filterMinHealthScore: z.number().optional(),
       filterMaxHealthScore: z.number().optional(),
       filterProgram: z.string().optional(),
-      filterStatus: z.string().optional(),
+      filterStatus: z.enum(customers.status.enumValues).optional(),
       scheduledAt: z.date().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -4302,7 +4302,7 @@ const campaignsRouter = router({
       if (input.filterMinHealthScore !== undefined) conditions.push(gte(customers.healthScore, input.filterMinHealthScore));
       if (input.filterMaxHealthScore !== undefined) conditions.push(lte(customers.healthScore, input.filterMaxHealthScore));
       if (input.filterProgram) conditions.push(eq(customers.program, input.filterProgram));
-      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus as any));
+      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus));
       const [{ count: total }] = await db.select({ count: count() }).from(customers)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
       const [inserted] = await db.insert(campaigns).values({

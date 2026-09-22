@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { customers as customersTable } from "../../../drizzle/schema";
 import {
   Building2,
   Download,
@@ -122,7 +123,7 @@ function CustomerTasksTab({ customerId }: { customerId: number }) {
 // Chaves = valores reais do enum customers.status (drizzle/schema.ts). Antes, a chave do status
 // "At Risk" estava escrita como "Em Risco" (o rótulo, não o valor do enum) — statusConfig[c.status]
 // nunca casava para clientes em risco, e o badge de status simplesmente não aparecia para eles.
-export const statusConfig: Record<string, { bg: string; color: string; border: string; label: string }> = {
+export const statusConfig: Record<(typeof customersTable.status.enumValues)[number], { bg: string; color: string; border: string; label: string }> = {
   Active:     { bg: "rgba(13,107,78,0.10)",  color: "#0d6b4e", border: "rgba(13,107,78,0.20)",  label: "Ativo" },
   "At Risk":  { bg: "rgba(201,130,39,0.12)", color: "#9a6010", border: "rgba(201,130,39,0.22)", label: "Em Risco" },
   Churned:    { bg: "rgba(220,38,38,0.10)",  color: "#b91c1c", border: "rgba(220,38,38,0.20)",  label: "Cancelado" },
@@ -138,7 +139,7 @@ export default function Customers() {
   const [panelTab, setPanelTab] = useState<'profile' | 'journey' | 'notes' | 'transcripts' | 'roi'>('profile');
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<(typeof customersTable.status.enumValues)[number] | "">("");
   const [programFilter, setProgramFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -424,7 +425,7 @@ export default function Customers() {
             className="pl-9 input-glass"
           />
         </div>
-        <Select value={statusFilter} onValueChange={v => { setStatusFilter(v === "all" ? "" : v); setPage(1); }}>
+        <Select value={statusFilter} onValueChange={v => { setStatusFilter((v === "all" ? "" : v) as any); setPage(1); }}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Todos os status" />
           </SelectTrigger>
@@ -608,16 +609,16 @@ export default function Customers() {
                     </div>
                     <div>
                       <p className="text-base font-bold" style={{ color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif" }}>{selectedCustomer.name}</p>
-                      {statusConfig[selectedCustomer.status] && (
+                      {statusConfig[selectedCustomer.status as keyof typeof statusConfig] && (
                         <span
                           className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block"
                           style={{
-                            background: statusConfig[selectedCustomer.status].bg,
-                            color: statusConfig[selectedCustomer.status].color,
-                            border: `1px solid ${statusConfig[selectedCustomer.status].border}`,
+                            background: statusConfig[selectedCustomer.status as keyof typeof statusConfig].bg,
+                            color: statusConfig[selectedCustomer.status as keyof typeof statusConfig].color,
+                            border: `1px solid ${statusConfig[selectedCustomer.status as keyof typeof statusConfig].border}`,
                           }}
                         >
-                          {statusConfig[selectedCustomer.status].label}
+                          {statusConfig[selectedCustomer.status as keyof typeof statusConfig].label}
                         </span>
                       )}
                     </div>

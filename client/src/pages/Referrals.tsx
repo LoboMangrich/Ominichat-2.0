@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { referrals as referralsTable } from "../../../drizzle/schema";
 import { ArrowRight, CheckCircle, Gift, Plus, TrendingUp, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,7 +22,7 @@ const statusColors: Record<string, string> = {
 
 export default function Referrals() {
   const [typeFilter, setTypeFilter] = useState<"Referral" | "Upsell" | "">("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<(typeof referralsTable.status.enumValues)[number] | "">("");
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
@@ -152,11 +153,13 @@ export default function Referrals() {
             <SelectItem value="Upsell">Venda Adicional</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={v => { setStatusFilter(v === "all" ? "" : v); setPage(1); }}>
+        <Select value={statusFilter} onValueChange={v => { setStatusFilter((v === "all" ? "" : v) as any); setPage(1); }}>
           <SelectTrigger className="w-36"><SelectValue placeholder="Todos os status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
-            {["Pendente", "Contacted", "Converted", "Lost"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {/* value = enum real de referrals.status (drizzle/schema.ts); "Pendente" era o rótulo em
+                português usado por engano como valor — filtrar por ele devolvia lista vazia em silêncio */}
+            {referralsTable.status.enumValues.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -194,7 +197,7 @@ export default function Referrals() {
                       <Select value={ref.status} onValueChange={v => updateStatusMutation.mutate({ id: ref.id, status: v as any })}>
                         <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {["Pendente", "Contacted", "Converted", "Lost"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          {referralsTable.status.enumValues.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     )}

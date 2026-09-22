@@ -209,8 +209,46 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   superfície de ingestão externa, não formulário: decidir o schema antes.
   (A autenticação de `/api/webhooks/email-ticket`, linha 122, já foi corrigida —
   ver "Segurança"; falta ainda a validação Zod do payload em si.)
-- Issue #22 — validação frágil em `customers.list`/`campaigns`/`broadcasts`
-- Issue #23 — tipo fraco em `statusConfig`
+- Issues #22 e #23 apareciam `CLOSED` no GitHub, mas o código não tinha a
+  correção aplicada — `customers.list`/`campaigns.previewAudience`/
+  `campaigns.create`/`broadcasts.create` aceitavam `status`/`filterStatus`
+  como `z.string()` solto (`as any` no `eq()`), e `statusConfig`
+  (`Customers.tsx`) era `Record<string, ...>`. Corrigido nesta sessão: os
+  quatro procedures agora usam `z.enum(customers.status.enumValues)`, e
+  `statusConfig` é `Record<(typeof customersTable.status.enumValues)[number], ...>`
+  — uma chave errada ou um enum alterado no schema agora quebra `pnpm check`
+  em vez de falhar em silêncio. `referralsRouter.list`/`updateStatus`/`create`
+  receberam o mesmo tratamento com `referrals.status.enumValues`/
+  `referrals.type.enumValues`, e o filtro de status de `Referrals.tsx` tinha
+  o mesmo bug recorrente (`"Pendente"` como valor do `SelectItem`, em vez de
+  `"Pending"`) — corrigido junto.
+- **Pendência nova, achada ao corrigir o item acima:** `upsellRouter.list`
+  (`server/routers.ts`, roteador registrado em `upsell: upsellRouter`)
+  consulta a tabela `referrals`, não `upsellOpportunities` — usa
+  `referrals.status`/`referrals.type` em vez do enum real de
+  `upsellOpportunities.status` (`Identified/Presented/Accepted/Declined`). Só
+  o `updateStatus` desse router usa a tabela certa. Nenhum código do client
+  chama `trpc.upsell.*` (confirmado por grep) — a tela "Indicações & Upsell"
+  (`Referrals.tsx`) usa `trpc.referrals.*` com `type: "Upsell"` dentro da
+  própria tabela `referrals`. **Decisão pendente:** a tabela
+  `upsellOpportunities` está abandonada (e o router deveria ser removido ou
+  redirecionado para `referrals`), ou o router é que está errado (e deveria
+  passar a consultar `upsellOpportunities` de verdade, exigindo um
+  consumidor novo no client)? Não mexido nesta rodada — deixado de propósito
+  fora do escopo, aguardando essa decisão de produto.
+- **Verificação pendente antes do deploy:** `campaigns.filterStatus`
+  (`varchar(50)` solto, sem enum no schema) agora é validado contra
+  `customers.status.enumValues` na entrada de `campaigns.previewAudience` e
+  `campaigns.create`, então não é mais possível persistir um valor inválido
+  a partir de agora. Mas isso não corrige registros já gravados antes da
+  validação existir. Como não há deploy em produção hoje, o risco é só de
+  dados locais de teste — não foi checado nesta sessão (Docker local
+  indisponível no momento). **No dia do deploy**, antes de apertar qualquer
+  validação adicional em cima de `campaigns.filterStatus`, rodar
+  `SELECT DISTINCT filterStatus FROM campaigns` e comparar contra
+  `customers.status.enumValues`; se houver linha fora do enum, decidir o
+  tratamento (null, valor mais próximo, ou remover o filtro daquela
+  campanha) antes de qualquer migração de dados.
 - Tags "Em Aberto"/"Aguardando" filtram por `conversationTagAssignments`, e nada
   popula essa tabela a partir de `conversations.status`. **Decisão de produto
   pendente com o time de CS:** essas tags devem espelhar o status

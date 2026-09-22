@@ -46,7 +46,7 @@ const customersRouter = router({
   list: protectedProcedure
     .input(z.object({
       search: z.string().optional(),
-      status: z.string().optional(),
+      status: z.enum(customers.status.enumValues).optional(),
       program: z.string().optional(),
       page: z.number().default(1),
       limit: z.number().default(20),
@@ -64,7 +64,7 @@ const customersRouter = router({
           like(customers.phone, `%${input.search}%`)
         ));
       }
-      if (input.status) conditions.push(eq(customers.status, input.status as any));
+      if (input.status) conditions.push(eq(customers.status, input.status));
       if (input.program) conditions.push(eq(customers.program, input.program));
       const results = await db.select().from(customers)
         .where(conditions.length ? and(...conditions) : undefined)
@@ -897,14 +897,14 @@ const surveysRouter = router({
 // ─── Referrals Router ─────────────────────────────────────────────────────────
 const referralsRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.string().optional(), type: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .input(z.object({ status: z.enum(referrals.status.enumValues).optional(), type: z.enum(referrals.type.enumValues).optional(), page: z.number().default(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) return { referrals: [], total: 0 };
       const offset = (input.page - 1) * input.limit;
       const conditions: any[] = [];
-      if (input.status) conditions.push(eq(referrals.status, input.status as any));
-      if (input.type) conditions.push(eq(referrals.type, input.type as any));
+      if (input.status) conditions.push(eq(referrals.status, input.status));
+      if (input.type) conditions.push(eq(referrals.type, input.type));
       const results = await db.select().from(referrals)
         .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(desc(referrals.createdAt))
@@ -917,7 +917,7 @@ const referralsRouter = router({
     .input(z.object({
       customerId: z.number().optional(),
       referrerId: z.number().optional(),
-      type: z.enum(["Referral", "Upsell"]).default("Referral"),
+      type: z.enum(referrals.type.enumValues).default("Referral"),
       referredName: z.string().optional(),
       referredEmail: z.string().optional(),
       referredPhone: z.string().optional(),
@@ -935,7 +935,7 @@ const referralsRouter = router({
     }),
 
   updateStatus: protectedProcedure
-    .input(z.object({ id: z.number(), status: z.enum(["Pending", "Contacted", "Converted", "Lost"]) }))
+    .input(z.object({ id: z.number(), status: z.enum(referrals.status.enumValues) }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
@@ -1266,6 +1266,13 @@ const ghlRouter = router({
 });
 
 // ─── Upsell Router ────────────────────────────────────────────────────────────
+// PENDÊNCIA REGISTRADA (CLAUDE.md, seção "Correções pendentes") — não corrigida de propósito
+// nesta rodada de validação de status/filtros. .list abaixo consulta a tabela `referrals`, não
+// `upsellOpportunities`, com o enum errado (referrals.status/.type em vez de
+// upsellOpportunities.status). Nenhum código do client chama trpc.upsell.* — a tela "Indicações &
+// Upsell" usa trpc.referrals.* com type: "Upsell" na própria tabela referrals. Decisão de produto
+// pendente antes de mexer aqui: a tabela upsellOpportunities está abandonada, ou este router é
+// que está errado? Não é descuido — o "as any" abaixo fica até essa decisão.
 const upsellRouter = router({
   list: protectedProcedure
     .input(z.object({ status: z.string().optional(), type: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
@@ -2729,7 +2736,7 @@ const broadcastsRouter = router({
       channel: z.enum(['whatsapp', 'email', 'instagram', 'telegram']).default('whatsapp'),
       scheduledAt: z.date().optional(),
       filterProgram: z.string().optional(),
-      filterStatus: z.string().optional(),
+      filterStatus: z.enum(customers.status.enumValues).optional(),
       filterTag: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -2741,7 +2748,7 @@ const broadcastsRouter = router({
       if (customerDb) {
         const conditions = [];
         if (input.filterProgram) conditions.push(like(customers.program, `%${input.filterProgram}%`));
-        if (input.filterStatus) conditions.push(eq(customers.status as any, input.filterStatus));
+        if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus));
         const [row] = await customerDb.select({ count: count() }).from(customers)
           .where(conditions.length > 0 ? and(...conditions) : sql`1=1`);
         totalRecipients = row?.count ?? 0;
@@ -4249,6 +4256,16 @@ const intelligenceRouter = router({
   }),
 });
 
+// campaigns.filterStatus é varchar solto no schema (drizzle/schema.ts), não um enum — não há
+// como o Drizzle garantir em tipo que o valor persistido pertence a customers.status.enumValues.
+// A entrada é validada por z.enum() em previewAudience/create (não entra mais lixo a partir de
+// agora), mas um registro criado antes dessa validação existir pode ter um valor fora do enum.
+// Esse guard narrows o tipo em runtime — sem "as any" — e falha explícito em vez de filtrar em
+// silêncio (campaigns.send é o ponto que reconsome o valor persistido).
+function isValidCustomerStatus(value: string): value is (typeof customers.status.enumValues)[number] {
+  return (customers.status.enumValues as readonly string[]).includes(value);
+}
+
 // ─── Campaigns Router ────────────────────────────────────────────────────────
 const campaignsRouter = router({
   list: protectedProcedure.query(async () => {
@@ -4262,7 +4279,7 @@ const campaignsRouter = router({
       filterMinHealthScore: z.number().optional(),
       filterMaxHealthScore: z.number().optional(),
       filterProgram: z.string().optional(),
-      filterStatus: z.string().optional(),
+      filterStatus: z.enum(customers.status.enumValues).optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -4271,7 +4288,7 @@ const campaignsRouter = router({
       if (input.filterMinHealthScore !== undefined) conditions.push(gte(customers.healthScore, input.filterMinHealthScore));
       if (input.filterMaxHealthScore !== undefined) conditions.push(lte(customers.healthScore, input.filterMaxHealthScore));
       if (input.filterProgram) conditions.push(eq(customers.program, input.filterProgram));
-      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus as any));
+      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus));
       const result = await db.select({
         id: customers.id,
         name: customers.name,
@@ -4292,7 +4309,7 @@ const campaignsRouter = router({
       filterMinHealthScore: z.number().optional(),
       filterMaxHealthScore: z.number().optional(),
       filterProgram: z.string().optional(),
-      filterStatus: z.string().optional(),
+      filterStatus: z.enum(customers.status.enumValues).optional(),
       scheduledAt: z.date().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -4302,7 +4319,7 @@ const campaignsRouter = router({
       if (input.filterMinHealthScore !== undefined) conditions.push(gte(customers.healthScore, input.filterMinHealthScore));
       if (input.filterMaxHealthScore !== undefined) conditions.push(lte(customers.healthScore, input.filterMaxHealthScore));
       if (input.filterProgram) conditions.push(eq(customers.program, input.filterProgram));
-      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus as any));
+      if (input.filterStatus) conditions.push(eq(customers.status, input.filterStatus));
       const [{ count: total }] = await db.select({ count: count() }).from(customers)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
       const [inserted] = await db.insert(campaigns).values({
@@ -4328,11 +4345,23 @@ const campaignsRouter = router({
       if (!db) throw new Error("DB unavailable");
       const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, input.id)).limit(1);
       if (!campaign) throw new Error("Campanha não encontrada");
+      // Guard em bloco próprio (não "campaign.filterStatus && !isValid(...) => throw" solto): o TS
+      // não decompõe a negação de um "&&" com predicado em disjunção pra narrowing depois do if —
+      // só narrows de forma confiável o padrão "if (!predicate(x)) throw" logo antes do uso de x.
+      let validatedFilterStatus: (typeof customers.status.enumValues)[number] | null = null;
+      if (campaign.filterStatus !== null) {
+        if (!isValidCustomerStatus(campaign.filterStatus)) {
+          throw new Error(
+            `Campanha ${campaign.id} tem filterStatus inválido ("${campaign.filterStatus}"), fora do enum customers.status (${customers.status.enumValues.join(", ")}). Corrija o registro antes de enviar.`
+          );
+        }
+        validatedFilterStatus = campaign.filterStatus;
+      }
       const conditions: any[] = [];
       if (campaign.filterMinHealthScore !== null) conditions.push(gte(customers.healthScore, campaign.filterMinHealthScore!));
       if (campaign.filterMaxHealthScore !== null) conditions.push(lte(customers.healthScore, campaign.filterMaxHealthScore!));
       if (campaign.filterProgram) conditions.push(eq(customers.program, campaign.filterProgram));
-      if (campaign.filterStatus) conditions.push(eq(customers.status, campaign.filterStatus as any));
+      if (validatedFilterStatus) conditions.push(eq(customers.status, validatedFilterStatus));
       const audience = await db.select().from(customers)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
       await db.update(campaigns).set({ status: "running", sentAt: new Date(), totalTargeted: audience.length }).where(eq(campaigns.id, input.id));

@@ -267,13 +267,39 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   falta decidir:** esse status é definido manualmente pelo atendente (como
   era antes) ou automaticamente (ex: quando o atendente responde e fica
   esperando o cliente)? A resposta muda a implementação e a aba volta junto.
-- **Histórico de conversas finalizadas com opção de reabrir.** Hoje uma
-  conversa `Closed` some da lista sem caminho de volta — o botão "Finalizar
-  conversa" (acima) só afunila esse problema, não o cria. O status `Closed`
-  já existe; falta a visão (uma lista/aba de finalizadas) e a ação de reabrir
-  (`conversations.updateStatus` já aceita `"Open"` — falta só o botão e,
-  possivelmente, tela). Referência mencionada pelo time: comportamento do
-  Chatsac.
+- **Histórico de conversas finalizadas com opção de reabrir.** Uma conversa
+  `Closed` **não some** da lista de `/atendimentos` (a tela do menu):
+  `tags.listUnified` não filtra por status, então ela continua lá, misturada
+  com as abertas e sem nenhum indicador visual de status na linha. O
+  problema real é que não dá pra distinguir nem separar as finalizadas, e não
+  há ação de reabrir — o botão "Finalizar conversa" fica desabilitado em
+  "Conversa encerrada". (`/conversations` tem uma aba "Finalizados"
+  funcionando, mas não está no menu.) `conversations.updateStatus` já aceita
+  `"Open"`, mas não limpa `closedAt`, e finalizar de novo repete a análise de
+  IA e a pesquisa de satisfação. **Direção decidida, story ainda não
+  escrita** — aguardando o time de CS confirmar a janela de 24h: cliente que
+  escreve de novo dentro da janela (configurável) reabre a mesma conversa,
+  depois dela abre uma nova; aba de finalizadas em `/atendimentos`, com elas
+  escondidas por padrão; qualquer atendente pode reabrir; `closedAt` limpo ao
+  reabrir; mensagem `system` registrando quem reabriu; pesquisa de satisfação
+  não repete. A regra da janela entra em `pickReusableConversation`
+  (`server/conversationLookup.ts`). Referência mencionada pelo time:
+  comportamento do Chatsac.
+- **Disparo de campanha pode gravar mensagem de WhatsApp em conversa de
+  outro canal.** `campaigns` (bloco de envio em `server/routers.ts`, "Find or
+  create a conversation for this customer") busca conversa `Open` do cliente
+  sem filtrar `channel` e agenda mensagem de WhatsApp nela — se o cliente
+  tiver uma conversa de e-mail aberta, a campanha cai nela. Também ignora
+  `Waiting`. É a mesma classe de bug corrigida nos 5 receptores de webhook
+  (que agora usam `findOrCreateOpenConversation`), mas ficou fora daquele PR
+  por não ser receptor. Correção provável: trocar pela mesma função.
+- **Criação de conversa não é atômica.** `findOrCreateOpenConversation`
+  (`server/conversationLookup.ts`) faz select e depois insert: duas mensagens
+  simultâneas de um cliente sem conversa aberta ainda podem criar duas
+  conversas. Risco baixo no volume atual (dezenas de atendentes); resolver
+  exigiria lock ou unique constraint, e não vale a complexidade agora.
+  Conversas duplicadas já gravadas pelo bug antigo não foram limpas — sem
+  produção, o banco local se resolve recriando.
 - **Travar envio de mensagem a quem não assumiu a conversa.** Hoje, se uma
   conversa é transferida para outro atendente, qualquer pessoa ainda
   consegue responder ao cliente pelo `messages.send`. O esperado: só quem

@@ -253,6 +253,37 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   popula essa tabela a partir de `conversations.status`. **Decisão de produto
   pendente com o time de CS:** essas tags devem espelhar o status
   automaticamente ou ser marcação manual do atendente? São produtos diferentes.
+- **Status `Waiting` ficou sem nenhum ponto de escrita na interface.** O
+  seletor de 3 opções (Aberto/Aguardando/Encerrar) em `ConversationDetail.tsx`
+  foi substituído por um botão único "Finalizar conversa" (→ `Closed`) — era o
+  único lugar do app que gravava `conversations.status = "Waiting"`. Nenhuma
+  automação, playbook, trigger rule ou SLA grava esse status. A aba
+  "Aguardando" de `Conversations.tsx` (`QUEUE_TABS`) foi removida junto — sem
+  isso, ela filtraria por um status nunca gravado e mostraria zero pra
+  sempre, o mesmo padrão de filtro-morto já corrigido várias vezes neste
+  projeto. O enum `conversations.status` continua com `"Waiting"` no schema
+  (não removido — é dado histórico válido para conversas antigas). **Se o
+  time de CS quiser o conceito de "aguardando resposta do cliente" de volta,
+  falta decidir:** esse status é definido manualmente pelo atendente (como
+  era antes) ou automaticamente (ex: quando o atendente responde e fica
+  esperando o cliente)? A resposta muda a implementação e a aba volta junto.
+- **Histórico de conversas finalizadas com opção de reabrir.** Hoje uma
+  conversa `Closed` some da lista sem caminho de volta — o botão "Finalizar
+  conversa" (acima) só afunila esse problema, não o cria. O status `Closed`
+  já existe; falta a visão (uma lista/aba de finalizadas) e a ação de reabrir
+  (`conversations.updateStatus` já aceita `"Open"` — falta só o botão e,
+  possivelmente, tela). Referência mencionada pelo time: comportamento do
+  Chatsac.
+- **Travar envio de mensagem a quem não assumiu a conversa.** Hoje, se uma
+  conversa é transferida para outro atendente, qualquer pessoa ainda
+  consegue responder ao cliente pelo `messages.send`. O esperado: só quem
+  assumiu (`conversations.assignedTo`) envia mensagem pro cliente; os demais
+  podem deixar sussurros (mensagens internas, tabela `internalMessages` já
+  existe). A infraestrutura (`assignedTo` + `internalMessages`) já existe —
+  falta decisão de produto antes de implementar: Admin pode enviar em
+  conversa de outro atendente? Como alguém retoma uma conversa que não é
+  sua? Sussurro é visível para todos os atendentes ou só para quem tem
+  acesso àquela conversa?
 - A tag "Automático" (`slug: auto`) foi removida de `DEFAULT_TAGS`
   (`seedDefaults.ts`) e de `TAG_STATUS_MAP` (`Atendimentos.tsx`) — investigada
   e resolvida, não é mais pendente. O filtro sempre retornava lista vazia, e

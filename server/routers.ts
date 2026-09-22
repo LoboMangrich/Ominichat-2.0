@@ -4249,6 +4249,16 @@ const intelligenceRouter = router({
   }),
 });
 
+// campaigns.filterStatus é varchar solto no schema (drizzle/schema.ts), não um enum — não há
+// como o Drizzle garantir em tipo que o valor persistido pertence a customers.status.enumValues.
+// A entrada é validada por z.enum() em previewAudience/create (não entra mais lixo a partir de
+// agora), mas um registro criado antes dessa validação existir pode ter um valor fora do enum.
+// Esse guard narrows o tipo em runtime — sem "as any" — e falha explícito em vez de filtrar em
+// silêncio (campaigns.send é o ponto que reconsome o valor persistido).
+function isValidCustomerStatus(value: string): value is (typeof customers.status.enumValues)[number] {
+  return (customers.status.enumValues as readonly string[]).includes(value);
+}
+
 // ─── Campaigns Router ────────────────────────────────────────────────────────
 const campaignsRouter = router({
   list: protectedProcedure.query(async () => {
@@ -4328,11 +4338,23 @@ const campaignsRouter = router({
       if (!db) throw new Error("DB unavailable");
       const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, input.id)).limit(1);
       if (!campaign) throw new Error("Campanha não encontrada");
+      // Guard em bloco próprio (não "campaign.filterStatus && !isValid(...) => throw" solto): o TS
+      // não decompõe a negação de um "&&" com predicado em disjunção pra narrowing depois do if —
+      // só narrows de forma confiável o padrão "if (!predicate(x)) throw" logo antes do uso de x.
+      let validatedFilterStatus: (typeof customers.status.enumValues)[number] | null = null;
+      if (campaign.filterStatus !== null) {
+        if (!isValidCustomerStatus(campaign.filterStatus)) {
+          throw new Error(
+            `Campanha ${campaign.id} tem filterStatus inválido ("${campaign.filterStatus}"), fora do enum customers.status (${customers.status.enumValues.join(", ")}). Corrija o registro antes de enviar.`
+          );
+        }
+        validatedFilterStatus = campaign.filterStatus;
+      }
       const conditions: any[] = [];
       if (campaign.filterMinHealthScore !== null) conditions.push(gte(customers.healthScore, campaign.filterMinHealthScore!));
       if (campaign.filterMaxHealthScore !== null) conditions.push(lte(customers.healthScore, campaign.filterMaxHealthScore!));
       if (campaign.filterProgram) conditions.push(eq(customers.program, campaign.filterProgram));
-      if (campaign.filterStatus) conditions.push(eq(customers.status, campaign.filterStatus as any));
+      if (validatedFilterStatus) conditions.push(eq(customers.status, validatedFilterStatus));
       const audience = await db.select().from(customers)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
       await db.update(campaigns).set({ status: "running", sentAt: new Date(), totalTargeted: audience.length }).where(eq(campaigns.id, input.id));

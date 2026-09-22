@@ -129,6 +129,50 @@ describe("validação de status/filtros usa o enum real (não string livre)", ()
   });
 });
 
+// campaign.filterStatus é reconsumido em campaigns.send a partir de um registro já persistido —
+// campaigns.previewAudience/create validam a entrada, mas isso não cobre um registro gravado
+// antes dessa validação existir. campaigns.send precisa revalidar ao ler, e falhar explícito
+// (não filtrar em silêncio) se encontrar um valor fora do enum.
+function makeAwaitableQuery(rows: unknown[]) {
+  return { limit: () => Promise.resolve(rows), then: (resolve: (v: unknown[]) => void) => resolve(rows) };
+}
+
+describe("campaigns.send — revalida filterStatus persistido ao ler do banco (defesa em profundidade)", () => {
+  it("rejeita com erro explícito uma campanha com filterStatus fora do enum (registro legado)", async () => {
+    const { getDb } = await import("./db");
+    const campaignRow = {
+      id: 1, filterStatus: "Ativo", filterMinHealthScore: null, filterMaxHealthScore: null,
+      filterProgram: null, message: "M", createdBy: 1, agentId: null,
+    };
+    const mockDb = {
+      select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => makeAwaitableQuery([campaignRow])) })) })),
+    };
+    vi.mocked(getDb).mockResolvedValueOnce(mockDb as any);
+
+    const caller = appRouter.createCaller(createContext());
+    await expect(caller.campaigns.send({ id: 1 })).rejects.toThrow(/filterStatus inválido/);
+  });
+
+  it("não rejeita uma campanha com filterStatus válido — a validação não é o que falha aqui", async () => {
+    const { getDb } = await import("./db");
+    const campaignRow = {
+      id: 2, filterStatus: "Active", filterMinHealthScore: null, filterMaxHealthScore: null,
+      filterProgram: null, message: "M", createdBy: 1, agentId: null,
+    };
+    const mockDb = {
+      select: vi.fn()
+        .mockImplementationOnce(() => ({ from: vi.fn(() => ({ where: vi.fn(() => makeAwaitableQuery([campaignRow])) })) }))
+        .mockImplementationOnce(() => ({ from: vi.fn(() => ({ where: vi.fn(() => makeAwaitableQuery([])) })) })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })) })),
+    };
+    vi.mocked(getDb).mockResolvedValueOnce(mockDb as any);
+
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.campaigns.send({ id: 2 });
+    expect(result).toEqual({ sent: 0, total: 0 });
+  });
+});
+
 describe("os enums usados na validação vêm de drizzle/schema.ts, não de cópia manual", () => {
   it("customers.status.enumValues é o enum real usado nos testes acima", () => {
     expect(customers.status.enumValues).toEqual(["Active", "At Risk", "Churned", "New"]);

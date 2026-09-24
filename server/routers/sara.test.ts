@@ -454,3 +454,30 @@ describe("sara.registerCustomer — cadastra o cliente com o telefone vindo da S
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sara.sendTyping — mesma regra do envio (só o dono), checada antes do POST", () => {
+  const typingPath = "https://sara.example.test/api/v1/support/conversations/conv-1/typing";
+
+  it("dono: chama o POST /typing", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID))))
+      .mockResolvedValueOnce(jsonResponse(200, { sent: true }));
+
+    await saraRouter.createCaller(createContext()).sendTyping({ id: "conv-1" });
+
+    expect(postCalls(fetchMock)).toEqual([typingPath]);
+  });
+
+  it.each([
+    ["outro atendente", createContext("Agent"), String(OTHER_ID)],
+    ["Admin (não é exceção)", createContext("Admin"), String(OTHER_ID)],
+    ["actorId null", createContext("Agent"), null],
+  ])("%s: FORBIDDEN sem chamar o POST", async (_label, ctx, actorId) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, conversationDetail(actorId)));
+
+    const error = await catchError(saraRouter.createCaller(ctx).sendTyping({ id: "conv-1" }));
+
+    expect(error.code).toBe("FORBIDDEN");
+    expect(postCalls(fetchMock)).toEqual([]);
+  });
+});

@@ -340,7 +340,8 @@ describe("Quem assumiu (actorId) — lista e painel", () => {
 
   it("painel: campo de resposta só com canSend; Devolver/Encerrar desabilitados sem canReleaseOrClose", () => {
     expect(detail).toContain("const canSend = isHuman && conversation.canSend;");
-    expect(detail).toMatch(/\{canSend \? \(\s*<div className="flex items-end gap-2">/);
+    // Campo de resposta vive no SaraComposer, que só mostra o campo com canReply.
+    expect(detail).toContain("canReply={canSend}");
     expect(detail).toMatch(/releaseMutation\.isPending \|\| !canReleaseOrClose/);
     expect(detail).toMatch(/closeMutation\.isPending \|\| !canReleaseOrClose/);
   });

@@ -341,3 +341,25 @@ export function initials(name: string | null): string {
   if (!name) return "?";
   return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
 }
+
+// ─── "Digitando..." ──────────────────────────────────────────────────────────
+/** No máximo 1 sara.sendTyping a cada 5s enquanto o dono digita (é chamada real ao cliente). */
+export const SARA_TYPING_INTERVAL_MS = 5000;
+
+export function shouldSendTyping(lastSentAt: number | null, now: number, intervalMs = SARA_TYPING_INTERVAL_MS): boolean {
+  return lastSentAt === null || now - lastSentAt >= intervalMs;
+}
+
+// ─── Respostas rápidas ───────────────────────────────────────────────────────
+export type QuickReply = { id: number; title: string; content: string; shortcut: string | null };
+
+/** Mesmo filtro do "/" de ConversationDetail.tsx: atalho (começa com), título ou conteúdo (contém). */
+export function filterQuickReplies(list: QuickReply[], query: string): QuickReply[] {
+  if (!query) return list;
+  return list.filter(
+    qr =>
+      String(qr.shortcut ?? "").toLowerCase().startsWith(query) ||
+      String(qr.title ?? "").toLowerCase().includes(query) ||
+      String(qr.content ?? "").toLowerCase().includes(query),
+  );
+}

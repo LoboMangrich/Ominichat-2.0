@@ -197,8 +197,10 @@ export const saraRouter = router({
     }
   }),
 
+  // "Digitando..." aparece para o cliente real: mesma regra do envio (só o dono).
   sendTyping: protectedProcedure.input(conversationIdInput).mutation(async ({ ctx, input }) => {
     try {
+      await assertAllowed(input.id, ctx.user, (actorId, user) => saraCanSend(actorId, user.id));
       return await sendSaraTypingIndicator(input.id, ctx.user.id);
     } catch (error) {
       throw await wrapSaraError(error, ctx.user.id);

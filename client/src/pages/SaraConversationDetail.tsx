@@ -12,14 +12,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Bot, Mail, Phone, Send, Tag, TrendingUp, User, UserX, X, Zap } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Bot, Mail, Phone, Tag, TrendingUp, User, UserX, X, Zap } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
+import SaraComposer from "@/components/conversations/SaraComposer";
 import SaraRegisterCustomer from "@/components/conversations/SaraRegisterCustomer";
 import { statusConfig } from "./Customers";
 import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
@@ -196,7 +196,6 @@ function SaraCustomerPanel({
 
 // ─── Painel da conversa (embutido em Sara.tsx) ───────────────────────────────
 export default function SaraConversationDetail({ id }: { id: string }) {
-  const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const utils = trpc.useUtils();
 
@@ -209,8 +208,6 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [data?.messages.length]);
 
-  useEffect(() => setDraft(""), [id]);
-
   // Toda ação invalida a conversa aberta E a lista — sem a lista, o status e as abas
   // ficam desatualizados até o próximo refetch (foi o que fez "Finalizar conversa"
   // parecer quebrado em /atendimentos).
@@ -220,12 +217,12 @@ export default function SaraConversationDetail({ id }: { id: string }) {
   };
 
   const sendMutation = trpc.sara.sendMessage.useMutation({
-    onSuccess: () => {
-      setDraft("");
-      invalidateAll();
-    },
+    onSuccess: () => invalidateAll(),
     onError: e => toast.error(e.message),
   });
+
+  // "Digitando..." é best-effort: falha não interrompe quem está digitando.
+  const typingMutation = trpc.sara.sendTyping.useMutation();
 
   const takeoverMutation = trpc.sara.takeover.useMutation({
     onSuccess: () => {
@@ -282,12 +279,6 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     : conversation.actorId === null
       ? SARA_UNIDENTIFIED_ACTOR_NOTICE
       : `Conversa assumida por ${actorLabel}. Só quem assumiu pode responder.`;
-
-  function handleSend() {
-    const text = draft.trim();
-    if (!text || !canSend) return;
-    sendMutation.mutate({ id, text });
-  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
@@ -449,41 +440,19 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t bg-card p-3 shrink-0">
-            {canSend ? (
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="Digite sua resposta..."
-                  className="min-h-[44px] flex-1 resize-none"
-                  maxLength={4096}
-                  disabled={sendMutation.isPending}
-                />
-                <Button
-                  size="icon"
-                  className="shrink-0 h-9 w-9 rounded-full"
-                  onClick={handleSend}
-                  disabled={sendMutation.isPending || !draft.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <p className="text-center text-sm text-muted-foreground">
-                {ownershipNotice ??
-                  (isActive
-                    ? "Assuma o atendimento para responder diretamente ao cliente."
-                    : "Esta conversa não aceita resposta.")}
-              </p>
-            )}
-          </div>
+          <SaraComposer
+            key={id}
+            canReply={canSend}
+            replyNotice={
+              ownershipNotice ??
+              (isActive
+                ? "Assuma o atendimento para responder diretamente ao cliente."
+                : "Esta conversa não aceita resposta.")
+            }
+            isSending={sendMutation.isPending}
+            onSend={text => sendMutation.mutateAsync({ id, text })}
+            onTyping={() => typingMutation.mutate({ id })}
+          />
         </div>
 
         {/* ── Painel do cliente ── */}

@@ -186,6 +186,17 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
   ~47 ocorrências, tela de detalhe da mesma conversa). Adiado de propósito,
   não esquecido.
 
+### Pendências de cor
+
+- **Falta um token semântico de sucesso/verde.** `client/src/index.css` só tem
+  `--brand-*` (azul), `--primary`, `--muted`, `--accent` e `--destructive` —
+  nenhum verde. Todo uso de "verde = humano/ativo/conectado" hoje cai na
+  paleta crua do Tailwind (`emerald-*`). Na tela `/sara`
+  (`SaraConversationDetail.tsx`), a bolha do atendente usa `bg-emerald-700
+  text-white` — não `emerald-600`, que com texto branco fica ~3,8:1, abaixo do
+  AA (4,5:1). Ao criar o token (`--success` ou similar), migrar esses usos
+  junto e manter o contraste AA com texto branco.
+
 ## Backlog — em ordem
 
 Trabalhe um item até o fim antes de abrir o próximo.
@@ -480,6 +491,11 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
   Cashmiles executou a ação — **usar em todas as chamadas**.
 - Suporta áudio e imagem (multipart) e URLs assinadas de 900s para reproduzir
   mídia recebida. A tela atual só trata texto.
+- Tela `/sara` (`Sara.tsx` + `SaraConversationDetail.tsx` embutido) segue o
+  formato de `/atendimentos`; `/sara/:id` seleciona a conversa. Só `active` e
+  `human_takeover` são status confirmados — status ou `senderType` fora disso
+  aparecem com o valor cru, nunca com rótulo inventado. "Encerrar" pede
+  confirmação: não há "reabrir" do lado do Cashmiles.
 
 ### Decisão de arquitetura — Sara como canal único de WhatsApp
 

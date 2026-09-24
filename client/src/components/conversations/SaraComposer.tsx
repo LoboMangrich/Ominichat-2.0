@@ -17,7 +17,6 @@ const SLASH_TRIGGER = /(^|\s)\/(\S*)$/;
 
 export default function SaraComposer({
   canReply,
-  replyNotice,
   isSending,
   onSend,
   onTyping,
@@ -27,8 +26,6 @@ export default function SaraComposer({
 }: {
   /** Só o dono responde (canSend do servidor). */
   canReply: boolean;
-  /** Aviso quando não pode responder. */
-  replyNotice: string;
   isSending: boolean;
   /** Resolve quando a Sara aceitou; só então o rascunho é limpo (falha não perde o texto). */
   onSend: (text: string) => Promise<unknown>;
@@ -277,9 +274,7 @@ export default function SaraComposer({
             <Send className="h-4 w-4" />
           </Button>
         </div>
-      ) : (
-        <p className={cn("px-3 pb-3 pt-1 text-center text-sm text-muted-foreground")}>{replyNotice}</p>
-      )}
+      ) : null /* sem canReply: a faixa acima do composer explica e traz a ação */}
     </div>
   );
 }

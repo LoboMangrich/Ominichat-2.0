@@ -14,6 +14,8 @@ import {
   originLabel,
   parseDeepLink,
   saraActorLabel,
+  saraCanTakeover,
+  saraComposerBanner,
   saraMatchesFilter,
   saraSearch,
   saraSource,
@@ -362,9 +364,71 @@ describe("Quem assumiu (actorId) — lista e painel", () => {
     expect(detail).toMatch(/closeMutation\.isPending \|\| !canReleaseOrClose/);
   });
 
-  it("painel: aviso de actorId null usa o texto combinado", () => {
-    expect(detail).toContain("SARA_UNIDENTIFIED_ACTOR_NOTICE");
+  it("painel: faixa acima do composer vem de saraComposerBanner; topo mostra quem assumiu", () => {
+    expect(detail).toContain("const banner = saraComposerBanner(conversation);");
     expect(detail).toMatch(/Assumido por \$\{actorLabel\}/);
+  });
+});
+
+describe("Faixa acima do composer — aviso com a ação que resolve (sem regra nova)", () => {
+  const base = { actorId: null, actorName: null, canSend: false, canReleaseOrClose: true };
+
+  it("com a IA → \"A Sara está atendendo\" + Assumir", () => {
+    expect(saraComposerBanner({ ...base, status: "active" })).toEqual({
+      text: "A Sara está atendendo",
+      action: "takeover",
+    });
+  });
+
+  it("awaiting_response → \"A Sara aguarda resposta do cliente\" + Assumir", () => {
+    expect(saraComposerBanner({ ...base, status: "awaiting_response" })).toEqual({
+      text: "A Sara aguarda resposta do cliente",
+      action: "takeover",
+    });
+  });
+
+  it("error → \"Conversa com erro na Sara\", sem botão", () => {
+    expect(saraComposerBanner({ ...base, status: "error" })).toEqual({ text: "Conversa com erro na Sara", action: null });
+  });
+
+  it("assumida por mim → sem faixa (composer normal)", () => {
+    expect(saraComposerBanner({ ...base, status: "human_takeover", actorId: "7", canSend: true })).toBeNull();
+  });
+
+  it("assumida por outro → \"Assumida por <nome>\"; Devolver só se canReleaseOrClose (Admin)", () => {
+    const other = { ...base, status: "human_takeover", actorId: "9", actorName: "Beatriz" };
+    expect(saraComposerBanner({ ...other, canReleaseOrClose: false })).toEqual({
+      text: "Assumida por Beatriz",
+      action: null,
+    });
+    expect(saraComposerBanner({ ...other, canReleaseOrClose: true })).toEqual({
+      text: "Assumida por Beatriz",
+      action: "release",
+    });
+    expect(saraComposerBanner({ ...other, actorName: null, canReleaseOrClose: false })?.text).toBe(
+      "Assumida por outro atendente",
+    );
+  });
+
+  it("sem identificação → o aviso de sempre + Devolver para IA", () => {
+    expect(saraComposerBanner({ ...base, status: "human_takeover" })).toEqual({
+      text: "Assumida sem identificação de atendente. Se ninguém da equipe está nela, devolva para a IA e assuma de novo.",
+      action: "release",
+    });
+  });
+
+  it("\"Assumir\" aparece em active e awaiting_response, não em human_takeover/error", () => {
+    expect(["active", "awaiting_response", "human_takeover", "error"].map(saraCanTakeover)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it("painel liga os botões da faixa às mutations que já existem", () => {
+    expect(detail).toMatch(/banner\.action === "takeover"[\s\S]*?takeoverMutation\.mutate\(\{ id \}\)/);
+    expect(detail).toMatch(/banner\.action === "release"[\s\S]*?releaseMutation\.mutate\(\{ id \}\)/);
   });
 });
 

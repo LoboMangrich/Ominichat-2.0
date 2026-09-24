@@ -2,7 +2,7 @@
 // numa lista só. Compartilhado entre Sara.tsx e SaraConversationDetail.tsx.
 
 import { phoneDigits, toE164Phone } from "@shared/phone";
-import type { SaraConversationStatus } from "@shared/sara";
+import { SARA_UNIDENTIFIED_ACTOR_NOTICE, type SaraConversationStatus } from "@shared/sara";
 import type { conversations } from "../../../drizzle/schema";
 
 // ─── Status da Sara ───────────────────────────────────────────────────────────
@@ -404,4 +404,44 @@ export function mergeTimeline<
   return entries
     .sort((a, b) => a.at - b.at || a.order - b.order)
     .map(({ order: _order, ...entry }) => entry as TimelineEntry<M, N>);
+}
+
+// ─── Faixa acima do composer (no lugar de campo desabilitado) ─────────────────
+// Diz por que não dá para responder e oferece a ação que resolve. Só reflete as
+// permissões calculadas no servidor (saraCanSend / saraCanReleaseOrClose em
+// shared/sara.ts) — nenhuma regra nova aqui.
+export type SaraBannerAction = "takeover" | "release" | null;
+export type SaraComposerBanner = { text: string; action: SaraBannerAction } | null;
+
+export function saraComposerBanner(conv: {
+  status: string;
+  actorId: string | null;
+  actorName: string | null;
+  canSend: boolean;
+  canReleaseOrClose: boolean;
+}): SaraComposerBanner {
+  switch (conv.status) {
+    case "active":
+      return { text: "A Sara está atendendo", action: "takeover" };
+    case "awaiting_response":
+      return { text: "A Sara aguarda resposta do cliente", action: "takeover" };
+    case "error":
+      return { text: "Conversa com erro na Sara", action: null };
+    case "human_takeover":
+      if (conv.canSend) return null; // assumida por mim: composer normal
+      if (conv.actorId === null) {
+        return { text: SARA_UNIDENTIFIED_ACTOR_NOTICE, action: conv.canReleaseOrClose ? "release" : null };
+      }
+      return {
+        text: `Assumida por ${conv.actorName ?? "outro atendente"}`,
+        action: conv.canReleaseOrClose ? "release" : null,
+      };
+    default:
+      return { text: "Esta conversa não aceita resposta.", action: null };
+  }
+}
+
+/** Status em que "Assumir" aparece (faixa e barra do topo). */
+export function saraCanTakeover(status: string): boolean {
+  return status === "active" || status === "awaiting_response";
 }

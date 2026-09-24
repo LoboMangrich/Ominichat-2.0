@@ -23,8 +23,15 @@ import SaraComposer from "@/components/conversations/SaraComposer";
 import SaraRegisterCustomer from "@/components/conversations/SaraRegisterCustomer";
 import { SaraTagPicker, SaraTagStrip } from "@/components/conversations/SaraTags";
 import { statusConfig } from "./Customers";
-import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
-import { SARA_STATUS_LABELS, initials, mergeTimeline, saraActorLabel } from "./saraShared";
+import { SARA_FORBIDDEN_OTHER_ACTOR } from "@shared/sara";
+import {
+  SARA_STATUS_LABELS,
+  initials,
+  mergeTimeline,
+  saraActorLabel,
+  saraCanTakeover,
+  saraComposerBanner,
+} from "./saraShared";
 
 // Mesmo padrão de fundo da área de mensagens de ConversationDetail.tsx — só tokens.
 const CHAT_BACKGROUND = {
@@ -327,11 +334,10 @@ export default function SaraConversationDetail({ id }: { id: string }) {
   const canSend = isHuman && conversation.canSend;
   const canReleaseOrClose = conversation.canReleaseOrClose;
   const actorLabel = saraActorLabel(conversation);
-  const ownershipNotice = !isHuman || canSend
-    ? null
-    : conversation.actorId === null
-      ? SARA_UNIDENTIFIED_ACTOR_NOTICE
-      : `Conversa assumida por ${actorLabel}. Só quem assumiu pode responder.`;
+  const canTakeover = saraCanTakeover(conversation.status);
+  // Faixa acima do composer, no lugar de campo desabilitado: diz por que não dá para
+  // responder e traz o botão da ação que resolve.
+  const banner = saraComposerBanner(conversation);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
@@ -355,7 +361,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {isActive && (
+          {canTakeover && (
             <Button
               size="sm"
               className="h-8 text-xs"
@@ -513,15 +519,38 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             <div ref={messagesEndRef} />
           </div>
 
+          {banner && (
+            <div className="flex items-center justify-between gap-3 border-t bg-muted/40 px-4 py-2 shrink-0">
+              <p className="text-xs text-muted-foreground">{banner.text}</p>
+              {banner.action === "takeover" && (
+                <Button
+                  size="sm"
+                  className="h-7 text-xs shrink-0"
+                  onClick={() => takeoverMutation.mutate({ id })}
+                  disabled={takeoverMutation.isPending}
+                >
+                  <User className="w-3.5 h-3.5 mr-1.5" />
+                  {takeoverMutation.isPending ? "Assumindo..." : "Assumir"}
+                </Button>
+              )}
+              {banner.action === "release" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs shrink-0"
+                  onClick={() => releaseMutation.mutate({ id })}
+                  disabled={releaseMutation.isPending}
+                >
+                  <Bot className="w-3.5 h-3.5 mr-1.5" />
+                  {releaseMutation.isPending ? "Devolvendo..." : "Devolver para IA"}
+                </Button>
+              )}
+            </div>
+          )}
+
           <SaraComposer
             key={id}
             canReply={canSend}
-            replyNotice={
-              ownershipNotice ??
-              (isActive
-                ? "Assuma o atendimento para responder diretamente ao cliente."
-                : "Esta conversa não aceita resposta.")
-            }
             isSending={sendMutation.isPending}
             onSend={text => sendMutation.mutateAsync({ id, text })}
             onTyping={() => typingMutation.mutate({ id })}

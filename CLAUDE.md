@@ -51,6 +51,7 @@ pnpm install          # npm install QUEBRA — use pnpm
 pnpm dev              # dev server (tsx watch server/_core/index.ts)
 pnpm dev:session      # gera JWT de Admin local
 pnpm create-admin     # bootstrap do primeiro Admin (produção — ver "Autenticação")
+pnpm sara:webhook:send <evento>  # simula webhook da Sara assinado, só localhost
 pnpm check            # tsc --noEmit
 pnpm test             # vitest run
 pnpm db:push          # drizzle-kit generate && migrate
@@ -65,11 +66,12 @@ server/routers.ts     ~5.500 linhas, ~402 procedures tRPC. Precisa modularizaç�
 server/routers/       Routers já extraídos (sara.ts)
 server/webhooks.ts    ~1.400 linhas, 15 endpoints HTTP fora do tRPC
 server/saraSupportClient.ts  Cliente HTTP da Sara Support API (doc: docs/sara-support-openapi.json)
+server/saraWebhook.ts        Receptor do webhook de saída da Sara (+ saraNotifications.ts)
 server/*.ts           Motores de domínio: automation, playbook, healthScore,
                       conversationRouter, channelSender, channelHealth,
                       communicationIntelligence, csvImport, conversationBackup
 shared/               Tipos e constantes compartilhados client/server
-drizzle/schema.ts     ~1.200 linhas, 57 tabelas, 37 migrations (0000–0036)
+drizzle/schema.ts     ~1.200 linhas, 58 tabelas, 38 migrations (0000–0037)
 client/src/pages/     Telas (algumas com 1.000–1.700 linhas)
 client/src/lib/       Helpers compartilhados (publicUrl.ts)
 ```
@@ -210,8 +212,9 @@ rodar `pnpm create-admin` uma vez para criar o primeiro Admin.
 
 ### 2. Receptor do webhook da Sara
 
-Depende do item 1 (precisa de URL pública). Especificação já recebida — ver
-"Integração — Sara Support API".
+**Implementado** (`POST /api/webhooks/sara`) — ver "Webhook de saída da Sara
+(Epic 72)". Para ir ao ar depende do item 1: URL pública com HTTPS, passar a URL
+e o secret ao time da Sara, rodar a migration `0037`.
 
 ### 3. Correções pendentes
 
@@ -801,27 +804,96 @@ Consequência a tratar **quando a Sara estiver pronta** (não antes):
   `/api/webhooks/ghl`, `/api/webhooks/pagarme` e `/api/webhooks/email-ticket`.
 
 **Não remover nada ainda.** O time de TI ainda vai ajustar as rotas da Sara, e
-o webhook de notificação Sara → Cashmiles não existe — o que há abaixo é só a
-especificação recebida. Até lá, o caminho próprio fica como está.
+o webhook de notificação Sara → Cashmiles já tem receptor, mas ainda não está no
+ar (sem domínio). Até lá, o caminho próprio fica como está.
 
-### Webhook de saída da Sara (Epic 72) — a implementar
+### Webhook de saída da Sara (Epic 72) — implementado
 
-Especificação recebida do time da Sara:
+**Receptor:** `POST /api/webhooks/sara` (`server/saraWebhook.ts`, registrado em
+`registerWebhooks`). Falta só o deploy — ver "O que falta para produção".
 
-- Header da assinatura: `x-sara-signature`
-- HMAC-SHA256 sobre os **bytes brutos do body**, hex digest, comparação
-  timing-safe. Parse e re-serialização quebram a assinatura — preservar o raw
-  body como já é feito em `webhookAuth.ts`.
-- Secret: `SUPPORT_OUTBOUND_WEBHOOK_SECRET`, fornecido pelo time da Sara
+Especificação recebida do time da Sara (continua valendo):
+
+- Header da assinatura: `x-sara-signature` — HMAC-SHA256 em **hex puro** (sem
+  prefixo `sha256=`) sobre os **bytes brutos do body**, comparação timing-safe
+  (`verifySaraSignature`, `webhookAuth.ts`, sobre o `req.rawBody` que o
+  `express.json` já guarda).
+- Secret: `SUPPORT_OUTBOUND_WEBHOOK_SECRET`, fornecido pelo time da Sara.
+  **Fail-closed:** sem ele, a rota nega sempre.
 - Eventos: `conversation.escalated`, `conversation.message_received`,
-  `conversation.closed`
-- Payload: `{ eventId, eventType, timestamp, data }`. O `data` traz
-  `conversationId` e, conforme o evento, `phoneNumber`, `whatsappMessageId` ou
-  `outcome` (`converted`, `refused`, `superseded`, `completed`, `admin_closed`).
-- **Deduplicar por `eventId`** — reenvios usam o mesmo id. Responder 2xx rápido;
-  timeout de 10s do lado deles aciona retry.
-- O payload **não traz** nome do cliente nem a última mensagem. Para ter
-  contexto, chamar `GET /conversations/{id}` após receber o evento.
+  `conversation.closed`. Payload `{ eventId, eventType, timestamp, data }`; o
+  `data` traz `conversationId` e, conforme o evento, `phoneNumber`,
+  `whatsappMessageId` ou `outcome` (`converted`, `refused`, `superseded`,
+  `completed`, `admin_closed`). **Não traz** nome nem última mensagem.
+- Reenvios usam o mesmo `eventId`; timeout de 10s do lado deles aciona retry.
+
+Como funciona:
+
+- **Ordem:** assinatura → formato (Zod) → grava em `saraWebhookEvents`
+  (migration `0037`) → **200** → processa (`setImmediate`). Assinatura
+  inválida/ausente → 401 sem corpo; fora do formato → 400; sem banco → 503 (a
+  Sara reenvia).
+- **Dedup:** `UNIQUE(eventId)` — vale mesmo com duas requisições simultâneas.
+  Repetido → 200 `{ duplicate: true }`, sem processar de novo.
+- **Evento desconhecido:** 200, gravado, sem efeito (a Sara pode criar eventos).
+- **Efeito de cada evento** (GET na Sara só de leitura,
+  `getSaraConversationSystemReadOnly` — **sem `x-sara-actor-id`, porque não há
+  atendente agindo; nunca usar para ação**):
+  - `message_received`: se a conversa está em `human_takeover` com `actorId` de
+    um usuário nosso **ativo** → `notifyUserId` = esse atendente. Senão, nada.
+  - `escalated`: `actorId` nulo → `notifyAll` (todos os atendentes com o app
+    aberto); `actorId` preenchido → ninguém (foi um de nós que assumiu).
+  - `closed`: só registra, sem GET (a lista já se atualiza por polling).
+  - Falha no GET → `processingError` curto (ex.: `sara_get_failed:503`),
+    `processedAt` nulo. Não é retomado sozinho.
+- **Evento perdido em reinício:** ao subir o servidor,
+  `reprocessPendingSaraWebhookEvents` retoma os da **última 1h** com
+  `processedAt` e `processingError` nulos (caiu entre o 200 e o
+  processamento — a Sara não reenvia). Idempotente: o processamento só age com
+  `processedAt` nulo, e a notificação é a própria linha (uma por id).
+- **Notificação:** reaproveita `useNewConversationNotification` (rodapé
+  "Notificações ativas") — mesmo polling de 15s, som e `Notification` do
+  navegador, via `sara.pendingNotifications({ afterId })`
+  (`server/saraNotifications.ts`). Só eventos processados dos últimos 10 min;
+  na primeira leitura da aba só pega o cursor (não avisa do que já existia).
+  Clique abre `/sara/:id`. Textos: "Nova mensagem de <nome ou telefone>" e
+  "Conversa aguardando atendente".
+  - **Nome/telefone nunca vão para o banco nem para log.** São montados na
+    leitura, com cache **em memória** de ~5 min por `saraConversationId` (3
+    atendentes lendo a mesma notificação = 1 GET). Falha não fica em cache.
+- **Logs:** só `eventId`, `eventType` e id interno da linha.
+
+**Testar local sem a Sara:**
+
+1. `SUPPORT_OUTBOUND_WEBHOOK_SECRET=<qualquer valor local>` no `.env`, rodar as
+   migrations (`pnpm db:push`, cria `saraWebhookEvents`) e reiniciar `pnpm dev`.
+2. `pnpm sara:webhook:send closed --event-id teste-1` → 200; repetir o mesmo
+   comando → 200 `duplicate`. Evento qualquer (`pnpm sara:webhook:send foo`) → 200.
+3. O script assina com o secret do `.env`, só envia para `localhost` e aborta
+   com `NODE_ENV=production`. Ele não chama a Sara, mas **o servidor faz um GET
+   de leitura** ao processar `message_received`/`escalated` — para não tocar
+   na Sara, use `closed` ou evento desconhecido (ou deixe
+   `SARA_SUPPORT_API_URL` vazio: o GET falha e vira `processingError`).
+4. Testes automáticos (`server/saraWebhook.test.ts`,
+   `server/saraNotifications.test.ts`, `webhookAuth.test.ts`) mockam o GET.
+
+**O que falta para produção:**
+
+- Domínio com HTTPS (Backlog, item 1).
+- Passar ao time da Sara a URL `https://<domínio>/api/webhooks/sara` e
+  combinar o `SUPPORT_OUTBOUND_WEBHOOK_SECRET` (valor forte, `openssl rand -hex
+  32`, configurado nos dois lados e nunca no repositório).
+- Rodar a migration `0037` no banco de produção.
+
+**Pendências registradas, não feitas:**
+
+- **Atualizar a lista da tela única quando chega evento:** não existe canal de
+  tempo real no app (websocket/SSE). A lista continua por polling
+  (`LIST_REFETCH_MS`); não criar canal só para isso sem decisão.
+- **Retentativa de evento com `processingError`:** hoje fica parado (a Sara já
+  recebeu 200). Se virar problema, decidir uma rotina de retentativa.
+- **Retenção de `saraWebhookEvents`:** nenhuma limpeza automática; decidir junto
+  com a política de retenção de conversas (LGPD).
 
 **Limitação importante:** `conversation.escalated` não significa que a IA pediu
 ajuda — significa que alguém assumiu, ou que a conversa nasceu precisando de

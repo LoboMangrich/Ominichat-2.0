@@ -420,7 +420,7 @@ describe("sla.realtime - classificação de SLA", () => {
     const whereMock = vi.fn()
       .mockResolvedValueOnce([]) // slaSettings query
       .mockResolvedValueOnce([  // conversations query
-        { id: 1, subject: "Problema urgente", channel: "whatsapp", createdAt, firstResponseAt: null, assignedAgentId: null, customerId: 1, customerName: "João Silva", customerPhone: "+5511999999999" }
+        { id: 1, subject: "Problema urgente", channel: "whatsapp", createdAt, firstResponseAt: null, customerId: 1, customerName: "João Silva", customerPhone: "+5511999999999" }
       ]);
     const mockDb = {
       select: vi.fn().mockReturnThis(),
@@ -444,7 +444,7 @@ describe("sla.realtime - classificação de SLA", () => {
     const whereMock = vi.fn()
       .mockResolvedValueOnce([]) // slaSettings query
       .mockResolvedValueOnce([  // conversations query
-        { id: 2, subject: "Dúvida", channel: "email", createdAt, firstResponseAt: null, assignedAgentId: null, customerId: 2, customerName: "Maria Santos", customerPhone: null }
+        { id: 2, subject: "Dúvida", channel: "email", createdAt, firstResponseAt: null, customerId: 2, customerName: "Maria Santos", customerPhone: null }
       ]);
     const mockDb = {
       select: vi.fn().mockReturnThis(),
@@ -468,7 +468,7 @@ describe("sla.realtime - classificação de SLA", () => {
     const whereMock = vi.fn()
       .mockResolvedValueOnce([]) // slaSettings query
       .mockResolvedValueOnce([  // conversations query
-        { id: 3, subject: "Feedback", channel: "whatsapp", createdAt, firstResponseAt, assignedAgentId: 1, customerId: 3, customerName: "Pedro Costa", customerPhone: "+5511888888888" }
+        { id: 3, subject: "Feedback", channel: "whatsapp", createdAt, firstResponseAt, customerId: 3, customerName: "Pedro Costa", customerPhone: "+5511888888888" }
       ]);
     const mockDb = {
       select: vi.fn().mockReturnThis(),
@@ -490,8 +490,8 @@ describe("sla.realtime - classificação de SLA", () => {
     const whereMock = vi.fn()
       .mockResolvedValueOnce([]) // slaSettings query
       .mockResolvedValueOnce([  // conversations query
-        { id: 10, subject: "Atenção", channel: "whatsapp", createdAt: new Date(now - 50 * 60 * 1000).toISOString(), firstResponseAt: null, assignedAgentId: null, customerId: 10, customerName: "A", customerPhone: null },
-        { id: 11, subject: "Urgente", channel: "email", createdAt: new Date(now - 70 * 60 * 1000).toISOString(), firstResponseAt: null, assignedAgentId: null, customerId: 11, customerName: "B", customerPhone: null },
+        { id: 10, subject: "Atenção", channel: "whatsapp", createdAt: new Date(now - 50 * 60 * 1000).toISOString(), firstResponseAt: null, customerId: 10, customerName: "A", customerPhone: null },
+        { id: 11, subject: "Urgente", channel: "email", createdAt: new Date(now - 70 * 60 * 1000).toISOString(), firstResponseAt: null, customerId: 11, customerName: "B", customerPhone: null },
       ]);
     const mockDb = {
       select: vi.fn().mockReturnThis(),

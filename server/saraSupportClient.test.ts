@@ -66,7 +66,10 @@ describe("saraSupportClient", () => {
       jsonResponse(200, { data: [], pagination: { total: 0, limit: 10, offset: 5, hasMore: false } }),
     );
 
-    await listSaraConversations({ status: "active", phone: "+5548999999999", limit: 10, offset: 5 }, ACTOR_ID);
+    await listSaraConversations(
+      { status: "active", phone: "+5548999999999", limit: 10, offset: 5, sort: "takeoverAt" },
+      ACTOR_ID,
+    );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const calledUrl = fetchMock.mock.calls[0][0] as string;
@@ -76,6 +79,35 @@ describe("saraSupportClient", () => {
     expect(url.searchParams.get("phone")).toBe("+5548999999999");
     expect(url.searchParams.get("limit")).toBe("10");
     expect(url.searchParams.get("offset")).toBe("5");
+    expect(url.searchParams.get("sort")).toBe("takeoverAt");
+  });
+
+  it("repassa os campos novos da doc (takeoverAt, actorId, audio, image) sem transformar", async () => {
+    const detail = {
+      conversation: {
+        id: "c1", status: "human_takeover", outcome: null, phoneNumber: null, userName: null,
+        messageCount: 2, lastMessageAt: null, createdAt: "2026-09-24T10:00:00Z", takeoverAdminId: "adm",
+        takeoverAt: "2026-09-24T10:05:00Z", actorId: "7", channelId: null,
+      },
+      messages: [
+        {
+          id: "m1", senderType: "user", text: "", messageType: "audio", status: "received", createdAt: "2026-09-24T10:01:00Z",
+          audio: { audioMessageId: "a1", mimeType: "audio/ogg", duration: 3.2 }, image: null,
+        },
+        {
+          id: "m2", senderType: "user", text: "", messageType: "image", status: "received", createdAt: "2026-09-24T10:02:00Z",
+          audio: null, image: { imageMessageId: "i1", mimeType: "image/jpeg", width: 800, height: 600, visionSummary: "Print de boleto" },
+        },
+      ],
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detail));
+
+    const result = await getSaraConversation("c1", ACTOR_ID);
+
+    expect(result.conversation.actorId).toBe("7");
+    expect(result.conversation.takeoverAt).toBe("2026-09-24T10:05:00Z");
+    expect(result.messages[0].audio?.audioMessageId).toBe("a1");
+    expect(result.messages[1].image?.visionSummary).toBe("Print de boleto");
   });
 
   it("omite da query os parâmetros não informados", async () => {

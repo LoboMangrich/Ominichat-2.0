@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { desc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
+import { SARA_CONVERSATION_SORTS, SARA_CONVERSATION_STATUSES } from "@shared/sara";
 import { customers } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -35,10 +36,11 @@ export const saraRouter = router({
   listConversations: protectedProcedure
     .input(
       z.object({
-        status: z.string().optional(),
+        status: z.enum(SARA_CONVERSATION_STATUSES).optional(),
         phone: z.string().optional(),
         limit: z.number().int().min(1).max(100).optional(),
         offset: z.number().int().min(0).optional(),
+        sort: z.enum(SARA_CONVERSATION_SORTS).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {

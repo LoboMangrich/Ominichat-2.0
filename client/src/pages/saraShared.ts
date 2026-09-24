@@ -2,6 +2,7 @@
 // numa lista só. Compartilhado entre Sara.tsx e SaraConversationDetail.tsx.
 
 import { phoneDigits, toE164Phone } from "@shared/phone";
+import type { SaraConversationStatus } from "@shared/sara";
 import type { conversations } from "../../../drizzle/schema";
 
 // ─── Status da Sara ───────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ export const SARA_STATUS_LABELS: Record<string, string> = {
   human_takeover: "Atendimento humano",
   awaiting_response: "Aguardando resposta",
   error: "Erro",
-};
+} satisfies Record<SaraConversationStatus, string>; // todo status do enum tem rótulo
 
 // ─── Buckets ─────────────────────────────────────────────────────────────────
 // Agrupamento de exibição (rótulo à direita de cada item), independente da origem. Um
@@ -36,7 +37,7 @@ export const SARA_STATUS_BUCKET: Record<string, ConversationBucket> = {
   human_takeover: "human",
   awaiting_response: "waiting",
   error: "error",
-};
+} satisfies Record<SaraConversationStatus, ConversationBucket>;
 
 export function saraBucket(status: string): ConversationBucket {
   return SARA_STATUS_BUCKET[status] ?? "unknown";
@@ -58,13 +59,13 @@ type LegacyConversationStatus = (typeof conversations.status.enumValues)[number]
 export const STATUS_TAG_FILTERS = {
   open: { saraStatuses: ["active", "human_takeover"], legacyStatus: "Open" },
   waiting: { saraStatuses: ["awaiting_response"], legacyStatus: "Waiting" },
-} as const satisfies Record<string, { saraStatuses: readonly string[]; legacyStatus: LegacyConversationStatus }>;
+} as const satisfies Record<string, { saraStatuses: readonly SaraConversationStatus[]; legacyStatus: LegacyConversationStatus }>;
 
 export const GROUP_TAG_SLUG = "group";
 
 export type TabFilter =
   | { kind: "all" }
-  | { kind: "status"; saraStatuses: readonly string[]; legacyStatus: LegacyConversationStatus }
+  | { kind: "status"; saraStatuses: readonly SaraConversationStatus[]; legacyStatus: LegacyConversationStatus }
   | { kind: "groups"; tagId: number }
   // Etiqueta personalizada: só existe no canal próprio (a Sara não tem etiquetas).
   | { kind: "tag"; tagId: number };
@@ -88,13 +89,13 @@ export function includesSara(filter: TabFilter): boolean {
  * status só (Aguardando); "Em Aberto" tem dois — busca sem filtro e separa no client
  * (limitação conhecida: a página pode vir com menos abertas que o limit).
  */
-export function saraStatusParam(filter: TabFilter): string | undefined {
+export function saraStatusParam(filter: TabFilter): SaraConversationStatus | undefined {
   return filter.kind === "status" && filter.saraStatuses.length === 1 ? filter.saraStatuses[0] : undefined;
 }
 
 export function saraMatchesFilter(status: string, filter: TabFilter): boolean {
   if (filter.kind === "all") return true;
-  if (filter.kind === "status") return filter.saraStatuses.includes(status);
+  if (filter.kind === "status") return (filter.saraStatuses as readonly string[]).includes(status);
   return false;
 }
 

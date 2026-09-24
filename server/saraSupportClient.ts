@@ -1,3 +1,4 @@
+import type { SaraConversationSort, SaraConversationStatus } from "@shared/sara";
 import { ENV } from "./_core/env";
 
 /**
@@ -27,7 +28,28 @@ export interface SaraConversationSummary {
   lastMessageAt: string | null;
   createdAt: string;
   takeoverAdminId: string | null;
+  takeoverAt: string | null;
+  /**
+   * Quem assumiu, como enviado no header x-sara-actor-id — o nosso users.id em
+   * string. null quando a conversa foi assumida sem o header (ex.: pelo painel
+   * da própria Sara) ou depois de /release.
+   */
+  actorId: string | null;
   channelId: string | null;
+}
+
+export interface SaraMessageAudio {
+  audioMessageId: string;
+  mimeType: string | null;
+  duration: number | null;
+}
+
+export interface SaraMessageImage {
+  imageMessageId: string;
+  mimeType: string | null;
+  width: number | null;
+  height: number | null;
+  visionSummary: string | null;
 }
 
 export interface SaraMessage {
@@ -37,13 +59,16 @@ export interface SaraMessage {
   messageType: string;
   status: string;
   createdAt: string;
+  audio: SaraMessageAudio | null;
+  image: SaraMessageImage | null;
 }
 
 export interface SaraListConversationsParams {
-  status?: string;
+  status?: SaraConversationStatus;
   phone?: string;
   limit?: number;
   offset?: number;
+  sort?: SaraConversationSort;
 }
 
 export interface SaraListConversationsResult {
@@ -132,6 +157,7 @@ export async function listSaraConversations(
   if (params.phone) query.set("phone", params.phone);
   if (params.limit != null) query.set("limit", String(params.limit));
   if (params.offset != null) query.set("offset", String(params.offset));
+  if (params.sort) query.set("sort", params.sort);
   const queryString = query.toString();
 
   return request<SaraListConversationsResult>(

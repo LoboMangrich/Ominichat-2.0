@@ -96,3 +96,29 @@ describe("sara.sendMessage", () => {
     expect(error.message).not.toContain("different operator");
   });
 });
+
+describe("sara.listConversations — status e sort são enums da doc", () => {
+  const originalUrl = ENV.saraSupportApiUrl;
+  const originalKey = ENV.saraSupportApiKey;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    ENV.saraSupportApiUrl = "https://sara.example.test";
+    ENV.saraSupportApiKey = "test-api-key";
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    ENV.saraSupportApiUrl = originalUrl;
+    ENV.saraSupportApiKey = originalKey;
+    vi.unstubAllGlobals();
+  });
+
+  it("rejeita status fora do enum sem chamar a Sara", async () => {
+    const caller = saraRouter.createCaller(createContext());
+    await expect(caller.listConversations({ status: "closed" as never })).rejects.toThrow();
+    await expect(caller.listConversations({ sort: "createdAt" as never })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

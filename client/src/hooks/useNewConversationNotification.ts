@@ -24,6 +24,15 @@ export function useNewConversationNotification() {
     { refetchInterval: enabled ? 15_000 : false }
   );
 
+  // Notificações do webhook da Sara (mensagem na conversa que você assumiu; conversa
+  // assumida sem atendente identificado) — mesmo polling, mesmo liga/desliga. O servidor
+  // devolve só o que é deste usuário; afterId null = primeira leitura, só pega o cursor.
+  const [saraAfterId, setSaraAfterId] = useState<number | null>(null);
+  const { data: saraNotifications } = trpc.sara.pendingNotifications.useQuery(
+    { afterId: saraAfterId },
+    { refetchInterval: enabled ? 15_000 : false, enabled },
+  );
+
   const playNotificationSound = useCallback(() => {
     try {
       if (!audioCtxRef.current) {
@@ -65,6 +74,23 @@ export function useNewConversationNotification() {
     }
   }, [permissionGranted]);
 
+  const showSaraNotification = useCallback((item: { id: number; saraConversationId: string; title: string; body: string }) => {
+    if (!permissionGranted) return;
+    try {
+      const notification = new Notification(item.title, {
+        body: item.body,
+        icon: "/favicon.ico",
+        tag: `sara-${item.id}`,
+      });
+      notification.onclick = () => {
+        window.focus();
+        if (item.saraConversationId) window.location.assign(`/sara/${encodeURIComponent(item.saraConversationId)}`);
+      };
+    } catch {
+      // Notifications not supported
+    }
+  }, [permissionGranted]);
+
   // Request browser notification permission
   const requestPermission = useCallback(async () => {
     if (!("Notification" in window)) return;
@@ -89,6 +115,16 @@ export function useNewConversationNotification() {
     }
     lastCountRef.current = currentCount;
   }, [data, enabled, playNotificationSound, showBrowserNotification]);
+
+  // Novas notificações da Sara: avisa e avança o cursor (cada id é entregue uma vez).
+  useEffect(() => {
+    if (!saraNotifications) return;
+    if (enabled && saraAfterId !== null && saraNotifications.items.length > 0) {
+      playNotificationSound();
+      for (const item of saraNotifications.items) showSaraNotification(item);
+    }
+    if (saraNotifications.cursor !== saraAfterId) setSaraAfterId(saraNotifications.cursor);
+  }, [saraNotifications, saraAfterId, enabled, playNotificationSound, showSaraNotification]);
 
   const toggle = useCallback(() => {
     setEnabled(prev => {

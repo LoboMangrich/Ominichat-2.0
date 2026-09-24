@@ -11,6 +11,7 @@ import { invokeLLM } from "./_core/llm";
 import { startJourneyForCustomer } from "./playbookEngine";
 import { routeConversationToAgent } from "./conversationRouter";
 import { findOrCreateOpenConversation } from "./conversationLookup";
+import { registerSaraWebhook } from "./saraWebhook";
 
 /**
  * Trigger AI auto-reply for a conversation if it is handled by AI.
@@ -244,6 +245,9 @@ async function pollTitanInbox(): Promise<{ ok: boolean; processed: number; error
  * All webhook routes must start with /api/ to be properly routed.
  */
 export function registerWebhooks(app: Express) {
+  // Webhook de saída da Sara (Epic 72) — módulo próprio, com assinatura e dedup.
+  registerSaraWebhook(app);
+
   // ─── CSV Import ────────────────────────────────────────────────────────────
   registerCsvImport(app);
 

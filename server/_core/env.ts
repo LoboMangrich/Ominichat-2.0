@@ -21,6 +21,10 @@ export const ENV = {
   // /api/webhooks/email-ticket/:token, para encaminhadores sem suporte a header
   // customizado. Ver server/_core/routeGuards.ts.
   emailTicketSecret: process.env.EMAIL_TICKET_SECRET ?? "",
+  // Segredo do webhook de saída da Sara (Epic 72), fornecido pelo time da Sara.
+  // Valida o HMAC-SHA256 (hex) do corpo bruto no header x-sara-signature em
+  // /api/webhooks/sara. Sem ele, a rota nega sempre (fail-closed).
+  supportOutboundWebhookSecret: process.env.SUPPORT_OUTBOUND_WEBHOOK_SECRET ?? "",
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",

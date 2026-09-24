@@ -234,3 +234,22 @@ describe("atribuição — todas as telas leem o mesmo campo", () => {
     expect(conversationQuery!.fields).not.toHaveProperty("assignedUserId");
   });
 });
+
+describe("atribuição — campaigns.send", () => {
+  it("conversa nova de campanha: agente de IA em aiAgentId, sem responsável humano", async () => {
+    selectRows = [
+      [{ id: 1, agentId: 4, message: "Oi", createdBy: 7, filterStatus: null, filterMinHealthScore: null, filterMaxHealthScore: null, filterProgram: null }],
+      [{ id: 10 }], // público
+      [], // nenhuma conversa aberta do cliente
+    ];
+    const result = await appRouter.createCaller(createContext()).campaigns.send({ id: 1 });
+    expect(result.sent).toBe(1);
+
+    const { kind, values } = conversationWrite();
+    expect(kind).toBe("insert");
+    expect(values.aiAgentId).toBe(4); // id de aiAgents, nunca num campo de usuário
+    expect(values.assignedUserId).toBeNull();
+    expect(values).not.toHaveProperty("assignedAgentId");
+    expectAiHumanFlagsAgree(values);
+  });
+});

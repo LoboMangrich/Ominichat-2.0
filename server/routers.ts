@@ -4392,8 +4392,12 @@ const campaignsRouter = router({
               customerId: customer.id,
               channel: 'whatsapp',
               status: 'Open',
+              // Conversa de campanha nasce com a IA: campaign.agentId é id de aiAgents (não de
+              // usuário), então vai em aiAgentId. Sem responsável humano até alguém assumir.
               handledByAi: true,
-              assignedAgentId: campaign.agentId ?? null,
+              handoffMode: "ai",
+              aiAgentId: campaign.agentId ?? null,
+              assignedUserId: null,
             });
             convId = (newConv as any).insertId;
           }

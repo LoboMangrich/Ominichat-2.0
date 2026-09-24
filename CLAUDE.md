@@ -316,9 +316,10 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
 - **Travar envio de mensagem a quem não assumiu a conversa.** Hoje, se uma
   conversa é transferida para outro atendente, qualquer pessoa ainda
   consegue responder ao cliente pelo `messages.send`. O esperado: só quem
-  assumiu (`conversations.assignedTo`) envia mensagem pro cliente; os demais
+  assumiu (`conversations.assignedUserId` — ver "Atribuição no canal próprio"
+  em "Tela única de Conversas") envia mensagem pro cliente; os demais
   podem deixar sussurros (mensagens internas, tabela `internalMessages` já
-  existe). A infraestrutura (`assignedTo` + `internalMessages`) já existe —
+  existe). A infraestrutura (`assignedUserId` + `internalMessages`) já existe —
   falta decisão de produto antes de implementar: Admin pode enviar em
   conversa de outro atendente? Como alguém retoma uma conversa que não é
   sua? Sussurro é visível para todos os atendentes ou só para quem tem
@@ -531,6 +532,10 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
     **formatos aceitos** (a doc só diz "multipart/form-data").
   - `/templates`: **formato da resposta** (o `GET` tem 200 sem corpo descrito;
     o `POST` não tem 200 nenhum).
+  - **Prévia da última mensagem e contador de não lidas:** o `GET
+    /conversations` não traz nenhum dos dois (só `messageCount` e
+    `lastMessageAt`). A lista da tela única não mostra prévia nem "não lidas"
+    por isso. A Sara pode passar a mandar `lastMessageText`/`unreadCount`?
 - **Pendências — fora do escopo até agora:**
   - Envio de áudio e imagem (depende da resposta acima sobre o multipart). O
     composer não mostra botão de anexo/áudio/imagem — nem desabilitado.
@@ -648,6 +653,60 @@ Atendimento (ao lado de Disparos em Massa e Grupos).
   - O badge "live" de conversas abertas, que ficava no item de
     `/atendimentos`, saiu junto com ele — contava só o canal próprio e
     ficaria enganoso na tela única.
+  - **Contadores das abas de atribuição são da PÁGINA carregada, não o
+    total** (já com a etiqueta escolhida); "20+" quando pode haver mais. A API
+    da Sara não filtra nem conta por `actorId`, então não há total confiável
+    para "Minhas" do lado da Sara.
+  - "Conversas anteriores" (painel do cliente) só traz da Sara o que o `GET
+    /conversations` devolve — o enum de status não tem "encerrada", então
+    conversas antigas já encerradas na Sara podem não aparecer.
+
+#### Layout da tela (inspirado no Chatwoot — ideias, nada copiado)
+
+- **Faixa acima do composer** (conversa da Sara), no lugar de campo
+  desabilitado, sempre com a ação que resolve (`saraComposerBanner`, sem regra
+  nova — só reflete `saraCanSend`/`saraCanReleaseOrClose`): `active` → "A Sara
+  está atendendo" + [Assumir]; `awaiting_response` → "A Sara aguarda resposta
+  do cliente" + [Assumir]; `error` → "Conversa com erro na Sara", sem botão;
+  assumida por outro → "Assumida por <nome>" (+ [Devolver para IA] só com
+  `canReleaseOrClose`, na prática Admin); sem identificação → o aviso de
+  sempre + [Devolver para IA]; assumida por mim → sem faixa.
+- **Abas de atribuição** (Minhas | Não atribuídas | Todas), numa linha acima
+  das etiquetas; as duas combinam. Sara: Minhas = assumida por mim; Não
+  atribuídas = `active`/`awaiting_response` (filtro no client). Canal próprio:
+  `tags.listUnified({ assignee })`, filtro no servidor por `assignedUserId`.
+  Grupos não têm atribuição. Default Todas; última escolha no `localStorage`
+  por usuário (`conversas.atribuicao.<userId>`).
+- **Painel do cliente** em seções recolhíveis (`SaraCustomerPanel.tsx`,
+  estado em `localStorage`): Cliente, Saúde e financeiro, Próximas tarefas,
+  Conversas anteriores (Sara por telefone + canal próprio por `customerId`,
+  máximo 10) e **Notas do cliente** (`customerNotes` — não confundir com a
+  "Nota interna" da conversa, `saraInternalNotes`).
+- **Card da lista:** iniciais de quem assumiu, com o nome no tooltip.
+- **Telas menores:** abaixo de 1280px (`xl`) o painel do cliente começa
+  recolhido e abre por cima do chat pelo botão "Cliente"
+  (`client/src/lib/customerPanelLayout.ts`) — na Sara e no `ConversationDetail`.
+
+#### Atribuição no canal próprio — dois campos dessincronizados
+
+"Quem assumiu" no canal próprio = **`conversations.assignedUserId`** (decisão
+de produto). Mas o schema tem **dois** campos, gravados por fluxos
+diferentes, e eles não se falam:
+
+| Grava | Campo |
+|---|---|
+| `conversations.takeOver` ("Assumir Controle") / `returnToAI` ("Devolver para IA") | `assignedUserId` (= você / `null`) |
+| `conversations.create`, `conversations.forward` (transferência), `aiAgents.escalate`/`returnToAi`, `campaigns.send` | `assignedAgentId` |
+
+- **Leem `assignedAgentId`:** SLA em tempo real (`slaRouter.realtime`),
+  relatórios por atendente (`reportsRouter.generate`) e o filtro/nome de
+  atendente de `conversations.list` (tela `/conversations`).
+- **Leem `assignedUserId`:** só a tela única (abas e card), a partir deste PR.
+- Consequência: "Assumir" não aparece no SLA nem nos relatórios, e
+  transferir não muda quem aparece em "Minhas".
+- **Correção (unificar os dois na origem — `takeOver` também gravar
+  `assignedAgentId`, `forward` também gravar `assignedUserId`, ou migrar para
+  um campo só) fica para PR separado.**
 
 ### Decisão de arquitetura — Sara como canal único de WhatsApp
 

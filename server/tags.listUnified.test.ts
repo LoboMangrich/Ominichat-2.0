@@ -145,3 +145,58 @@ describe("tags.listUnified — status (filtro por status real, não por conversa
     ).rejects.toThrow();
   });
 });
+
+describe("tags.listUnified — assignee (abas Minhas / Não atribuídas; quem assumiu = assignedUserId)", () => {
+  const dialect = new MySqlDialect();
+  const conversationsWhere = () => (wheres[0] ? dialect.sqlToQuery(wheres[0] as SQL) : null);
+
+  beforeEach(() => {
+    limits.length = 0;
+    wheres.length = 0;
+    tables = [[], []];
+  });
+
+  it("sem assignee: nada muda (sem filtro de atribuição, grupos como antes)", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await caller.tags.listUnified({ limit: 3 });
+    expect(conversationsWhere()).toBeNull();
+    expect(limits).toEqual([3, 50]);
+  });
+
+  it("Minhas: assignedUserId = usuário logado (id vem do contexto, não do client); sem grupos", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await caller.tags.listUnified({ limit: 3, assignee: "me" });
+
+    const query = conversationsWhere();
+    expect(query?.sql).toMatch(/`conversations`\.`assignedUserId` = \?/);
+    expect(query?.sql).not.toMatch(/assignedAgentId/);
+    expect(query?.params).toEqual([1]); // createContext → user.id 1
+    expect(limits).toEqual([3, 0]);
+  });
+
+  it("Não atribuídas: assignedUserId vazio e conversa não encerrada; sem grupos", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await caller.tags.listUnified({ limit: 3, assignee: "unassigned" });
+
+    const query = conversationsWhere();
+    expect(query?.sql).toMatch(/`conversations`\.`assignedUserId` is null/);
+    expect(query?.sql).toMatch(/`conversations`\.`status` <> \?/);
+    expect(query?.params).toEqual(["Closed"]);
+    expect(limits).toEqual([3, 0]);
+  });
+
+  it("combina com status (ex.: Minhas + Aguardando)", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await caller.tags.listUnified({ limit: 3, assignee: "me", status: "Waiting", excludeGroups: true });
+
+    const query = conversationsWhere();
+    expect(query?.sql).toMatch(/`conversations`\.`status` = \?/);
+    expect(query?.sql).toMatch(/`conversations`\.`assignedUserId` = \?/);
+    expect(query?.params).toEqual(["Waiting", 1]);
+  });
+
+  it("rejeita assignee fora do enum", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await expect(caller.tags.listUnified({ limit: 3, assignee: "todos" as never })).rejects.toThrow();
+  });
+});

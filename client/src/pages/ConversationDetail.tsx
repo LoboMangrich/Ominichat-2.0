@@ -34,7 +34,10 @@ import {
   Volume2,
   X,
   Zap,
+  PanelRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CUSTOMER_PANEL_TOGGLE_CLASSES, customerPanelClasses } from "@/lib/customerPanelLayout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -237,6 +240,7 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
   const [, setLocation] = useLocation();
   const convId = embeddedConvId ?? Number(id);
   const isEmbedded = embeddedConvId !== undefined;
+  const [panelOpen, setPanelOpen] = useState(false);
 
   // Message state
   const [message, setMessage] = useState("");
@@ -581,6 +585,16 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Painel do cliente: abaixo de 1280px começa recolhido — este botão abre/fecha. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("h-8 text-xs", CUSTOMER_PANEL_TOGGLE_CLASSES)}
+            onClick={() => setPanelOpen(v => !v)}
+            aria-expanded={panelOpen}
+          >
+            <PanelRight className="w-3.5 h-3.5 mr-1.5" /> Cliente
+          </Button>
           {/* AI/Human control toggle */}
           {conv.handledByAi ? (
             <Button
@@ -628,7 +642,7 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
       </div>
 
       {/* ── Body: Chat + Right Panel ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
 
         {/* ── Chat Column ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -1033,7 +1047,7 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
         </div>
 
         {/* ── Right Panel ── */}
-        <div className="w-72 border-l bg-card overflow-y-auto shrink-0">
+        <div className={customerPanelClasses(panelOpen)}>
           <div className="p-4 space-y-5">
 
             {/* Customer Info */}

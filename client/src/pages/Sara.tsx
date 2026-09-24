@@ -1,8 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import GroupConversationPanel from "@/components/conversations/GroupConversationPanel";
 import TagManagerModal, { type Tag } from "@/components/conversations/TagManagerModal";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { timeAgo } from "@/lib/timeAgo";
 import { cn } from "@/lib/utils";
@@ -14,8 +16,17 @@ import { useLocation, useParams, useRoute } from "wouter";
 import ConversationDetail from "./ConversationDetail";
 import SaraConversationDetail from "./SaraConversationDetail";
 import {
+  ASSIGNMENT_TABS,
+  DEFAULT_ASSIGNMENT_TAB,
+  assigneeTooltip,
   conversationHref,
   displayName,
+  formatTabCount,
+  readAssignmentTab,
+  safeLocalStorage,
+  saraMatchesAssignment,
+  writeAssignmentTab,
+  type AssignmentTab,
   initials,
   latestConversationHref,
   legacyQueryInput,
@@ -111,6 +122,18 @@ export default function Sara() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const { resolving } = useDeepLinkRedirect(navigate);
 
+  // ── Abas de atribuição (Minhas / Não atribuídas / Todas) — lembradas por usuário ──
+  const { user } = useAuth();
+  const [assignment, setAssignment] = useState<AssignmentTab>(DEFAULT_ASSIGNMENT_TAB);
+  useEffect(() => {
+    if (user) setAssignment(readAssignmentTab(safeLocalStorage(), user.id));
+  }, [user?.id]);
+  function selectAssignment(tab: AssignmentTab) {
+    setAssignment(tab);
+    setLimit(PAGE_SIZE);
+    if (user) writeAssignmentTab(safeLocalStorage(), user.id, tab);
+  }
+
   const selection: Selection = (() => {
     if (!params.id) return null;
     if (isGroupRoute) {
@@ -158,23 +181,43 @@ export default function Sara() {
   );
   const activeSaraQuery = taggedEnabled ? taggedQuery : saraQuery;
 
-  const legacyQuery = trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit), {
-    refetchInterval: LIST_REFETCH_MS,
-  });
+  // Canal próprio: uma consulta por aba de atribuição (filtro no servidor, assignedUserId),
+  // para os contadores. Mesma página (limit) — consultas no nosso banco, não na Sara.
+  const legacyOpts = { refetchInterval: LIST_REFETCH_MS };
+  const legacyByTab = {
+    mine: trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit, "mine"), legacyOpts),
+    unassigned: trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit, "unassigned"), legacyOpts),
+    all: trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit, "all"), legacyOpts),
+  };
+  const legacyQuery = legacyByTab[assignment];
 
-  const saraItems = saraEnabled || taggedEnabled
+  // Sara: a mesma página serve às três abas (a API não filtra por actorId).
+  const saraPage = saraEnabled || taggedEnabled
     ? (activeSaraQuery.data?.data ?? []).filter(
         c => saraMatchesFilter(c.status, filter) && (localFilter ? matchesLocalSearch(c, localFilter) : true),
       )
     : [];
+  // Grupos não têm atribuição: na aba Grupos a atribuição não se aplica.
+  const appliesAssignment = filter.kind !== "groups";
+  const saraForTab = (tab: AssignmentTab) =>
+    appliesAssignment ? saraPage.filter(c => saraMatchesAssignment(c, tab)) : saraPage;
+  const saraItems = saraForTab(assignment);
   const items = mergeConversations(saraItems, legacyQuery.data ?? [], {
     includeGroups: filter.kind === "groups",
   });
 
   const saraHasMore =
     saraEnabled && (saraQuery.data?.pagination.hasMore ?? false) && saraLimit < SARA_MAX_LIMIT;
-  const legacyHasMore = (legacyQuery.data?.length ?? 0) >= limit;
+  const legacyHasMoreFor = (tab: AssignmentTab) => (legacyByTab[tab].data?.length ?? 0) >= limit;
+  const legacyHasMore = legacyHasMoreFor(assignment);
   const hasMore = saraHasMore || legacyHasMore;
+  // Contador = o que está CARREGADO nesta página (já com a etiqueta), não o total.
+  const tabCount = (tab: AssignmentTab) =>
+    formatTabCount(
+      saraForTab(tab).length +
+        (legacyByTab[tab].data ?? []).filter(i => i.type === "conversation" || filter.kind === "groups").length,
+      saraHasMore || legacyHasMoreFor(tab),
+    );
   const isFetching = activeSaraQuery.isFetching || legacyQuery.isFetching;
   const saraActive = saraEnabled || taggedEnabled;
   // Só "carregando" enquanto nenhuma fonte ativa respondeu (com dado ou erro).
@@ -214,6 +257,25 @@ export default function Sara() {
               className="pl-9 h-9 bg-muted border-0 rounded-full text-sm focus-visible:ring-1"
             />
           </div>
+        </div>
+
+        {/* Atribuição — acima das etiquetas; as duas linhas combinam. */}
+        <div className="flex items-center gap-1 px-3 pb-2 shrink-0" role="tablist" aria-label="Atribuição">
+          {ASSIGNMENT_TABS.map(t => (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={assignment === t.key}
+              onClick={() => selectAssignment(t.key)}
+              className={cn(
+                "flex-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+                assignment === t.key ? "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300" : "text-muted-foreground hover:bg-muted",
+              )}
+              title="Contagem do que está carregado nesta página"
+            >
+              {t.label} <span className="opacity-70">{tabCount(t.key)}</span>
+            </button>
+          ))}
         </div>
 
         {/* Chips — mesmo visual de Atendimentos.tsx */}
@@ -311,7 +373,23 @@ export default function Sara() {
                     >
                       {originLabel(item)}
                     </Badge>
-                    {label && <span className="text-[10px] text-muted-foreground truncate">{label}</span>}
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {label && <span className="text-[10px] text-muted-foreground truncate">{label}</span>}
+                      {/* Quem assumiu: iniciais no canto do card, nome no tooltip. */}
+                      {item.assignee && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="w-5 h-5 rounded-full bg-muted text-foreground border text-[9px] font-semibold flex items-center justify-center shrink-0"
+                              aria-label={assigneeTooltip(item.assignee)}
+                            >
+                              {initials(item.assignee.name)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">{assigneeTooltip(item.assignee)}</TooltipContent>
+                        </Tooltip>
+                      )}
+                    </span>
                   </div>
                 </div>
               </button>

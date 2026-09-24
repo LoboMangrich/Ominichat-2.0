@@ -32,6 +32,13 @@ const CHAT_BACKGROUND = {
   backgroundColor: "hsl(var(--muted)/0.3)",
 };
 
+/** Renovação em até 30 dias fica destacada (mesma regra de ConversationDetail.tsx). */
+const RENEWAL_SOON_MS = 30 * 24 * 60 * 60 * 1000;
+
+function formatBRL(value: number | null): string {
+  return `R$ ${Number(value ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+}
+
 function formatDateTime(value: string | Date): string {
   return new Date(value).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -87,6 +94,10 @@ function SaraCustomerPanel({
   }
 
   const score = customer.healthScore;
+  const hasMrr = (customer.mrr ?? 0) > 0;
+  const renewal = customer.renewalDate ? new Date(customer.renewalDate) : null;
+  const renewalSoon = renewal !== null && renewal.getTime() <= Date.now() + RENEWAL_SOON_MS;
+  const hasLtv = (customer.lifetimeValue ?? 0) > 0;
 
   return (
     <div className="p-4 space-y-5">
@@ -154,6 +165,36 @@ function SaraCustomerPanel({
           <p className="text-[10px] text-muted-foreground mt-1">
             {score >= 70 ? "Cliente saudável" : score >= 40 ? "Atenção necessária" : "Em risco de churn"}
           </p>
+        </div>
+      )}
+
+      {/* MRR & Renovação — mesma regra de ConversationDetail.tsx: renovação em até 30
+          dias fica destacada. NPS/CSAT não entram aqui (hoje saem pelo canal próprio). */}
+      {(hasMrr || renewal) && (
+        <div className="grid grid-cols-2 gap-2">
+          {hasMrr && (
+            <div className="bg-muted/40 rounded-xl p-2.5">
+              <p className="text-sm font-bold text-foreground">{formatBRL(customer.mrr)}</p>
+              <p className="text-[10px] text-muted-foreground">MRR</p>
+            </div>
+          )}
+          {renewal && (
+            <div className={cn("rounded-xl p-2.5", renewalSoon ? "bg-destructive/10" : "bg-muted/40")}>
+              <p className={cn("text-sm font-bold", renewalSoon ? "text-destructive" : "text-foreground")}>
+                {renewal.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {renewalSoon ? "Renovação próxima" : "Renovação"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasLtv && (
+        <div className="bg-muted/40 rounded-xl p-2.5 flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">LTV</span>
+          <span className="text-sm font-bold text-foreground">{formatBRL(customer.lifetimeValue)}</span>
         </div>
       )}
 

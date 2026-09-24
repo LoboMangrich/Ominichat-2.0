@@ -647,3 +647,16 @@ describe("sara.addTag — só etiquetas personalizadas", () => {
     );
   });
 });
+
+describe("sara.customerByPhone — painel recebe LTV junto", () => {
+  it("devolve lifetimeValue, mrr e renewalDate do cliente", async () => {
+    const row = { id: 1, name: "Maria", mrr: 300, renewalDate: new Date("2026-10-01"), lifetimeValue: 5400 };
+    const chain = { from: () => chain, where: () => chain, orderBy: () => chain, limit: () => Promise.resolve([row]) };
+    vi.mocked(getDb).mockResolvedValue({ select: () => chain } as never);
+
+    const result = await saraRouter.createCaller(createContext()).customerByPhone({ phone: "+5548984053595" });
+
+    expect(result?.customer).toMatchObject({ lifetimeValue: 5400, mrr: 300 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

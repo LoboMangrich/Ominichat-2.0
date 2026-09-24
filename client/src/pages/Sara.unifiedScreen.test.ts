@@ -385,3 +385,20 @@ describe("mergeTimeline — mensagens e notas intercaladas por horário", () => 
     expect(entries.map(e => e.key)).toEqual(["msg:1", "note:1"]);
   });
 });
+
+describe("Painel do cliente (Sara) — mesmo conteúdo do ConversationDetail, sem NPS/CSAT", () => {
+  it("mostra saúde, MRR, renovação (destaque em até 30 dias), LTV, tarefas e Ver perfil", () => {
+    expect(detail).toContain("Índice de Saúde");
+    expect(detail).toMatch(/>MRR</);
+    expect(detail).toContain("Renovação próxima");
+    expect(detail).toContain("const RENEWAL_SOON_MS = 30 * 24 * 60 * 60 * 1000;");
+    expect(detail).toMatch(/>LTV</);
+    expect(detail).toContain("Próximas Tarefas");
+    expect(detail).toContain("Ver perfil completo");
+  });
+
+  it("NPS/CSAT não entram (saem pelo canal próprio, outro número)", () => {
+    expect(detail).not.toMatch(/trpc\.(surveys|satisfaction)\./);
+    expect(detail).not.toMatch(/type: "(NPS|CSAT)"/);
+  });
+});

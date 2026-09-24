@@ -464,6 +464,7 @@ const customerPanelColumns = {
   healthScore: customers.healthScore,
   mrr: customers.mrr,
   renewalDate: customers.renewalDate,
+  lifetimeValue: customers.lifetimeValue,
 };
 
 /**

@@ -223,8 +223,8 @@ for (let i=0;i<Math.min(40,customerIds.length);i++) {
     const agentId = teamIds[randInt(0,teamIds.length-1)];
     const status = randItem(["Open","Waiting","Closed","Closed","Closed"]);
     const [cr] = await connection.execute(
-      `INSERT INTO conversations (customerId,assignedAgentId,channel,status,subject,qualityScore,sentimentScore,handledByAi,handoffMode,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,NOW())`,
-      [customerIds[i],agentId,randItem(["whatsapp","whatsapp","whatsapp","email"]),status,randItem(SUBJECTS),randInt(60,100),(Math.random()*0.6+0.4).toFixed(2),isAI?1:0,isAI?"ai":"human",daysAgo(randInt(0,30))]
+      `INSERT INTO conversations (customerId,assignedUserId,channel,status,subject,qualityScore,sentimentScore,handledByAi,handoffMode,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,NOW())`,
+      [customerIds[i],isAI?null:agentId,randItem(["whatsapp","whatsapp","whatsapp","email"]),status,randItem(SUBJECTS),randInt(60,100),(Math.random()*0.6+0.4).toFixed(2),isAI?1:0,isAI?"ai":"human",daysAgo(randInt(0,30))]
     );
     const convId = cr.insertId; convCount++;
     const msgCount = randInt(3,8);

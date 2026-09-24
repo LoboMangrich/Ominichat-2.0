@@ -273,7 +273,8 @@ const conversationsRouter = router({
       const conditions = [];
       if (input.status) conditions.push(eq(conversations.status, input.status));
       if (input.channel) conditions.push(eq(conversations.channel, input.channel as any));
-      if (input.agentId) conditions.push(eq(conversations.assignedAgentId, input.agentId));
+      // Responsável pela conversa = assignedUserId (fonte única; assignedAgentId não é mais usado).
+      if (input.agentId) conditions.push(eq(conversations.assignedUserId, input.agentId));
       if (input.customerId) conditions.push(eq(conversations.customerId, input.customerId));
       const results = await db.select().from(conversations)
         .where(conditions.length ? and(...conditions) : undefined)
@@ -287,8 +288,8 @@ const conversationsRouter = router({
         const [customer] = conv.customerId
           ? await db.select({ id: customers.id, name: customers.name, email: customers.email }).from(customers).where(eq(customers.id, conv.customerId)).limit(1)
           : [];
-        const [assignedAgent] = conv.assignedAgentId
-          ? await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, conv.assignedAgentId)).limit(1)
+        const [assignedAgent] = conv.assignedUserId
+          ? await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, conv.assignedUserId)).limit(1)
           : [];
         const labels = await db.select().from(conversationLabels).where(eq(conversationLabels.conversationId, conv.id));
         // Last message preview
@@ -323,9 +324,14 @@ const conversationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
+      // Quem cria a conversa à mão é o responsável por ela. As duas marcações de "IA ou humano"
+      // (handoffMode e handledByAi) vão explícitas e juntas — os defaults da coluna discordam
+      // entre si (handoffMode "ai", handledByAi false).
       await db.insert(conversations).values({
         ...input,
-        assignedAgentId: ctx.user.id,
+        assignedUserId: ctx.user.id,
+        handoffMode: "human",
+        handledByAi: false,
         status: "Open",
       });
       return { success: true };
@@ -454,9 +460,9 @@ const conversationsRouter = router({
       const targetName = targetAgent?.name ?? `Agente #${input.agentId}`;
       const fromName = ctx.user.name ?? 'Agente';
 
-      // Update assigned agent
+      // Transferir muda o responsável (assignedUserId) e mantém a conversa com humano.
       await db.update(conversations)
-        .set({ assignedAgentId: input.agentId, handledByAi: false })
+        .set({ assignedUserId: input.agentId, handoffMode: "human", handledByAi: false, handoffAt: new Date() })
         .where(eq(conversations.id, input.conversationId));
 
       // Insert system note
@@ -1609,7 +1615,13 @@ Responda APENAS com JSON válido no formato:
   })).mutation(async ({ input, ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("DB unavailable");
-    await db.update(conversations).set({ handledByAi: false, assignedAgentId: ctx.user.id }).where(eq(conversations.id, input.conversationId));
+    // Mesmo efeito do conversations.takeOver: responsável = quem escalou, humano no controle.
+    await db.update(conversations).set({
+      assignedUserId: ctx.user.id,
+      handoffMode: "human",
+      handledByAi: false,
+      handoffAt: new Date(),
+    }).where(eq(conversations.id, input.conversationId));
     await db.insert(messages).values({
       conversationId: input.conversationId,
       senderType: "system",
@@ -1629,7 +1641,7 @@ Responda APENAS com JSON válido no formato:
     // Find the AI agent assigned to this conversation, or use the provided agentId
     const [conv] = await db.select().from(conversations).where(eq(conversations.id, input.conversationId)).limit(1);
     const aiAgentId = input.agentId ?? conv?.aiAgentId ?? null;
-    await db.update(conversations).set({ handledByAi: true, aiAgentId, assignedAgentId: null }).where(eq(conversations.id, input.conversationId));
+    await db.update(conversations).set({ handledByAi: true, handoffMode: "ai", aiAgentId, assignedUserId: null }).where(eq(conversations.id, input.conversationId));
     await db.insert(messages).values({
       conversationId: input.conversationId,
       senderType: "system",
@@ -2870,7 +2882,6 @@ const slaRouter = router({
       channel: conversations.channel,
       createdAt: conversations.createdAt,
       firstResponseAt: conversations.firstResponseAt,
-      assignedAgentId: conversations.assignedAgentId,
       customerId: conversations.customerId,
       customerName: customers.name,
       customerPhone: customers.phone,
@@ -2975,7 +2986,7 @@ const reportsRouter = router({
 
       // Gather metrics for the week
       const [allConvs, closedConvs, newCusts, allAlerts, resolvedAlerts, allUsers] = await Promise.all([
-        db.select({ id: conversations.id, channel: conversations.channel, createdAt: conversations.createdAt, firstResponseAt: conversations.firstResponseAt, assignedAgentId: conversations.assignedAgentId })
+        db.select({ id: conversations.id, channel: conversations.channel, createdAt: conversations.createdAt, firstResponseAt: conversations.firstResponseAt, assignedUserId: conversations.assignedUserId })
           .from(conversations)
           .where(and(gte(conversations.createdAt, weekStart), lte(conversations.createdAt, weekEnd))),
         db.select({ id: conversations.id }).from(conversations)
@@ -3009,23 +3020,23 @@ const reportsRouter = router({
         channelBreakdown[c.channel] = (channelBreakdown[c.channel] ?? 0) + 1;
       }
 
-      // Top agents by closed conversations
+      // Top agents by closed conversations — atendente = responsável atual (assignedUserId)
       const agentClosed: Record<number, { name: string; closed: number; totalResponseMs: number; responseCount: number }> = {};
       for (const c of allConvs) {
-        if (!c.assignedAgentId) continue;
-        if (!agentClosed[c.assignedAgentId]) {
-          const agent = allUsers.find(u => u.id === c.assignedAgentId);
-          agentClosed[c.assignedAgentId] = { name: agent?.name ?? `Agente #${c.assignedAgentId}`, closed: 0, totalResponseMs: 0, responseCount: 0 };
+        if (!c.assignedUserId) continue;
+        if (!agentClosed[c.assignedUserId]) {
+          const agent = allUsers.find(u => u.id === c.assignedUserId);
+          agentClosed[c.assignedUserId] = { name: agent?.name ?? `Agente #${c.assignedUserId}`, closed: 0, totalResponseMs: 0, responseCount: 0 };
         }
         if (c.firstResponseAt) {
-          agentClosed[c.assignedAgentId].totalResponseMs += new Date(c.firstResponseAt).getTime() - new Date(c.createdAt).getTime();
-          agentClosed[c.assignedAgentId].responseCount++;
+          agentClosed[c.assignedUserId].totalResponseMs += new Date(c.firstResponseAt).getTime() - new Date(c.createdAt).getTime();
+          agentClosed[c.assignedUserId].responseCount++;
         }
       }
       for (const c of closedConvs) {
         const conv = allConvs.find(x => x.id === c.id);
-        if (conv?.assignedAgentId && agentClosed[conv.assignedAgentId]) {
-          agentClosed[conv.assignedAgentId].closed++;
+        if (conv?.assignedUserId && agentClosed[conv.assignedUserId]) {
+          agentClosed[conv.assignedUserId].closed++;
         }
       }
       const topAgents = Object.entries(agentClosed)
@@ -4912,8 +4923,8 @@ const tagsRouter = router({
       // conversationTagAssignments — que nada popula. Sem status, nada muda.
       status: z.enum(conversations.status.enumValues).optional(),
       // Abas de atribuição da tela única (Minhas / Não atribuídas). "Quem assumiu" no
-      // canal próprio é conversations.assignedUserId — gravado por takeOver e limpo por
-      // returnToAI (ver CLAUDE.md sobre a dessincronia com assignedAgentId). Sem
+      // canal próprio é conversations.assignedUserId — fonte única do responsável, gravado por
+      // create/takeOver/forward/escalate e limpo por returnToAI/returnToAi. Sem
       // assignee, nada muda. Com assignee, grupos ficam de fora (não têm atribuição).
       assignee: z.enum(["me", "unassigned"]).optional(),
     }))

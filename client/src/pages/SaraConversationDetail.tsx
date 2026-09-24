@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
 import SaraComposer from "@/components/conversations/SaraComposer";
 import SaraRegisterCustomer from "@/components/conversations/SaraRegisterCustomer";
+import { SaraTagPicker, SaraTagStrip } from "@/components/conversations/SaraTags";
 import { statusConfig } from "./Customers";
 import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
 import { SARA_STATUS_LABELS, initials, mergeTimeline, saraActorLabel } from "./saraShared";
@@ -401,6 +402,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
           )}
 
           <div className="flex-1 overflow-y-auto p-4 space-y-1.5" style={CHAT_BACKGROUND}>
+            <SaraTagStrip conversationId={id} />
             {mergeTimeline(messages, notes).map(entry => {
               if (entry.kind === "note") {
                 const note = entry.item;
@@ -481,6 +483,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             onTyping={() => typingMutation.mutate({ id })}
             isAddingNote={addNoteMutation.isPending}
             onAddNote={text => addNoteMutation.mutateAsync({ conversationId: id, text })}
+            headerActions={<SaraTagPicker conversationId={id} />}
           />
         </div>
 

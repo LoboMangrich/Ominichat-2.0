@@ -94,9 +94,17 @@ export function tabFilterFor(tag: { id: number; slug: string | null } | null | u
   return { kind: "tag", tagId: tag.id };
 }
 
-/** A Sara entra na lista? Não em Grupos nem em etiqueta personalizada. */
-export function includesSara(filter: TabFilter): boolean {
-  return filter.kind === "all" || filter.kind === "status";
+/**
+ * De onde vêm as conversas da Sara nesta aba:
+ * - "list": sara.listConversations (Todos, Em Aberto, Aguardando);
+ * - "tag": sara.listTaggedConversations (etiqueta personalizada — a API da Sara não
+ *   filtra por etiqueta, então buscamos cada conversa etiquetada por id);
+ * - "none": Grupos (não há Sara).
+ */
+export function saraSource(filter: TabFilter): "list" | "tag" | "none" {
+  if (filter.kind === "all" || filter.kind === "status") return "list";
+  if (filter.kind === "tag") return "tag";
+  return "none";
 }
 
 /**
@@ -109,7 +117,7 @@ export function saraStatusParam(filter: TabFilter): SaraConversationStatus | und
 }
 
 export function saraMatchesFilter(status: string, filter: TabFilter): boolean {
-  if (filter.kind === "all") return true;
+  if (filter.kind === "all" || filter.kind === "tag") return true; // etiqueta: qualquer status
   if (filter.kind === "status") return (filter.saraStatuses as readonly string[]).includes(status);
   return false;
 }

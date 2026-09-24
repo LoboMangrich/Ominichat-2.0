@@ -544,3 +544,106 @@ describe("sara.addNote / listNotes — nota interna fica só no Cashmiles", () =
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sara.listTaggedConversations — etiqueta → conversas da Sara (GET por id, com limites)", () => {
+  /** Banco falso: ids etiquetados na consulta de saraConversationTags; nomes vazios. */
+  function fakeTaggedDb(ids: string[]) {
+    const where = () => ({
+      orderBy: () => ({ limit: (n: number) => Promise.resolve(ids.slice(0, n).map(id => ({ id }))) }),
+      // resolveActorNames faz `await db.select().from(users).where(...)`
+      then: (resolve: (v: unknown[]) => unknown) => resolve([]),
+    });
+    const chain = { from: () => ({ where }) };
+    vi.mocked(getDb).mockResolvedValue({ select: () => chain } as never);
+  }
+
+  it("com 12 ids, nunca mais de 5 fetch simultâneos — e busca todos", async () => {
+    fakeTaggedDb(Array.from({ length: 12 }, (_, i) => `c${i}`));
+    let inFlight = 0;
+    let maxInFlight = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(r => setTimeout(r, 5));
+      inFlight--;
+      const id = String(url).split("/").pop()!;
+      const d = conversationDetail(null, "active");
+      return jsonResponse(200, { ...d, conversation: { ...d.conversation, id } });
+    });
+
+    const { data } = await saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(maxInFlight).toBeLessThanOrEqual(5);
+    expect(maxInFlight).toBeGreaterThan(1); // paralelo de verdade, não sequencial
+    expect(data.map(c => c.id)).toEqual(Array.from({ length: 12 }, (_, i) => `c${i}`));
+    expect(postCalls(fetchMock)).toEqual([]); // só leitura
+  });
+
+  it("teto de 50 ids", async () => {
+    fakeTaggedDb(Array.from({ length: 80 }, (_, i) => `c${i}`));
+    fetchMock.mockImplementation(async () => jsonResponse(200, conversationDetail(null, "active")));
+
+    await saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(50);
+  });
+
+  it("404 da Sara para um id etiquetado: some da lista, sem erro", async () => {
+    fakeTaggedDb(["ok-1", "sumiu", "ok-2"]);
+    fetchMock.mockImplementation(async (url: string) => {
+      const id = String(url).split("/").pop()!;
+      if (id === "sumiu") return errorResponse(404, "{}");
+      const d = conversationDetail(null, "active");
+      return jsonResponse(200, { ...d, conversation: { ...d.conversation, id } });
+    });
+
+    const { data } = await saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 });
+
+    expect(data.map(c => c.id)).toEqual(["ok-1", "ok-2"]);
+  });
+
+  it("outro erro da Sara (500) falha a consulta — a tela mostra \"Sara indisponível\"", async () => {
+    fakeTaggedDb(["a"]);
+    fetchMock.mockResolvedValue(errorResponse(500, "{}"));
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 }),
+    );
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+  });
+});
+
+describe("sara.addTag — só etiquetas personalizadas", () => {
+  function fakeTagDb(tag: { id: number; slug: string | null } | undefined) {
+    const inserted: Array<Record<string, unknown>> = [];
+    const chain = { from: () => chain, where: () => chain, limit: () => Promise.resolve(tag ? [tag] : []) };
+    vi.mocked(getDb).mockResolvedValue({
+      select: () => chain,
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted.push(v);
+          return { onDuplicateKeyUpdate: () => Promise.resolve() };
+        },
+      }),
+    } as never);
+    return inserted;
+  }
+
+  it("etiqueta personalizada: grava com quem atribuiu, sem chamar a Sara", async () => {
+    const inserted = fakeTagDb({ id: 4, slug: null });
+    await saraRouter.createCaller(createContext()).addTag({ conversationId: "conv-1", tagId: 4 });
+    expect(inserted[0]).toMatchObject({ saraConversationId: "conv-1", tagId: 4, assignedBy: USER_ID });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("etiqueta de status (slug) → BAD_REQUEST; inexistente → NOT_FOUND", async () => {
+    fakeTagDb({ id: 1, slug: "open" });
+    expect((await catchError(saraRouter.createCaller(createContext()).addTag({ conversationId: "c", tagId: 1 }))).code).toBe(
+      "BAD_REQUEST",
+    );
+    fakeTagDb(undefined);
+    expect((await catchError(saraRouter.createCaller(createContext()).addTag({ conversationId: "c", tagId: 9 }))).code).toBe(
+      "NOT_FOUND",
+    );
+  });
+});

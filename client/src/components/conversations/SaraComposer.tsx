@@ -23,6 +23,7 @@ export default function SaraComposer({
   onTyping,
   isAddingNote,
   onAddNote,
+  headerActions,
 }: {
   /** Só o dono responde (canSend do servidor). */
   canReply: boolean;
@@ -36,6 +37,8 @@ export default function SaraComposer({
   isAddingNote: boolean;
   /** sara.addNote — só Cashmiles. Resolve quando salvou; só então o rascunho é limpo. */
   onAddNote: (text: string) => Promise<unknown>;
+  /** Ações extras na barra (ex.: botão "Etiqueta"). */
+  headerActions?: React.ReactNode;
 }) {
   const [mode, setMode] = useState<"reply" | "note">("reply");
   const isNote = mode === "note";
@@ -138,6 +141,7 @@ export default function SaraComposer({
           <Lock className="w-3 h-3" /> Nota Interna
         </button>
         <div className="flex-1" />
+        {headerActions}
         {inputEnabled && (
           <button
             onClick={() => setShowQuickReplies(v => !v)}

@@ -6,7 +6,6 @@ import {
   fromGroup,
   fromLegacy,
   fromSara,
-  includesSara,
   latestConversationHref,
   legacyQueryInput,
   matchesLocalSearch,
@@ -17,6 +16,7 @@ import {
   saraActorLabel,
   saraMatchesFilter,
   saraSearch,
+  saraSource,
   saraStatusParam,
   statusLabel,
   tabFilterFor,
@@ -61,7 +61,7 @@ describe("Sara — abas por etiqueta filtram pelo STATUS REAL (não por conversa
 
   it("Todos: Sara sem filtro (inclui error); canal próprio sem status (inclui Closed), sem grupos", () => {
     const f = tabFilterFor(undefined);
-    expect(includesSara(f)).toBe(true);
+    expect(saraSource(f)).toBe("list");
     expect(saraStatusParam(f)).toBeUndefined();
     for (const s of ["active", "human_takeover", "awaiting_response", "error"]) {
       expect(saraMatchesFilter(s, f)).toBe(true);
@@ -91,29 +91,42 @@ describe("Sara — abas por etiqueta filtram pelo STATUS REAL (não por conversa
     expect(input).not.toHaveProperty("tagId");
   });
 
-  it("\"error\" só aparece em Todos", () => {
-    for (const tag of [OPEN_TAG, WAITING_TAG, GROUP_TAG, CUSTOM_TAG]) {
+  it("\"error\" só aparece em Todos entre as abas de status (etiqueta personalizada mostra o que foi etiquetado)", () => {
+    for (const tag of [OPEN_TAG, WAITING_TAG, GROUP_TAG]) {
       expect(saraMatchesFilter("error", tabFilterFor(tag))).toBe(false);
     }
+    // Conversa etiquetada de propósito aparece na aba da etiqueta, qualquer que seja o status.
+    expect(saraMatchesFilter("error", tabFilterFor(CUSTOM_TAG))).toBe(true);
   });
 
   it("Grupos: busca grupos pela tag group (sem excludeGroups) e não consulta a Sara", () => {
     const f = tabFilterFor(GROUP_TAG);
-    expect(includesSara(f)).toBe(false);
+    expect(saraSource(f)).toBe("none");
     expect(legacyQueryInput(f, "", 20)).toEqual({ search: undefined, limit: 20, tagId: 13 });
   });
 
-  it("etiqueta personalizada: só canal próprio via tagId (excludeGroups), Sara fica de fora", () => {
+  it("etiqueta personalizada: canal próprio via tagId (excludeGroups) E Sara via listTaggedConversations", () => {
     const f = tabFilterFor(CUSTOM_TAG);
-    expect(includesSara(f)).toBe(false);
+    expect(saraSource(f)).toBe("tag");
+    // qualquer status da Sara entra quando está etiquetada
+    for (const st of ["active", "human_takeover", "awaiting_response", "error"]) {
+      expect(saraMatchesFilter(st, f)).toBe(true);
+    }
     expect(legacyQueryInput(f, "", 20)).toEqual({ search: undefined, limit: 20, excludeGroups: true, tagId: 99 });
   });
 
-  it("Sara.tsx: chips vêm de tags.list, com engrenagem do TagManagerModal e aviso de etiqueta sem Sara", () => {
+  it("Sara.tsx: chips vêm de tags.list, com engrenagem do TagManagerModal; aviso \"Sara não tem etiquetas\" saiu", () => {
     expect(list).toContain("trpc.tags.list.useQuery()");
     expect(list).toContain("<TagManagerModal");
-    expect(list).toContain("Conversas da Sara não têm etiquetas");
+    expect(list).not.toContain("Conversas da Sara não têm etiquetas");
     expect(list).toContain("enabled: saraEnabled");
+  });
+
+  it("etiqueta personalizada: consulta sem polling e com staleTime de 60s (a Sara é produção)", () => {
+    expect(list).toContain("const TAGGED_STALE_MS = 60_000;");
+    expect(list).toMatch(
+      /trpc\.sara\.listTaggedConversations\.useQuery\([\s\S]*?enabled: taggedEnabled, staleTime: TAGGED_STALE_MS, refetchInterval: false/,
+    );
   });
 
   it("status da doc nova da Sara: awaiting_response → \"Aguardando resposta\", error → \"Erro\"", () => {
@@ -189,7 +202,9 @@ describe("Sara.tsx — lista unificada consome as duas fontes", () => {
   });
 
   it("falha de uma fonte mostra a outra + aviso", () => {
-    expect(list).toMatch(/saraQuery\.isError && \([\s\S]*?Sara indisponível/);
+    // saraFailed cobre as duas consultas da Sara (lista e etiqueta personalizada).
+    expect(list).toContain("const saraFailed = saraActive && activeSaraQuery.isError;");
+    expect(list).toMatch(/\{saraFailed && \([\s\S]*?Sara indisponível/);
     expect(list).toMatch(/legacyQuery\.isError && \([\s\S]*?Canal próprio indisponível/);
   });
 

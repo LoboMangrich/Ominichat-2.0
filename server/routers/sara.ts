@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   SARA_CONVERSATION_SORTS,
@@ -9,9 +9,10 @@ import {
   saraCanReleaseOrClose,
   saraCanSend,
 } from "@shared/sara";
-import { customers, saraInternalNotes, users } from "../../drizzle/schema";
+import { conversationTags, customers, saraConversationTags, saraInternalNotes, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { optionalEmail } from "../_core/validators";
+import { mapWithConcurrency } from "../concurrency";
 import { getDb } from "../db";
 import { phoneDigitCandidates, phoneDigits, phoneLookupCandidates } from "../phoneMatch";
 import {
@@ -66,6 +67,11 @@ async function wrapSaraError(error: unknown, userId?: number): Promise<TRPCError
 }
 
 const conversationIdInput = z.object({ id: z.string().min(1) });
+
+// Etiqueta → conversas da Sara: a API da Sara não filtra por etiqueta, então buscamos
+// cada conversa etiquetada por id. Limites porque a Sara é produção.
+export const TAGGED_CONVERSATIONS_MAX_IDS = 50;
+export const TAGGED_CONVERSATIONS_CONCURRENCY = 5;
 
 type SaraUser = { id: number; role: string };
 
@@ -271,6 +277,95 @@ export const saraRouter = router({
       return { id: created.id };
     }),
 
+  // ── Etiquetas personalizadas (conversationTags sem slug) em conversas da Sara ─────
+  // Só no Cashmiles. Etiquetas de status (slug open/waiting/group) não são atribuídas:
+  // vêm do status real da conversa.
+  listConversationTags: protectedProcedure
+    .input(z.object({ conversationId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select({ tagId: conversationTags.id, name: conversationTags.name })
+        .from(saraConversationTags)
+        .innerJoin(conversationTags, eq(saraConversationTags.tagId, conversationTags.id))
+        .where(eq(saraConversationTags.saraConversationId, input.conversationId))
+        .orderBy(asc(conversationTags.name));
+    }),
+
+  addTag: protectedProcedure
+    .input(z.object({ conversationId: z.string().min(1).max(64), tagId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb("a etiqueta não foi salva");
+      const [tag] = await db
+        .select({ id: conversationTags.id, slug: conversationTags.slug })
+        .from(conversationTags)
+        .where(eq(conversationTags.id, input.tagId))
+        .limit(1);
+      if (!tag) throw new TRPCError({ code: "NOT_FOUND", message: "Etiqueta não encontrada" });
+      if (tag.slug) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Etiquetas de status vêm do status da conversa — escolha uma etiqueta personalizada.",
+        });
+      }
+      // Unique (saraConversationId, tagId): repetir a etiqueta não duplica.
+      await db
+        .insert(saraConversationTags)
+        .values({ saraConversationId: input.conversationId, tagId: input.tagId, assignedBy: ctx.user.id })
+        .onDuplicateKeyUpdate({ set: { tagId: input.tagId } });
+      return { success: true };
+    }),
+
+  removeTag: protectedProcedure
+    .input(z.object({ conversationId: z.string().min(1).max(64), tagId: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb("a etiqueta não foi removida");
+      await db
+        .delete(saraConversationTags)
+        .where(
+          and(
+            eq(saraConversationTags.saraConversationId, input.conversationId),
+            eq(saraConversationTags.tagId, input.tagId),
+          ),
+        );
+      return { success: true };
+    }),
+
+  /**
+   * Conversas da Sara com uma etiqueta personalizada. Até 50 ids (as etiquetadas mais
+   * recentemente), no máximo 5 GETs em paralelo. Id que a Sara responde 404 some da
+   * lista sem erro — a linha da tabela NÃO é apagada (ver CLAUDE.md).
+   */
+  listTaggedConversations: protectedProcedure
+    .input(z.object({ tagId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const db = await getDb();
+        if (!db) return { data: [] };
+        const rows = await db
+          .select({ id: saraConversationTags.saraConversationId })
+          .from(saraConversationTags)
+          .where(eq(saraConversationTags.tagId, input.tagId))
+          .orderBy(desc(saraConversationTags.assignedAt))
+          .limit(TAGGED_CONVERSATIONS_MAX_IDS);
+
+        const found = await mapWithConcurrency(rows, TAGGED_CONVERSATIONS_CONCURRENCY, async row => {
+          try {
+            return (await getSaraConversation(row.id, ctx.user.id)).conversation;
+          } catch (error) {
+            if (error instanceof SaraSupportApiError && error.status === 404) return null;
+            throw error;
+          }
+        });
+        const conversations = found.filter((c): c is SaraConversationSummary => c !== null);
+        const names = await resolveActorNames(conversations.map(c => c.actorId));
+        return { data: conversations.map(c => withActor(c, names, ctx.user)) };
+      } catch (error) {
+        throw await wrapSaraError(error, ctx.user.id);
+      }
+    }),
+
   /**
    * Cliente do Cashmiles ligado a uma conversa da Sara, pelo telefone.
    * Sara é dona da conversa; Cashmiles é dono do cliente (CLAUDE.md). Nada
@@ -350,6 +445,14 @@ export const saraRouter = router({
 });
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function requireDb(what: string): Promise<Db> {
+  const db = await getDb();
+  if (!db) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Banco de dados indisponível — ${what}.` });
+  }
+  return db;
+}
 
 const customerPanelColumns = {
   id: customers.id,

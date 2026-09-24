@@ -25,7 +25,6 @@ import {
   BarChart3,
   Bell,
   BellOff,
-  Bot,
   Brain,
   Briefcase,
   CheckSquare,
@@ -100,17 +99,10 @@ const NAV_MODULES: NavModule[] = [
     key: "atendimento",
     color: "var(--brand-400)", // mesma luminosidade do dourado do CRM e do azul de Estatísticas (~L 0.71-0.73), legível sobre a sidebar escura
     items: [
-      // ── Sara (canal principal) ──
-      // A Sara é o canal principal de atendimento por WhatsApp — ver "Decisão de
-      // arquitetura" no CLAUDE.md. Por isso vem primeiro.
-      { icon: Bot,            label: "Conversas",            path: "/sara", sectionHeader: "Atendimento via Sara" },
-      // ── Canal próprio ──
-      // Receptores de webhook próprios; continuam em uso até a integração com a
-      // Sara estar completa.
-      // "Caixa de Entrada" e "Todas as Conversas" apontavam para a mesma tela (/atendimentos):
-      // ?canal=whatsapp nunca foi lido em Atendimentos.tsx, então os dois itens eram idênticos.
-      // Removido o segundo, renomeado o que ficou.
-      { icon: Inbox,          label: "Conversas (legado)",   path: "/atendimentos", badge: "live", sectionHeader: "Canal próprio" },
+      // Tela única: /sara junta as conversas da Sara e as do canal próprio (ver
+      // "Tela única de Conversas" no CLAUDE.md). /atendimentos saiu do menu, mas a
+      // rota continua existindo — Customers.tsx e Home.tsx ainda apontam pra lá.
+      { icon: Inbox,          label: "Conversas",            path: "/sara" },
       { icon: Megaphone,      label: "Disparos em Massa",    path: "/broadcasts" },
       { icon: Users,          label: "Grupos",               path: "/groups" },
     ],

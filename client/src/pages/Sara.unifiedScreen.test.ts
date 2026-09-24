@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  SARA_STATUS_LABELS,
   SARA_TABS,
   conversationHref,
   fromLegacy,
@@ -49,10 +50,21 @@ describe("Sara — abas só com buckets ai/human (closed e unknown só em Todos)
     expect(SARA_TABS.map(t => t.bucket)).toEqual([undefined, "ai", "human"]);
   });
 
-  it("não reintroduz status não verificados como valor (\"awaiting_response\" / \"Aguardando\" / \"Waiting\")", () => {
-    for (const source of [detail, list, shared]) {
-      expect(source).not.toMatch(/"awaiting_response"|"Aguardando"|"Waiting"/);
-    }
+  it("status da doc nova da Sara: awaiting_response → \"Aguardando resposta\", error → \"Erro\"", () => {
+    const waiting = fromSara({ id: "w", status: "awaiting_response", userName: null, phoneNumber: null, lastMessageAt: null, createdAt: "" });
+    const error = fromSara({ id: "e", status: "error", userName: null, phoneNumber: null, lastMessageAt: null, createdAt: "" });
+    expect(waiting.bucket).toBe("waiting");
+    expect(statusLabel(waiting)).toBe("Aguardando resposta");
+    expect(error.bucket).toBe("error");
+    expect(statusLabel(error)).toBe("Erro");
+    expect(SARA_STATUS_LABELS.awaiting_response).toBe("Aguardando resposta");
+    expect(SARA_STATUS_LABELS.error).toBe("Erro");
+  });
+
+  it("status fora do enum documentado continua cru (sem rótulo inventado)", () => {
+    const other = fromSara({ id: "x", status: "closed", userName: null, phoneNumber: null, lastMessageAt: null, createdAt: "" });
+    expect(other.bucket).toBe("unknown");
+    expect(statusLabel(other)).toBe("closed");
   });
 });
 

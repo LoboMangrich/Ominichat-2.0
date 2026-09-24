@@ -4,24 +4,28 @@
 import { phoneDigits, toE164Phone } from "@shared/phone";
 
 // ─── Status da Sara ───────────────────────────────────────────────────────────
-// Únicos status da Sara confirmados no código. Um status fora daqui aparece com o
-// valor cru no selo — não inventar rótulo nem aba para status não verificado.
+// Enum de status do GET /conversations segundo a doc nova da Sara: awaiting_response,
+// active, error, human_takeover. Um status fora daqui aparece com o valor cru no selo —
+// não inventar rótulo para status não documentado.
 export const SARA_STATUS_LABELS: Record<string, string> = {
   active: "Com a IA",
   human_takeover: "Atendimento humano",
+  awaiting_response: "Aguardando resposta",
+  error: "Erro",
 };
 
 // ─── Buckets ─────────────────────────────────────────────────────────────────
-// Agrupamento de exibição, independente da origem. Preparado para crescer: um status
-// novo da Sara (a doc nova traz awaiting_response e error) entra como chave em
-// SARA_STATUS_BUCKET — e, se precisar de aba ou selo próprio, como um bucket novo em
-// CONVERSATION_BUCKETS + BUCKET_LABELS. Nada disso exige reescrever o tipo.
-export const CONVERSATION_BUCKETS = ["ai", "human", "closed", "unknown"] as const;
+// Agrupamento de exibição (rótulo à direita de cada item), independente da origem. Um
+// status novo entra como chave em SARA_STATUS_BUCKET e, se precisar de rótulo próprio,
+// como bucket novo em CONVERSATION_BUCKETS + BUCKET_LABELS — sem reescrever o tipo.
+export const CONVERSATION_BUCKETS = ["ai", "human", "waiting", "error", "closed", "unknown"] as const;
 export type ConversationBucket = (typeof CONVERSATION_BUCKETS)[number];
 
 export const BUCKET_LABELS: Partial<Record<ConversationBucket, string>> = {
   ai: "Com a IA",
   human: "Atendimento humano",
+  waiting: "Aguardando resposta",
+  error: "Erro",
   closed: "Encerrada",
   // unknown não tem rótulo: mostra o status cru.
 };
@@ -29,6 +33,8 @@ export const BUCKET_LABELS: Partial<Record<ConversationBucket, string>> = {
 export const SARA_STATUS_BUCKET: Record<string, ConversationBucket> = {
   active: "ai",
   human_takeover: "human",
+  awaiting_response: "waiting",
+  error: "error",
 };
 
 export function saraBucket(status: string): ConversationBucket {

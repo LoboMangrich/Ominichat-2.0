@@ -481,3 +481,66 @@ describe("sara.sendTyping — mesma regra do envio (só o dono), checada antes d
     expect(postCalls(fetchMock)).toEqual([]);
   });
 });
+
+describe("sara.addNote / listNotes — nota interna fica só no Cashmiles", () => {
+  function fakeNotesDb(rows: Array<Record<string, unknown>> = []) {
+    const inserted: Array<Record<string, unknown>> = [];
+    const selectChain = {
+      from: () => selectChain,
+      leftJoin: () => selectChain,
+      where: () => selectChain,
+      orderBy: () => Promise.resolve(rows),
+    };
+    vi.mocked(getDb).mockResolvedValue({
+      select: () => selectChain,
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted.push(v);
+          return { $returningId: () => Promise.resolve([{ id: 9 }]) };
+        },
+      }),
+    } as never);
+    return inserted;
+  }
+
+  it.each([
+    ["dono", createContext("Agent")],
+    ["atendente que não assumiu", createContext("Agent", OTHER_ID)],
+    ["Admin", createContext("Admin")],
+  ])("%s escreve nota — sem chamar a Sara", async (_label, ctx) => {
+    const inserted = fakeNotesDb();
+
+    const result = await saraRouter.createCaller(ctx).addNote({ conversationId: "conv-1", text: "  cliente pediu retorno  " });
+
+    expect(result).toEqual({ id: 9 });
+    expect(inserted[0]).toMatchObject({ saraConversationId: "conv-1", text: "cliente pediu retorno" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("autor é sempre o usuário logado (não vem do client)", async () => {
+    const inserted = fakeNotesDb();
+    await saraRouter
+      .createCaller(createContext("Agent", OTHER_ID))
+      .addNote({ conversationId: "conv-1", text: "x", authorId: 1 } as never);
+    expect(inserted[0].authorId).toBe(OTHER_ID);
+  });
+
+  it("nota vazia é rejeitada; sem banco → erro claro", async () => {
+    await expect(
+      saraRouter.createCaller(createContext()).addNote({ conversationId: "conv-1", text: "   " }),
+    ).rejects.toThrow();
+    vi.mocked(getDb).mockResolvedValue(null);
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).addNote({ conversationId: "conv-1", text: "oi" }),
+    );
+    expect(error.message).toMatch(/Banco de dados indisponível/);
+  });
+
+  it("listNotes lê do banco, sem chamar a Sara; sem banco → []", async () => {
+    fakeNotesDb([{ id: 1, text: "n", createdAt: new Date(), authorId: 7, authorName: "Ana" }]);
+    await expect(saraRouter.createCaller(createContext()).listNotes({ conversationId: "conv-1" })).resolves.toHaveLength(1);
+    vi.mocked(getDb).mockResolvedValue(null);
+    await expect(saraRouter.createCaller(createContext()).listNotes({ conversationId: "conv-1" })).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

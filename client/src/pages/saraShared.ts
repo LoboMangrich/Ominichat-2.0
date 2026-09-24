@@ -363,3 +363,37 @@ export function filterQuickReplies(list: QuickReply[], query: string): QuickRepl
       String(qr.content ?? "").toLowerCase().includes(query),
   );
 }
+
+// ─── Linha do tempo: mensagens da Sara + notas internas do Cashmiles ─────────
+export type TimelineEntry<M, N> =
+  | { kind: "message"; key: string; at: number; item: M }
+  | { kind: "note"; key: string; at: number; item: N };
+
+/**
+ * Intercala mensagens e notas pelo horário (asc). Empate: mensagem antes da nota.
+ * Ordem estável — a ordem original de cada lista se mantém.
+ */
+export function mergeTimeline<
+  M extends { id: string; createdAt: string },
+  N extends { id: number; createdAt: string | Date },
+>(messages: M[], notes: N[]): Array<TimelineEntry<M, N>> {
+  const entries: Array<TimelineEntry<M, N> & { order: number }> = [
+    ...messages.map((item, i) => ({
+      kind: "message" as const,
+      key: `msg:${item.id}`,
+      at: toEpoch(item.createdAt) ?? 0,
+      item,
+      order: i,
+    })),
+    ...notes.map((item, i) => ({
+      kind: "note" as const,
+      key: `note:${item.id}`,
+      at: toEpoch(item.createdAt) ?? 0,
+      item,
+      order: messages.length + i,
+    })),
+  ];
+  return entries
+    .sort((a, b) => a.at - b.at || a.order - b.order)
+    .map(({ order: _order, ...entry }) => entry as TimelineEntry<M, N>);
+}

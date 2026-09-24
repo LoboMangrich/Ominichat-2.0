@@ -14,7 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Bot, Mail, Phone, Tag, TrendingUp, User, UserX, X, Zap } from "lucide-react";
+import { AlertTriangle, Bot, Lock, Mail, Phone, Tag, TrendingUp, User, UserX, X, Zap } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import SaraComposer from "@/components/conversations/SaraComposer";
 import SaraRegisterCustomer from "@/components/conversations/SaraRegisterCustomer";
 import { statusConfig } from "./Customers";
 import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
-import { SARA_STATUS_LABELS, initials, saraActorLabel } from "./saraShared";
+import { SARA_STATUS_LABELS, initials, mergeTimeline, saraActorLabel } from "./saraShared";
 
 // Mesmo padrão de fundo da área de mensagens de ConversationDetail.tsx — só tokens.
 const CHAT_BACKGROUND = {
@@ -31,7 +31,7 @@ const CHAT_BACKGROUND = {
   backgroundColor: "hsl(var(--muted)/0.3)",
 };
 
-function formatDateTime(value: string): string {
+function formatDateTime(value: string | Date): string {
   return new Date(value).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -204,9 +204,15 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     { refetchInterval: 5000 },
   );
 
+  // Notas internas: só no Cashmiles (nunca vão para a Sara). Atualizam junto com a conversa.
+  const { data: notes = [] } = trpc.sara.listNotes.useQuery(
+    { conversationId: id },
+    { refetchInterval: 5000 },
+  );
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [data?.messages.length]);
+  }, [data?.messages.length, notes.length]);
 
   // Toda ação invalida a conversa aberta E a lista — sem a lista, o status e as abas
   // ficam desatualizados até o próximo refetch (foi o que fez "Finalizar conversa"
@@ -223,6 +229,11 @@ export default function SaraConversationDetail({ id }: { id: string }) {
 
   // "Digitando..." é best-effort: falha não interrompe quem está digitando.
   const typingMutation = trpc.sara.sendTyping.useMutation();
+
+  const addNoteMutation = trpc.sara.addNote.useMutation({
+    onSuccess: () => utils.sara.listNotes.invalidate({ conversationId: id }),
+    onError: e => toast.error(e.message),
+  });
 
   const takeoverMutation = trpc.sara.takeover.useMutation({
     onSuccess: () => {
@@ -390,7 +401,23 @@ export default function SaraConversationDetail({ id }: { id: string }) {
           )}
 
           <div className="flex-1 overflow-y-auto p-4 space-y-1.5" style={CHAT_BACKGROUND}>
-            {messages.map(message => {
+            {mergeTimeline(messages, notes).map(entry => {
+              if (entry.kind === "note") {
+                const note = entry.item;
+                // Mesmo estilo âmbar de nota interna do ConversationDetail.
+                return (
+                  <div key={entry.key} className="flex justify-end">
+                    <div className="max-w-[72%] rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-100">
+                      <p className="mb-1 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        <Lock className="w-3 h-3" /> Nota interna · {note.authorName ?? "Atendente"}
+                      </p>
+                      <p className="whitespace-pre-wrap break-words">{note.text}</p>
+                      <p className="mt-1 text-right text-[10px] opacity-70">{formatDateTime(note.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              }
+              const message = entry.item;
               const isCustomer = message.senderType === "user";
               const isSara = message.senderType === "sara";
               const isAdmin = message.senderType === "admin";
@@ -399,7 +426,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
               const isUnknown = !isCustomer && !isSara && !isAdmin;
               const alignRight = isSara || isAdmin;
               return (
-                <div key={message.id} className={`flex ${alignRight ? "justify-end" : "justify-start"}`}>
+                <div key={entry.key} className={`flex ${alignRight ? "justify-end" : "justify-start"}`}>
                   <div
                     className={cn(
                       "max-w-[72%] rounded-2xl px-3 py-2 text-sm shadow-sm",
@@ -452,6 +479,8 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             isSending={sendMutation.isPending}
             onSend={text => sendMutation.mutateAsync({ id, text })}
             onTyping={() => typingMutation.mutate({ id })}
+            isAddingNote={addNoteMutation.isPending}
+            onAddNote={text => addNoteMutation.mutateAsync({ conversationId: id, text })}
           />
         </div>
 

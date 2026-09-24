@@ -20,7 +20,9 @@ describe("\"Digitando...\" — no máximo 1 a cada ~5s", () => {
   });
 
   it("composer só dispara typing quando pode responder (canReply = canSend do servidor)", () => {
-    expect(composer).toMatch(/if \(canReply && value\.trim\(\)\) \{[\s\S]*?shouldSendTyping\(lastTypingAt\.current, now\)/);
+    expect(composer).toMatch(
+      /if \(!isNote && canReply && value\.trim\(\)\) \{[\s\S]*?shouldSendTyping\(lastTypingAt\.current, now\)/,
+    );
     expect(detail).toContain("onTyping={() => typingMutation.mutate({ id })}");
   });
 });
@@ -59,11 +61,29 @@ describe("Composer — só o que a API da Sara permite", () => {
   });
 
   it("rascunho só é limpo quando o envio dá certo", () => {
-    expect(composer).toMatch(/onSend\(text\)\.then\(\s*\(\) => setDraft\(""\)/);
+    expect(composer).toMatch(/\(isNote \? onAddNote\(text\) : onSend\(text\)\)\.then\(\s*\(\) => setDraft\(""\)/);
     expect(detail).toContain("onSend={text => sendMutation.mutateAsync({ id, text })}");
   });
 
   it("não loga conteúdo digitado", () => {
     expect(composer).not.toMatch(/console\./);
+  });
+});
+
+describe("Nota interna — aba no composer e na linha do tempo", () => {
+  it("aba \"Nota Interna\" sempre disponível (não depende de ter assumido)", () => {
+    expect(composer).toContain("Nota Interna");
+    expect(composer).toContain("const inputEnabled = isNote || canReply;");
+  });
+
+  it("nota não dispara \"digitando...\" e vai para onAddNote, nunca para onSend", () => {
+    expect(composer).toMatch(/if \(!isNote && canReply && value\.trim\(\)\)/);
+    expect(composer).toContain("(isNote ? onAddNote(text) : onSend(text))");
+    expect(detail).toContain("onAddNote={text => addNoteMutation.mutateAsync({ conversationId: id, text })}");
+  });
+
+  it("notas aparecem intercaladas com as mensagens, no estilo âmbar", () => {
+    expect(detail).toContain("mergeTimeline(messages, notes)");
+    expect(detail).toMatch(/bg-amber-50 dark:bg-amber-900\/20 border border-amber-200/);
   });
 });

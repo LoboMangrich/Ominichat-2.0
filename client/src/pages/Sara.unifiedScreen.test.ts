@@ -11,6 +11,7 @@ import {
   legacyQueryInput,
   matchesLocalSearch,
   mergeConversations,
+  mergeTimeline,
   originLabel,
   parseDeepLink,
   saraActorLabel,
@@ -349,5 +350,23 @@ describe("Quem assumiu (actorId) — lista e painel", () => {
   it("painel: aviso de actorId null usa o texto combinado", () => {
     expect(detail).toContain("SARA_UNIDENTIFIED_ACTOR_NOTICE");
     expect(detail).toMatch(/Assumido por \$\{actorLabel\}/);
+  });
+});
+
+describe("mergeTimeline — mensagens e notas intercaladas por horário", () => {
+  const msg = (id: string, createdAt: string) => ({ id, createdAt });
+  const note = (id: number, createdAt: string | Date) => ({ id, createdAt });
+
+  it("ordena por horário (asc) juntando as duas listas", () => {
+    const entries = mergeTimeline(
+      [msg("m1", "2026-09-24T10:00:00Z"), msg("m2", "2026-09-24T10:10:00Z")],
+      [note(1, new Date("2026-09-24T10:05:00Z")), note(2, "2026-09-24T10:20:00Z")],
+    );
+    expect(entries.map(e => e.key)).toEqual(["msg:m1", "note:1", "msg:m2", "note:2"]);
+  });
+
+  it("empate: mensagem antes da nota; chaves não colidem entre tipos", () => {
+    const entries = mergeTimeline([msg("1", "2026-09-24T10:00:00Z")], [note(1, "2026-09-24T10:00:00Z")]);
+    expect(entries.map(e => e.key)).toEqual(["msg:1", "note:1"]);
   });
 });

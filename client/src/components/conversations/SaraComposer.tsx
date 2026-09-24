@@ -2,15 +2,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { Send, Smile, X, Zap } from "lucide-react";
+import { Lock, Send, Smile, X, Zap } from "lucide-react";
 import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
 import { useEffect, useRef, useState } from "react";
 import { filterQuickReplies, shouldSendTyping, type QuickReply } from "@/pages/saraShared";
 
 // Composer da conversa da Sara: o que o painel do canal próprio tem E a API da Sara
-// permite — emoji, respostas rápidas (botão e "/"), "digitando...". Anexo/áudio/imagem
-// não entram: a doc não traz o campo multipart (ver CLAUDE.md). Não mostrar botão
-// desabilitado para eles.
+// permite — emoji, respostas rápidas (botão e "/"), "digitando...", e a aba "Nota
+// Interna" (sussurro que fica só no Cashmiles, nunca vai para a Sara; qualquer
+// atendente escreve). Anexo/áudio/imagem não entram: a doc não traz o campo multipart
+// (ver CLAUDE.md). Não mostrar botão desabilitado para eles.
 
 const SLASH_TRIGGER = /(^|\s)\/(\S*)$/;
 
@@ -20,6 +21,8 @@ export default function SaraComposer({
   isSending,
   onSend,
   onTyping,
+  isAddingNote,
+  onAddNote,
 }: {
   /** Só o dono responde (canSend do servidor). */
   canReply: boolean;
@@ -30,7 +33,15 @@ export default function SaraComposer({
   onSend: (text: string) => Promise<unknown>;
   /** sara.sendTyping — chamado no máximo 1 vez a cada 5s enquanto o dono digita. */
   onTyping: () => void;
+  isAddingNote: boolean;
+  /** sara.addNote — só Cashmiles. Resolve quando salvou; só então o rascunho é limpo. */
+  onAddNote: (text: string) => Promise<unknown>;
 }) {
+  const [mode, setMode] = useState<"reply" | "note">("reply");
+  const isNote = mode === "note";
+  // Nota interna não depende de ter assumido; resposta ao cliente só para o dono.
+  const inputEnabled = isNote || canReply;
+  const isBusy = isNote ? isAddingNote : isSending;
   const [draft, setDraft] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -60,8 +71,8 @@ export default function SaraComposer({
 
   function handleSend() {
     const text = draft.trim();
-    if (!text || !canReply || isSending) return;
-    onSend(text).then(
+    if (!text || !inputEnabled || isBusy) return;
+    (isNote ? onAddNote(text) : onSend(text)).then(
       () => setDraft(""),
       () => {}, // erro já aparece em toast no onError da mutation
     );
@@ -71,7 +82,8 @@ export default function SaraComposer({
     setDraft(value);
     const slash = value.match(SLASH_TRIGGER);
     setSlashQuery(slash ? slash[2].toLowerCase() : null);
-    if (canReply && value.trim()) {
+    // "Digitando..." só ao responder o cliente — nunca ao escrever nota interna.
+    if (!isNote && canReply && value.trim()) {
       const now = Date.now();
       if (shouldSendTyping(lastTypingAt.current, now)) {
         lastTypingAt.current = now;
@@ -107,11 +119,26 @@ export default function SaraComposer({
   return (
     <div className="border-t bg-card shrink-0">
       <div className="flex items-center gap-1 px-3 pt-2.5 pb-1">
-        <span className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium bg-brand-600 text-white shadow-sm">
+        <button
+          onClick={() => setMode("reply")}
+          className={cn(
+            "flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all",
+            !isNote ? "bg-brand-600 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80",
+          )}
+        >
           <Send className="w-3 h-3" /> Responder
-        </span>
+        </button>
+        <button
+          onClick={() => setMode("note")}
+          className={cn(
+            "flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-medium transition-all",
+            isNote ? "bg-amber-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80",
+          )}
+        >
+          <Lock className="w-3 h-3" /> Nota Interna
+        </button>
         <div className="flex-1" />
-        {canReply && (
+        {inputEnabled && (
           <button
             onClick={() => setShowQuickReplies(v => !v)}
             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
@@ -122,7 +149,7 @@ export default function SaraComposer({
         )}
       </div>
 
-      {canReply && slashQuery !== null && (slashResults.length > 0 || slashQuery.length > 0) && (
+      {inputEnabled && slashQuery !== null && (slashResults.length > 0 || slashQuery.length > 0) && (
         <div className="mx-3 mb-1 border rounded-xl bg-background shadow-xl max-h-52 overflow-y-auto z-40">
           <div className="px-3 py-1.5 border-b flex items-center gap-1.5 sticky top-0 bg-background">
             <Zap className="w-3 h-3 text-primary" />
@@ -163,7 +190,7 @@ export default function SaraComposer({
         </div>
       )}
 
-      {canReply && showQuickReplies && slashQuery === null && (
+      {inputEnabled && showQuickReplies && slashQuery === null && (
         <div className="mx-3 mb-1 border rounded-xl bg-background shadow-lg max-h-44 overflow-y-auto">
           <div className="px-3 py-2 border-b flex items-center justify-between sticky top-0 bg-background">
             <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
@@ -195,8 +222,8 @@ export default function SaraComposer({
         </div>
       )}
 
-      {canReply ? (
-        <div className="flex items-end gap-2 px-3 pb-3">
+      {inputEnabled ? (
+        <div className={cn("flex items-end gap-2 px-3 pb-3", isNote && "bg-amber-50/40 dark:bg-amber-900/10")}>
           <div className="relative" ref={emojiRef}>
             <button
               onClick={() => setShowEmoji(v => !v)}
@@ -223,18 +250,25 @@ export default function SaraComposer({
             value={draft}
             onChange={e => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Digite / para respostas rápidas ou uma mensagem..."
-            className="flex-1 min-h-[40px] max-h-32 resize-none text-sm rounded-2xl border-0 bg-muted/60 focus-visible:ring-1"
+            placeholder={
+              isNote
+                ? "Escreva uma nota interna (não visível ao cliente)..."
+                : "Digite / para respostas rápidas ou uma mensagem..."
+            }
+            className={cn(
+              "flex-1 min-h-[40px] max-h-32 resize-none text-sm rounded-2xl border-0 bg-muted/60 focus-visible:ring-1",
+              isNote && "border border-amber-300 bg-amber-50/60 dark:bg-amber-900/10",
+            )}
             maxLength={4096}
             rows={1}
-            disabled={isSending}
+            disabled={isBusy}
           />
           <Button
             size="icon"
             className="shrink-0 h-10 w-10 rounded-full"
             onClick={handleSend}
-            disabled={isSending || !draft.trim()}
-            title="Enviar mensagem"
+            disabled={isBusy || !draft.trim()}
+            title={isNote ? "Salvar nota interna" : "Enviar mensagem"}
           >
             <Send className="h-4 w-4" />
           </Button>

@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { desc, inArray, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   SARA_CONVERSATION_SORTS,
@@ -9,7 +9,7 @@ import {
   saraCanReleaseOrClose,
   saraCanSend,
 } from "@shared/sara";
-import { customers, users } from "../../drizzle/schema";
+import { customers, saraInternalNotes, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { optionalEmail } from "../_core/validators";
 import { getDb } from "../db";
@@ -226,6 +226,49 @@ export const saraRouter = router({
       } catch (error) {
         throw await wrapSaraError(error, ctx.user.id);
       }
+    }),
+
+  // ── Nota interna (sussurro): só no Cashmiles, NUNCA vai para a Sara ──────────
+  // Qualquer atendente escreve (não depende de ter assumido). O texto nunca é logado.
+  listNotes: protectedProcedure
+    .input(z.object({ conversationId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select({
+          id: saraInternalNotes.id,
+          text: saraInternalNotes.text,
+          createdAt: saraInternalNotes.createdAt,
+          authorId: saraInternalNotes.authorId,
+          authorName: users.name,
+        })
+        .from(saraInternalNotes)
+        .leftJoin(users, eq(saraInternalNotes.authorId, users.id))
+        .where(eq(saraInternalNotes.saraConversationId, input.conversationId))
+        .orderBy(asc(saraInternalNotes.createdAt), asc(saraInternalNotes.id));
+    }),
+
+  addNote: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string().min(1).max(64),
+        text: z.string().trim().min(1, "Escreva a nota").max(4096),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Banco de dados indisponível — a nota não foi salva.",
+        });
+      }
+      const [created] = await db
+        .insert(saraInternalNotes)
+        .values({ saraConversationId: input.conversationId, authorId: ctx.user.id, text: input.text })
+        .$returningId();
+      return { id: created.id };
     }),
 
   /**

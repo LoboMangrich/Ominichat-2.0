@@ -60,3 +60,25 @@ export function verifyTelegramSecret(req: RawBodyRequest): boolean {
 
   return safeCompare(providedToken, secret);
 }
+
+/**
+ * Valida o header x-sara-signature do webhook de saída da Sara (Epic 72):
+ * HMAC-SHA256 em hex puro (sem prefixo "sha256=") sobre os bytes brutos do body,
+ * com SUPPORT_OUTBOUND_WEBHOOK_SECRET. Requer o raw body (captureRawBody em
+ * _core/index.ts) — assinatura recalculada sobre JSON re-serializado não confere.
+ */
+export function verifySaraSignature(req: RawBodyRequest): boolean {
+  const secret = ENV.supportOutboundWebhookSecret;
+  if (!secret) {
+    console.error("[webhookAuth] SUPPORT_OUTBOUND_WEBHOOK_SECRET não configurado — rejeitando webhook da Sara.");
+    return false;
+  }
+
+  const signatureHeader = req.headers["x-sara-signature"];
+  const rawBody = req.rawBody;
+  if (typeof signatureHeader !== "string" || !rawBody) return false;
+
+  const expectedSignature = createHmac("sha256", secret).update(rawBody).digest("hex");
+  // Hex é case-insensitive; normaliza antes de comparar (tamanho checado em safeCompare).
+  return safeCompare(signatureHeader.trim().toLowerCase(), expectedSignature);
+}

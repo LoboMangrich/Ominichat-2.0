@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { ENV } from "./env";
-import { verifyMetaSignature, verifyTelegramSecret, type RawBodyRequest } from "./webhookAuth";
+import { verifyMetaSignature, verifySaraSignature, verifyTelegramSecret, type RawBodyRequest } from "./webhookAuth";
 
 function fakeRequest(headers: Record<string, string>, rawBody?: Buffer): RawBodyRequest {
   return { headers, rawBody } as unknown as RawBodyRequest;
@@ -77,6 +77,34 @@ describe("webhookAuth", () => {
       const req = fakeRequest({ "x-telegram-bot-api-secret-token": "qualquer-coisa" });
 
       expect(verifyTelegramSecret(req)).toBe(false);
+    });
+  });
+describe("verifySaraSignature", () => {
+    const body = Buffer.from(JSON.stringify({ eventId: "e1", eventType: "conversation.closed" }));
+    const sign = (secret: string, raw: Buffer) => createHmac("sha256", secret).update(raw).digest("hex");
+
+    it("aceita HMAC-SHA256 hex válido sobre o corpo bruto", () => {
+      ENV.supportOutboundWebhookSecret = "sara-secret";
+      expect(verifySaraSignature(fakeRequest({ "x-sara-signature": sign("sara-secret", body) }, body))).toBe(true);
+    });
+
+    it("rejeita assinatura ausente, incorreta ou de outro secret", () => {
+      ENV.supportOutboundWebhookSecret = "sara-secret";
+      expect(verifySaraSignature(fakeRequest({}, body))).toBe(false);
+      expect(verifySaraSignature(fakeRequest({ "x-sara-signature": "deadbeef" }, body))).toBe(false);
+      expect(verifySaraSignature(fakeRequest({ "x-sara-signature": sign("outro", body) }, body))).toBe(false);
+    });
+
+    it("rejeita quando o corpo bruto foi alterado depois de assinado", () => {
+      ENV.supportOutboundWebhookSecret = "sara-secret";
+      const signature = sign("sara-secret", body);
+      const tampered = Buffer.from(body.toString().replace("closed", "escalated"));
+      expect(verifySaraSignature(fakeRequest({ "x-sara-signature": signature }, tampered))).toBe(false);
+    });
+
+    it("fail-closed: sem secret configurado, nega mesmo com assinatura calculada com string vazia", () => {
+      ENV.supportOutboundWebhookSecret = "";
+      expect(verifySaraSignature(fakeRequest({ "x-sara-signature": sign("", body) }, body))).toBe(false);
     });
   });
 });

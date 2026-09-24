@@ -705,26 +705,76 @@ Atendimento (ao lado de Disparos em Massa e Grupos).
   recolhido e abre por cima do chat pelo botão "Cliente"
   (`client/src/lib/customerPanelLayout.ts`) — na Sara e no `ConversationDetail`.
 
-#### Atribuição no canal próprio — dois campos dessincronizados
+#### Atribuição no canal próprio — `assignedUserId` é a fonte única
 
-"Quem assumiu" no canal próprio = **`conversations.assignedUserId`** (decisão
-de produto). Mas o schema tem **dois** campos, gravados por fluxos
-diferentes, e eles não se falam:
+"Responsável pela conversa" no canal próprio = **`conversations.assignedUserId`**,
+e só ele. Toda procedure grava nesse campo, e toda tela lê dele:
 
-| Grava | Campo |
+| Procedure | Grava |
 |---|---|
-| `conversations.takeOver` ("Assumir Controle") / `returnToAI` ("Devolver para IA") | `assignedUserId` (= você / `null`) |
-| `conversations.create`, `conversations.forward` (transferência), `aiAgents.escalate`/`returnToAi`, `campaigns.send` | `assignedAgentId` |
+| `conversations.create` | `assignedUserId` = quem criou, `handoffMode: "human"`, `handledByAi: false` |
+| `conversations.takeOver` ("Assumir") / `aiAgents.escalate` | `assignedUserId` = você, `handoffMode: "human"`, `handledByAi: false`, `handoffAt` |
+| `conversations.forward` (transferência) | `assignedUserId` = destino, `handoffMode: "human"`, `handledByAi: false`, `handoffAt` |
+| `conversations.returnToAI` / `aiAgents.returnToAi` | `assignedUserId: null`, `handoffMode: "ai"`, `handledByAi: true` |
+| `campaigns.send` (conversa nova) | `aiAgentId` = `campaign.agentId` (id de `aiAgents`), `assignedUserId: null`, `handoffMode: "ai"`, `handledByAi: true` |
 
-- **Leem `assignedAgentId`:** SLA em tempo real (`slaRouter.realtime`),
-  relatórios por atendente (`reportsRouter.generate`) e o filtro/nome de
-  atendente de `conversations.list` (tela `/conversations`).
-- **Leem `assignedUserId`:** só a tela única (abas e card), a partir deste PR.
-- Consequência: "Assumir" não aparece no SLA nem nos relatórios, e
-  transferir não muda quem aparece em "Minhas".
-- **Correção (unificar os dois na origem — `takeOver` também gravar
-  `assignedAgentId`, `forward` também gravar `assignedUserId`, ou migrar para
-  um campo só) fica para PR separado.**
+- **Leem `assignedUserId`:** tela única (abas Minhas / Não atribuídas e card),
+  `conversations.list` (filtro `agentId` e nome do atendente, tela
+  `/conversations`) e `reports.generate` (ranking `topAgents`).
+- **SLA não usa atendente.** `sla.realtime` nunca dependeu de nenhum dos dois
+  campos: lia `assignedAgentId` sem usar, e deixou de ler. A dessincronia
+  antiga afetava só os relatórios e a lista antiga (`/conversations`), nunca
+  o SLA.
+- **As duas marcações de "IA ou humano" nunca podem discordar.**
+  `handoffMode` e `handledByAi` vão explícitos e juntos em toda escrita: os
+  defaults da coluna discordam entre si (`handoffMode` `"ai"`, `handledByAi`
+  `false`). Testes em `server/conversationAssignment.test.ts`.
+  - **Pendência registrada, não corrigida:** os fluxos automáticos não
+    passam por `conversations.create` e inserem direto com os defaults —
+    `findOrCreateOpenConversation` (`server/conversationLookup.ts`) e os
+    inserts de `webhooks.ts` (e-mail, chargeback) nascem com `handoffMode`
+    `"ai"` + `handledByAi` `false`. Decidir se a conversa de webhook nasce
+    com IA ou com humano antes de corrigir.
+- **`assignedAgentId` fica no schema, sem uso** (nenhuma procedure grava
+  nem lê). A remoção da coluna vai para migration separada, depois da
+  migração de dados abaixo. Não confundir com `customers.assignedAgentId`
+  (dono da carteira do cliente), que é outro conceito e continua em uso.
+- **Bug corrigido junto:** `campaigns.send` gravava `campaign.agentId` (id de
+  **agente de IA**) em `assignedAgentId` (id de **usuário**) — o relatório
+  creditava a campanha a "Agente #N" ou a um usuário real com o mesmo id.
+- **Números que mudaram** (avisar o time de CS): ranking do relatório
+  semanal passa a contar conversas assumidas por "Assumir" e deixa de creditar
+  campanhas a atendentes; `/conversations` mostra o responsável real; "Minhas"
+  passa a incluir conversas transferidas para você e as que você criou (e elas
+  saem de "Não atribuídas"). Relatórios já salvos em `weeklyReports` não
+  mudam. SLA não muda.
+
+**Migração de dados — proposta, NÃO aplicada** (fica para PR próprio, revisar
+antes; sem produção hoje, só afeta banco local):
+
+```sql
+-- 1) Copia o atendente legado só onde não há conflito e há humano no controle
+--    (exclui devolvidas à IA e conversas de campanha, que nascem handledByAi = true)
+UPDATE conversations
+   SET assignedUserId = assignedAgentId
+ WHERE assignedUserId IS NULL
+   AND assignedAgentId IS NOT NULL
+   AND handledByAi = false
+   AND assignedAgentId IN (SELECT id FROM users);
+
+-- 2) Conflitos (os dois preenchidos e diferentes): NÃO altera — lista para revisão manual
+SELECT id, assignedUserId, assignedAgentId, status, updatedAt
+  FROM conversations
+ WHERE assignedUserId IS NOT NULL AND assignedAgentId IS NOT NULL
+   AND assignedUserId <> assignedAgentId;
+
+-- 3) Alinhar handoffMode com handledByAi em registros antigos que discordam
+--    (conferir antes com SELECT; decidir qual das duas marcações prevalece)
+SELECT id, handoffMode, handledByAi FROM conversations
+ WHERE (handoffMode = 'ai') <> (handledByAi = true);
+```
+
+Depois dela, uma migration de schema separada remove `conversations.assignedAgentId`.
 
 ### Decisão de arquitetura — Sara como canal único de WhatsApp
 

@@ -103,14 +103,14 @@ const NAV_MODULES: NavModule[] = [
       // ── Sara (canal principal) ──
       // A Sara é o canal principal de atendimento por WhatsApp — ver "Decisão de
       // arquitetura" no CLAUDE.md. Por isso vem primeiro.
-      { icon: Bot,            label: "Conversas (Sara)",     path: "/sara", sectionHeader: "Atendimento via Sara" },
+      { icon: Bot,            label: "Conversas",            path: "/sara", sectionHeader: "Atendimento via Sara" },
       // ── Canal próprio ──
       // Receptores de webhook próprios; continuam em uso até a integração com a
       // Sara estar completa.
       // "Caixa de Entrada" e "Todas as Conversas" apontavam para a mesma tela (/atendimentos):
       // ?canal=whatsapp nunca foi lido em Atendimentos.tsx, então os dois itens eram idênticos.
       // Removido o segundo, renomeado o que ficou.
-      { icon: Inbox,          label: "Conversas",            path: "/atendimentos", badge: "live", sectionHeader: "Canal próprio" },
+      { icon: Inbox,          label: "Conversas (legado)",   path: "/atendimentos", badge: "live", sectionHeader: "Canal próprio" },
       { icon: Megaphone,      label: "Disparos em Massa",    path: "/broadcasts" },
       { icon: Users,          label: "Grupos",               path: "/groups" },
     ],

@@ -7,6 +7,7 @@ import { registerPasswordAuthRoutes } from "./passwordAuth";
 import { registerStorageProxy } from "./storageProxy";
 import { registerWebhooks } from "../webhooks";
 import { seedDefaultsIfEmpty } from "../seedDefaults";
+import { reprocessPendingSaraWebhookEvents } from "../saraWebhook";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -74,6 +75,8 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     // Seed default agents and playbooks if the database is empty
     seedDefaultsIfEmpty().catch(console.error);
+    // Eventos da Sara que ficaram sem processar (servidor caiu entre o 200 e o processamento).
+    reprocessPendingSaraWebhookEvents().catch(() => console.error("[SaraWebhook] falha no reprocessamento de pendentes."));
   });
 }
 

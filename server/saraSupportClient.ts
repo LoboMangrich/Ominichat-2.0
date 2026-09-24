@@ -118,6 +118,18 @@ function parseJsonOrNull(text: string): unknown {
 }
 
 async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit): Promise<T> {
+  return rawRequest<T>(path, { "x-sara-actor-id": String(actorId) }, init);
+}
+
+/**
+ * Faz a chamada HTTP. actorHeaders é o x-sara-actor-id de quem age — vazio SÓ na
+ * leitura interna de getSaraConversationSystemReadOnly (ver lá).
+ */
+async function rawRequest<T>(
+  path: string,
+  actorHeaders: Record<string, string>,
+  init?: RequestInit,
+): Promise<T> {
   assertConfigured();
 
   let response: Response;
@@ -128,7 +140,7 @@ async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit
       headers: {
         "x-api-key": ENV.saraSupportApiKey,
         "content-type": "application/json",
-        "x-sara-actor-id": String(actorId),
+        ...actorHeaders,
         ...init?.headers,
       },
     });
@@ -256,4 +268,22 @@ export async function getSaraAudioUrl(audioMessageId: string, actorId: SaraActor
 
 export async function getSaraImageUrl(imageMessageId: string, actorId: SaraActorId): Promise<SaraMediaUrl> {
   return request<SaraMediaUrl>(`/api/v1/support/images/${encodeURIComponent(imageMessageId)}/url`, actorId);
+}
+
+/**
+ * LEITURA INTERNA, SÓ GET — sem x-sara-actor-id, porque não há atendente agindo: é o
+ * processamento em segundo plano do webhook da Sara (server/saraWebhook.ts) e o nome
+ * das notificações (sara.pendingNotifications) que precisam do status/actorId/nome da
+ * conversa.
+ *
+ * NUNCA usar para ação (enviar, takeover, release, close, typing, ou qualquer POST):
+ * toda ação precisa do x-sara-actor-id de quem executa — use as funções acima. Por
+ * isso esta função não aceita init/método: é sempre GET.
+ */
+export async function getSaraConversationSystemReadOnly(id: string): Promise<SaraConversationDetail> {
+  return rawRequest<SaraConversationDetail>(
+    `/api/v1/support/conversations/${encodeURIComponent(id)}`,
+    {},
+    { method: "GET" },
+  );
 }

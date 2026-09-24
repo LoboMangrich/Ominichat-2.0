@@ -1065,6 +1065,27 @@ export const saraConversationTags = mysqlTable("saraConversationTags", {
 ]);
 export type SaraConversationTag = typeof saraConversationTags.$inferSelect;
 
+// Eventos recebidos do webhook de saída da Sara (Epic 72, POST /api/webhooks/sara).
+// O UNIQUE de eventId é o que deduplica reenvios — inclusive duas requisições
+// simultâneas com o mesmo id. Nenhum dado pessoal aqui: nem telefone, nem nome, nem
+// conteúdo; processingError é um código curto. notifyUserId/notifyAll dizem a quem o
+// evento vira notificação (sara.pendingNotifications) — o texto é montado na leitura.
+export const saraWebhookEvents = mysqlTable("saraWebhookEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 128 }).notNull(),
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  saraConversationId: varchar("saraConversationId", { length: 64 }),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+  processingError: varchar("processingError", { length: 255 }),
+  notifyUserId: int("notifyUserId"),
+  notifyAll: boolean("notifyAll").default(false).notNull(),
+}, (table) => [
+  uniqueIndex("uq_saraWebhookEvents_eventId").on(table.eventId),
+  index("idx_saraWebhookEvents_receivedAt").on(table.receivedAt),
+]);
+export type SaraWebhookEvent = typeof saraWebhookEvents.$inferSelect;
+
 // ─── Knowledge Captures (Base de Conhecimento Viva) ──────────────────────────
 // Every time the AI handles a client question, it is captured here.
 // Questions with the same normalizedQuestion are deduplicated and frequency++.

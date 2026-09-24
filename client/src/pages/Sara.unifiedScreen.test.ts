@@ -2,16 +2,20 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   SARA_STATUS_LABELS,
-  SARA_TABS,
   conversationHref,
+  fromGroup,
   fromLegacy,
   fromSara,
+  includesSara,
+  legacyQueryInput,
   matchesLocalSearch,
   mergeConversations,
   originLabel,
+  saraMatchesFilter,
   saraSearch,
-  saraStatusForBucket,
+  saraStatusParam,
   statusLabel,
+  tabFilterFor,
 } from "./saraShared";
 
 // /sara é a tela única de Conversas: Sara + canal próprio numa lista só, chat e painel do
@@ -45,9 +49,67 @@ describe("SaraConversationDetail — toda mutation invalida conversa e lista", (
   });
 });
 
-describe("Sara — abas só com buckets ai/human (closed e unknown só em Todos)", () => {
-  it("SARA_TABS só filtra por ai e human (Todos = sem filtro)", () => {
-    expect(SARA_TABS.map(t => t.bucket)).toEqual([undefined, "ai", "human"]);
+describe("Sara — abas por etiqueta filtram pelo STATUS REAL (não por conversationTagAssignments)", () => {
+  const OPEN_TAG = { id: 11, slug: "open" };
+  const WAITING_TAG = { id: 12, slug: "waiting" };
+  const GROUP_TAG = { id: 13, slug: "group" };
+  const CUSTOM_TAG = { id: 99, slug: null };
+
+  it("Todos: Sara sem filtro (inclui error); canal próprio sem status (inclui Closed), sem grupos", () => {
+    const f = tabFilterFor(undefined);
+    expect(includesSara(f)).toBe(true);
+    expect(saraStatusParam(f)).toBeUndefined();
+    for (const s of ["active", "human_takeover", "awaiting_response", "error"]) {
+      expect(saraMatchesFilter(s, f)).toBe(true);
+    }
+    expect(legacyQueryInput(f, "", 20)).toEqual({ search: undefined, limit: 20, excludeGroups: true });
+  });
+
+  it("Em Aberto: Sara active + human_takeover (separado no client); canal próprio status Open, sem tagId", () => {
+    const f = tabFilterFor(OPEN_TAG);
+    expect(saraStatusParam(f)).toBeUndefined(); // dois status → sem filtro na API
+    expect(saraMatchesFilter("active", f)).toBe(true);
+    expect(saraMatchesFilter("human_takeover", f)).toBe(true);
+    expect(saraMatchesFilter("awaiting_response", f)).toBe(false);
+    expect(saraMatchesFilter("error", f)).toBe(false);
+    const input = legacyQueryInput(f, "", 20);
+    expect(input).toEqual({ search: undefined, limit: 20, excludeGroups: true, status: "Open" });
+    expect(input).not.toHaveProperty("tagId");
+  });
+
+  it("Aguardando: Sara awaiting_response direto na API; canal próprio status Waiting, sem tagId", () => {
+    const f = tabFilterFor(WAITING_TAG);
+    expect(saraStatusParam(f)).toBe("awaiting_response");
+    expect(saraMatchesFilter("awaiting_response", f)).toBe(true);
+    expect(saraMatchesFilter("active", f)).toBe(false);
+    const input = legacyQueryInput(f, "", 20);
+    expect(input).toEqual({ search: undefined, limit: 20, excludeGroups: true, status: "Waiting" });
+    expect(input).not.toHaveProperty("tagId");
+  });
+
+  it("\"error\" só aparece em Todos", () => {
+    for (const tag of [OPEN_TAG, WAITING_TAG, GROUP_TAG, CUSTOM_TAG]) {
+      expect(saraMatchesFilter("error", tabFilterFor(tag))).toBe(false);
+    }
+  });
+
+  it("Grupos: busca grupos pela tag group (sem excludeGroups) e não consulta a Sara", () => {
+    const f = tabFilterFor(GROUP_TAG);
+    expect(includesSara(f)).toBe(false);
+    expect(legacyQueryInput(f, "", 20)).toEqual({ search: undefined, limit: 20, tagId: 13 });
+  });
+
+  it("etiqueta personalizada: só canal próprio via tagId (excludeGroups), Sara fica de fora", () => {
+    const f = tabFilterFor(CUSTOM_TAG);
+    expect(includesSara(f)).toBe(false);
+    expect(legacyQueryInput(f, "", 20)).toEqual({ search: undefined, limit: 20, excludeGroups: true, tagId: 99 });
+  });
+
+  it("Sara.tsx: chips vêm de tags.list, com engrenagem do TagManagerModal e aviso de etiqueta sem Sara", () => {
+    expect(list).toContain("trpc.tags.list.useQuery()");
+    expect(list).toContain("<TagManagerModal");
+    expect(list).toContain("Conversas da Sara não têm etiquetas");
+    expect(list).toContain("enabled: saraEnabled");
   });
 
   it("status da doc nova da Sara: awaiting_response → \"Aguardando resposta\", error → \"Erro\"", () => {
@@ -92,24 +154,29 @@ describe("SaraConversationDetail — Encerrar e remetentes", () => {
   });
 });
 
-describe("Rotas — /sara, /sara/:id e /sara/legado/:id renderizam a tela única", () => {
-  it("as três rotas usam o componente Sara", () => {
+describe("Rotas — /sara, /sara/:id, /sara/legado/:id e /sara/grupo/:id renderizam a tela única", () => {
+  it("as quatro rotas usam o componente Sara", () => {
     expect(app).toContain('<Route path="/sara" component={Sara} />');
     expect(app).toContain('<Route path="/sara/:id" component={Sara} />');
     expect(app).toContain('<Route path="/sara/legado/:id" component={Sara} />');
+    expect(app).toContain('<Route path="/sara/grupo/:id" component={Sara} />');
   });
 
-  it("conversationHref: Sara em /sara/:id, canal próprio em /sara/legado/:id", () => {
+  it("conversationHref: Sara /sara/:id, canal próprio /sara/legado/:id, grupo /sara/grupo/:id", () => {
     expect(conversationHref({ source: "sara", id: "abc" })).toBe("/sara/abc");
     expect(conversationHref({ source: "legacy", id: 42 })).toBe("/sara/legado/42");
+    expect(conversationHref({ source: "group", id: 5 })).toBe("/sara/grupo/5");
   });
 });
 
 describe("Sara.tsx — lista unificada consome as duas fontes", () => {
-  it("consulta sara.listConversations e tags.listUnified com excludeGroups: true", () => {
+  it("consulta sara.listConversations e tags.listUnified (input montado por legacyQueryInput)", () => {
     expect(list).toContain("trpc.sara.listConversations.useQuery(");
-    expect(list).toContain("trpc.tags.listUnified.useQuery(");
-    expect(list).toMatch(/excludeGroups: true/);
+    expect(list).toContain("trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit)");
+  });
+
+  it("grupo abre o GroupConversationPanel", () => {
+    expect(list).toMatch(/<GroupConversationPanel[\s\S]*?groupId: selectedGroup\.id/);
   });
 
   it("polling de 15s nas duas fontes", () => {
@@ -157,12 +224,23 @@ describe("saraShared — normalização e junção", () => {
     expect(fromLegacy(legacy(3, { handledByAi: 0 })).bucket).toBe("human");
   });
 
-  it("junta as duas fontes, tira grupos e ordena por última atividade desc", () => {
+  it("junta as duas fontes, tira grupos (fora da aba Grupos) e ordena por última atividade desc", () => {
     const merged = mergeConversations(
       [saraConv("s1", "active", "2026-09-02T10:00:00Z"), saraConv("s2", "active", "2026-08-01T10:00:00Z")],
-      [legacy(7), { ...legacy(100001), type: "group" }],
+      [legacy(7), { ...legacy(100001), type: "group", groupId: 1 }],
     );
     expect(merged.map(i => i.key)).toEqual(["sara:s1", "legacy:7", "sara:s2"]);
+  });
+
+  it("aba Grupos: grupo vira item com id = whatsappGroups.id (groupId), sem rótulo de status", () => {
+    const merged = mergeConversations([], [{ ...legacy(100005), type: "group", groupId: 5, name: "VIP" }], {
+      includeGroups: true,
+    });
+    expect(merged.map(i => i.key)).toEqual(["group:5"]);
+    expect(merged[0]).toMatchObject({ source: "group", id: 5 });
+    expect(originLabel(merged[0])).toBe("Grupo");
+    expect(statusLabel(merged[0])).toBe("");
+    expect(fromGroup({ ...legacy(1), type: "group", groupId: null })).toBeNull();
   });
 
   it("chaves prefixadas não colidem entre origens com o mesmo id", () => {
@@ -176,11 +254,9 @@ describe("saraShared — normalização e junção", () => {
     expect(originLabel(fromLegacy(legacy(2, { channel: "chat" })))).toBe("chat");
   });
 
-  it("bucket preparado para crescer: status Sara → bucket via mapa, filtro de API só com 1 status", () => {
-    expect(saraStatusForBucket("ai")).toBe("active");
-    expect(saraStatusForBucket("human")).toBe("human_takeover");
-    expect(saraStatusForBucket(undefined)).toBeUndefined();
-    expect(saraStatusForBucket("closed")).toBeUndefined();
+  it("legado em Waiting mantém rótulo por handledByAi (regra combinada)", () => {
+    expect(statusLabel(fromLegacy(legacy(1, { status: "Waiting", handledByAi: true })))).toBe("Com a IA");
+    expect(statusLabel(fromLegacy(legacy(2, { status: "Waiting", handledByAi: false })))).toBe("Atendimento humano");
   });
 });
 

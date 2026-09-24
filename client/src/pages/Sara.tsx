@@ -1,26 +1,31 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import GroupConversationPanel from "@/components/conversations/GroupConversationPanel";
+import TagManagerModal, { type Tag } from "@/components/conversations/TagManagerModal";
 import { trpc } from "@/lib/trpc";
 import { timeAgo } from "@/lib/timeAgo";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, MessageSquare, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertTriangle, Info, MessageSquare, Search, Settings2, Users } from "lucide-react";
+import { useState } from "react";
 import { useLocation, useParams, useRoute } from "wouter";
 import ConversationDetail from "./ConversationDetail";
 import SaraConversationDetail from "./SaraConversationDetail";
 import {
-  SARA_TABS,
   conversationHref,
   displayName,
+  includesSara,
   initials,
+  legacyQueryInput,
   matchesLocalSearch,
   mergeConversations,
   originLabel,
+  saraMatchesFilter,
   saraSearch,
-  saraStatusForBucket,
+  saraStatusParam,
   statusLabel,
-  type SaraTabKey,
+  tabFilterFor,
+  type UnifiedConversation,
 } from "./saraShared";
 
 const PAGE_SIZE = 20;
@@ -28,64 +33,99 @@ const PAGE_SIZE = 20;
 const SARA_MAX_LIMIT = 100;
 const LIST_REFETCH_MS = 15000;
 
-type Selection = { source: "sara"; id: string } | { source: "legacy"; id: number } | null;
+type Selection =
+  | { source: "sara"; id: string }
+  | { source: "legacy"; id: number }
+  | { source: "group"; id: number }
+  | null;
 
-// Tela única de Conversas: Sara + canal próprio na mesma lista.
-// Seleção na URL: /sara/:id para Sara (links antigos continuam funcionando) e
-// /sara/legado/:id para o canal próprio.
+function positiveInt(value: string): number | null {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// Tela única de Conversas: Sara + canal próprio (+ grupos, na aba Grupos) na mesma lista.
+// Seleção na URL: /sara/:id (Sara — links antigos continuam funcionando),
+// /sara/legado/:id (canal próprio) e /sara/grupo/:id (grupo do WhatsApp).
 export default function Sara() {
   const params = useParams<{ id?: string }>();
   const [isLegacyRoute] = useRoute("/sara/legado/:id");
+  const [isGroupRoute] = useRoute("/sara/grupo/:id");
   const [, navigate] = useLocation();
-  const [tab, setTab] = useState<SaraTabKey>("all");
+  const [selectedTagId, setSelectedTagId] = useState<number | undefined>(undefined);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
 
   const selection: Selection = (() => {
     if (!params.id) return null;
-    if (!isLegacyRoute) return { source: "sara", id: params.id };
-    const id = Number(params.id);
-    return Number.isInteger(id) && id > 0 ? { source: "legacy", id } : null;
+    if (isGroupRoute) {
+      const id = positiveInt(params.id);
+      return id ? { source: "group", id } : null;
+    }
+    if (isLegacyRoute) {
+      const id = positiveInt(params.id);
+      return id ? { source: "legacy", id } : null;
+    }
+    return { source: "sara", id: params.id };
   })();
   const selectedKey = selection ? `${selection.source}:${selection.id}` : null;
 
-  const activeTab = SARA_TABS.find(t => t.key === tab) ?? SARA_TABS[0];
+  // ── Abas: Todos + etiquetas de tags.list (mesmas chips de Atendimentos.tsx) ──
+  const { data: rawTags = [] } = trpc.tags.list.useQuery();
+  const tags = (rawTags as Tag[]).filter(t => t.name !== "Todos");
+  const selectedTag = tags.find(t => t.id === selectedTagId);
+  const filter = tabFilterFor(selectedTag);
+  const saraEnabled = includesSara(filter);
+
   const { phone: saraPhone, localFilter } = saraSearch(search);
   const saraLimit = Math.min(limit, SARA_MAX_LIMIT);
 
   const saraQuery = trpc.sara.listConversations.useQuery(
     {
-      status: saraStatusForBucket(activeTab.bucket),
+      status: saraStatusParam(filter),
       phone: saraPhone,
       limit: saraLimit,
       offset: 0,
     },
-    { refetchInterval: LIST_REFETCH_MS },
+    // Grupos e etiqueta personalizada não têm Sara — nem consulta.
+    { refetchInterval: LIST_REFETCH_MS, enabled: saraEnabled },
   );
 
-  const legacyQuery = trpc.tags.listUnified.useQuery(
-    {
-      search: search.trim() || undefined,
-      limit,
-      excludeGroups: true, // grupos têm menu próprio; e "resposta cheia = tem mais" só vale sem eles
-    },
-    { refetchInterval: LIST_REFETCH_MS },
-  );
+  const legacyQuery = trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit), {
+    refetchInterval: LIST_REFETCH_MS,
+  });
 
-  const items = useMemo(() => {
-    const saraItems = (saraQuery.data?.data ?? []).filter(c =>
-      localFilter ? matchesLocalSearch(c, localFilter) : true,
-    );
-    const merged = mergeConversations(saraItems, legacyQuery.data ?? []);
-    return activeTab.bucket ? merged.filter(i => i.bucket === activeTab.bucket) : merged;
-  }, [saraQuery.data, legacyQuery.data, localFilter, activeTab.bucket]);
+  const saraItems = saraEnabled
+    ? (saraQuery.data?.data ?? []).filter(
+        c => saraMatchesFilter(c.status, filter) && (localFilter ? matchesLocalSearch(c, localFilter) : true),
+      )
+    : [];
+  const items = mergeConversations(saraItems, legacyQuery.data ?? [], {
+    includeGroups: filter.kind === "groups",
+  });
 
-  const saraHasMore = (saraQuery.data?.pagination.hasMore ?? false) && saraLimit < SARA_MAX_LIMIT;
+  const saraHasMore =
+    saraEnabled && (saraQuery.data?.pagination.hasMore ?? false) && saraLimit < SARA_MAX_LIMIT;
   const legacyHasMore = (legacyQuery.data?.length ?? 0) >= limit;
   const hasMore = saraHasMore || legacyHasMore;
   const isFetching = saraQuery.isFetching || legacyQuery.isFetching;
-  // Só "carregando" enquanto nenhuma das duas fontes respondeu (com dado ou erro).
-  const isLoading = saraQuery.isLoading && legacyQuery.isLoading;
+  // Só "carregando" enquanto nenhuma fonte ativa respondeu (com dado ou erro).
+  const isLoading = (!saraEnabled || saraQuery.isLoading) && legacyQuery.isLoading;
+
+  // Grupo só abre se estiver na lista carregada (o painel precisa do nome do grupo).
+  const selectedGroup =
+    selection?.source === "group"
+      ? items.find(
+          (i): i is Extract<UnifiedConversation, { source: "group" }> =>
+            i.source === "group" && i.id === selection.id,
+        )
+      : undefined;
+
+  function selectTag(tagId: number | undefined) {
+    setSelectedTagId(tagId);
+    setLimit(PAGE_SIZE);
+  }
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden">
@@ -108,30 +148,55 @@ export default function Sara() {
           </div>
         </div>
 
+        {/* Chips — mesmo visual de Atendimentos.tsx */}
         <div className="flex items-center gap-1.5 px-3 pb-2 shrink-0 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-          {SARA_TABS.map(t => (
+          <button
+            onClick={() => selectTag(undefined)}
+            className={cn(
+              "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap border",
+              !selectedTagId
+                ? "bg-brand-600 text-white border-brand-600"
+                : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+            )}
+          >
+            Todos
+          </button>
+          {tags.map(tag => (
             <button
-              key={t.key}
-              onClick={() => {
-                setTab(t.key);
-                setLimit(PAGE_SIZE);
-              }}
+              key={tag.id}
+              onClick={() => selectTag(tag.id === selectedTagId ? undefined : tag.id)}
               className={cn(
                 "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap border",
-                tab === t.key
+                selectedTagId === tag.id
                   ? "bg-brand-600 text-white border-brand-600"
                   : "bg-transparent text-muted-foreground border-border hover:bg-muted",
               )}
             >
-              {t.label}
+              {tag.name}
             </button>
           ))}
+          <button
+            onClick={() => setTagManagerOpen(true)}
+            className="shrink-0 ml-1 p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-transparent"
+            title="Gerenciar tags"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+          </button>
         </div>
 
+        {filter.kind === "tag" && (
+          <div className="px-3 pb-2 shrink-0">
+            <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              Conversas da Sara não têm etiquetas — mostrando só o canal próprio.
+            </div>
+          </div>
+        )}
+
         {/* Falha de uma fonte não esvazia a tela: mostra a outra + aviso. */}
-        {(saraQuery.isError || legacyQuery.isError) && (
+        {((saraEnabled && saraQuery.isError) || legacyQuery.isError) && (
           <div className="px-3 pb-2 space-y-1 shrink-0">
-            {saraQuery.isError && (
+            {saraEnabled && saraQuery.isError && (
               <div className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-[11px] text-destructive">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Sara indisponível
               </div>
@@ -160,6 +225,7 @@ export default function Sara() {
           )}
           {items.map(item => {
             const isSelected = item.key === selectedKey;
+            const label = statusLabel(item);
             return (
               <button
                 key={item.key}
@@ -170,7 +236,7 @@ export default function Sara() {
                 )}
               >
                 <div className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center text-white text-sm font-semibold shrink-0">
-                  {initials(item.name)}
+                  {item.source === "group" ? <Users className="w-5 h-5" /> : initials(item.name)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-1">
@@ -186,7 +252,7 @@ export default function Sara() {
                     >
                       {originLabel(item)}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground truncate">{statusLabel(item)}</span>
+                    {label && <span className="text-[10px] text-muted-foreground truncate">{label}</span>}
                   </div>
                 </div>
               </button>
@@ -219,6 +285,12 @@ export default function Sara() {
             embeddedConvId={selection.id}
             onBack={() => navigate("/sara")}
           />
+        ) : selectedGroup ? (
+          <GroupConversationPanel
+            key={selectedKey}
+            item={{ name: selectedGroup.name, groupId: selectedGroup.id }}
+            onClose={() => navigate("/sara")}
+          />
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground select-none bg-muted/10">
             <MessageSquare className="w-12 h-12 opacity-20" />
@@ -227,6 +299,8 @@ export default function Sara() {
           </div>
         )}
       </div>
+
+      <TagManagerModal open={tagManagerOpen} onClose={() => setTagManagerOpen(false)} />
     </div>
   );
 }

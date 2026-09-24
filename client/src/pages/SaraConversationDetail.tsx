@@ -500,7 +500,10 @@ export default function SaraConversationDetail({ id }: { id: string }) {
                     {message.text ? (
                       <p className="whitespace-pre-wrap break-words">{message.text}</p>
                     ) : (
-                      !message.audio && !message.image && <p className="whitespace-pre-wrap break-words">(sem texto)</p>
+                      // Sem texto e sem mídia: mostra o tipo cru (ex.: [sticker]) em vez de esconder.
+                      !message.audio && !message.image && (
+                        <p className="whitespace-pre-wrap break-words italic opacity-80">[{message.messageType}]</p>
+                      )
                     )}
                     <p className="mt-1 text-right text-[10px] opacity-70">{formatDateTime(message.createdAt)}</p>
                   </div>

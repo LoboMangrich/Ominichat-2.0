@@ -481,6 +481,34 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
 - Suporta áudio e imagem (multipart) e URLs assinadas de 900s para reproduzir
   mídia recebida. A tela atual só trata texto.
 
+### Decisão de arquitetura — Sara como canal único de WhatsApp
+
+A Sara passa a ser o **canal único de atendimento por WhatsApp**. O Cashmiles
+deixa de receber mensagem por webhook próprio e passa a consumir as conversas
+pela API da Sara.
+
+Divisão de responsabilidade:
+
+- **Sara é dona das conversas:** WhatsApp, IA, histórico, assumir, encerrar.
+- **Cashmiles é dono do cliente:** cadastro, NPS, renovação, tarefas, jornada,
+  health score, campanhas, alertas.
+- **A ligação entre os dois é o telefone.**
+- **O health score continua sendo calculado pelo Cashmiles.** A API da Sara não
+  tem esses dados e não deve tê-los — não mover esse cálculo nem mandar esses
+  dados para lá.
+
+Consequência a tratar **quando a Sara estiver pronta** (não antes):
+
+- Ficam sem uso os receptores de conversa em `server/webhooks.ts`:
+  `/api/webhooks/whatsapp`, `/api/webhooks/zapi`, `/api/webhooks/evolution` e,
+  possivelmente, `/api/webhooks/instagram` e `/api/webhooks/telegram`.
+- Continuam necessários, porque não são de conversa: `/api/webhooks/guru`,
+  `/api/webhooks/ghl`, `/api/webhooks/pagarme` e `/api/webhooks/email-ticket`.
+
+**Não remover nada ainda.** O time de TI ainda vai ajustar as rotas da Sara, e
+o webhook de notificação Sara → Cashmiles não existe — o que há abaixo é só a
+especificação recebida. Até lá, o caminho próprio fica como está.
+
 ### Webhook de saída da Sara (Epic 72) — a implementar
 
 Especificação recebida do time da Sara:

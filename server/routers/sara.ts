@@ -37,17 +37,17 @@ export const saraRouter = router({
         offset: z.number().int().min(0).optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       try {
-        return await listSaraConversations(input);
+        return await listSaraConversations(input, ctx.user.id);
       } catch (error) {
         throw wrapSaraError(error);
       }
     }),
 
-  getConversation: protectedProcedure.input(conversationIdInput).query(async ({ input }) => {
+  getConversation: protectedProcedure.input(conversationIdInput).query(async ({ ctx, input }) => {
     try {
-      return await getSaraConversation(input.id);
+      return await getSaraConversation(input.id, ctx.user.id);
     } catch (error) {
       throw wrapSaraError(error);
     }
@@ -55,41 +55,41 @@ export const saraRouter = router({
 
   sendMessage: protectedProcedure
     .input(z.object({ id: z.string().min(1), text: z.string().min(1).max(4096) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
-        return await sendSaraMessage(input.id, input.text);
+        return await sendSaraMessage(input.id, input.text, ctx.user.id);
       } catch (error) {
         throw wrapSaraError(error);
       }
     }),
 
-  takeover: protectedProcedure.input(conversationIdInput).mutation(async ({ input }) => {
+  takeover: protectedProcedure.input(conversationIdInput).mutation(async ({ ctx, input }) => {
     try {
-      return await takeoverSaraConversation(input.id);
+      return await takeoverSaraConversation(input.id, ctx.user.id);
     } catch (error) {
       throw wrapSaraError(error);
     }
   }),
 
-  release: protectedProcedure.input(conversationIdInput).mutation(async ({ input }) => {
+  release: protectedProcedure.input(conversationIdInput).mutation(async ({ ctx, input }) => {
     try {
-      return await releaseSaraConversation(input.id);
+      return await releaseSaraConversation(input.id, ctx.user.id);
     } catch (error) {
       throw wrapSaraError(error);
     }
   }),
 
-  close: protectedProcedure.input(conversationIdInput).mutation(async ({ input }) => {
+  close: protectedProcedure.input(conversationIdInput).mutation(async ({ ctx, input }) => {
     try {
-      return await closeSaraConversation(input.id);
+      return await closeSaraConversation(input.id, ctx.user.id);
     } catch (error) {
       throw wrapSaraError(error);
     }
   }),
 
-  sendTyping: protectedProcedure.input(conversationIdInput).mutation(async ({ input }) => {
+  sendTyping: protectedProcedure.input(conversationIdInput).mutation(async ({ ctx, input }) => {
     try {
-      return await sendSaraTypingIndicator(input.id);
+      return await sendSaraTypingIndicator(input.id, ctx.user.id);
     } catch (error) {
       throw wrapSaraError(error);
     }

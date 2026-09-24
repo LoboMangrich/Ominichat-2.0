@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ENV } from "./_core/env";
-import { SaraSupportApiError, getSaraConversation, listSaraConversations } from "./saraSupportClient";
+import {
+  SaraSupportApiError,
+  closeSaraConversation,
+  getSaraConversation,
+  listSaraConversations,
+  releaseSaraConversation,
+  sendSaraMessage,
+  sendSaraTypingIndicator,
+  takeoverSaraConversation,
+} from "./saraSupportClient";
+
+const ACTOR_ID = 42;
 
 function jsonResponse(status: number, body: unknown): Response {
   return {
@@ -44,7 +55,7 @@ describe("saraSupportClient", () => {
     ENV.saraSupportApiUrl = "";
     ENV.saraSupportApiKey = "";
 
-    await expect(listSaraConversations({})).rejects.toThrow(
+    await expect(listSaraConversations({}, ACTOR_ID)).rejects.toThrow(
       /SARA_SUPPORT_API_URL\/SARA_SUPPORT_API_KEY não configurados/,
     );
     expect(fetchMock).not.toHaveBeenCalled();
@@ -55,7 +66,7 @@ describe("saraSupportClient", () => {
       jsonResponse(200, { data: [], pagination: { total: 0, limit: 10, offset: 5, hasMore: false } }),
     );
 
-    await listSaraConversations({ status: "active", phone: "+5548999999999", limit: 10, offset: 5 });
+    await listSaraConversations({ status: "active", phone: "+5548999999999", limit: 10, offset: 5 }, ACTOR_ID);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const calledUrl = fetchMock.mock.calls[0][0] as string;
@@ -72,7 +83,7 @@ describe("saraSupportClient", () => {
       jsonResponse(200, { data: [], pagination: { total: 0, limit: 20, offset: 0, hasMore: false } }),
     );
 
-    await listSaraConversations({});
+    await listSaraConversations({}, ACTOR_ID);
 
     const calledUrl = fetchMock.mock.calls[0][0] as string;
     expect(calledUrl).toBe("https://sara.example.test/api/v1/support/conversations");
@@ -81,7 +92,7 @@ describe("saraSupportClient", () => {
   it("envia o header x-api-key em toda chamada", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { conversation: {}, messages: [] }));
 
-    await getSaraConversation("conv-1");
+    await getSaraConversation("conv-1", ACTOR_ID);
 
     const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
     const headers = requestInit.headers as Record<string, string>;
@@ -91,7 +102,7 @@ describe("saraSupportClient", () => {
   it("define um timeout via AbortSignal em toda chamada", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { conversation: {}, messages: [] }));
 
-    await getSaraConversation("conv-1");
+    await getSaraConversation("conv-1", ACTOR_ID);
 
     const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
     expect(requestInit.signal).toBeInstanceOf(AbortSignal);
@@ -103,7 +114,7 @@ describe("saraSupportClient", () => {
 
     let caught: unknown;
     try {
-      await getSaraConversation("missing");
+      await getSaraConversation("missing", ACTOR_ID);
     } catch (error) {
       caught = error;
     }
@@ -124,7 +135,7 @@ describe("saraSupportClient", () => {
 
     let caught: unknown;
     try {
-      await getSaraConversation("conv-1");
+      await getSaraConversation("conv-1", ACTOR_ID);
     } catch (error) {
       caught = error;
     }
@@ -145,7 +156,7 @@ describe("saraSupportClient", () => {
 
     let caught: unknown;
     try {
-      await getSaraConversation("conv-1");
+      await getSaraConversation("conv-1", ACTOR_ID);
     } catch (error) {
       caught = error;
     }
@@ -160,7 +171,7 @@ describe("saraSupportClient", () => {
 
     let caught: unknown;
     try {
-      await getSaraConversation("conv-1");
+      await getSaraConversation("conv-1", ACTOR_ID);
     } catch (error) {
       caught = error;
     }
@@ -169,5 +180,68 @@ describe("saraSupportClient", () => {
     const error = caught as SaraSupportApiError;
     expect(error.message).toMatch(/falha de rede/i);
     expect(error.message).not.toMatch(/não respondeu a tempo/i);
+  });
+
+  describe("x-sara-actor-id", () => {
+    const calls: Array<[string, () => Promise<unknown>]> = [
+      ["listSaraConversations", () => listSaraConversations({}, ACTOR_ID)],
+      ["getSaraConversation", () => getSaraConversation("conv-1", ACTOR_ID)],
+      ["sendSaraMessage", () => sendSaraMessage("conv-1", "olá", ACTOR_ID)],
+      ["takeoverSaraConversation", () => takeoverSaraConversation("conv-1", ACTOR_ID)],
+      ["releaseSaraConversation", () => releaseSaraConversation("conv-1", ACTOR_ID)],
+      ["closeSaraConversation", () => closeSaraConversation("conv-1", ACTOR_ID)],
+      ["sendSaraTypingIndicator", () => sendSaraTypingIndicator("conv-1", ACTOR_ID)],
+    ];
+
+    it.each(calls)("é enviado em %s com o id do usuário do Cashmiles", async (_name, call) => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, {}));
+
+      await call();
+
+      const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+      expect(headers["x-sara-actor-id"]).toBe("42");
+      expect(headers["x-api-key"]).toBe("test-api-key");
+    });
+  });
+
+  describe("envio recusado pela Sara", () => {
+    async function sendAndCatch(): Promise<SaraSupportApiError> {
+      try {
+        await sendSaraMessage("conv-1", "olá", ACTOR_ID);
+      } catch (error) {
+        return error as SaraSupportApiError;
+      }
+      throw new Error("sendSaraMessage deveria ter lançado erro");
+    }
+
+    it("409 — conversa em human_takeover sem dono (precisa de /takeover antes)", async () => {
+      const rawBody = JSON.stringify({
+        error: { code: "CONFLICT", message: "Conversation not claimed yet — call /takeover first" },
+      });
+      fetchMock.mockResolvedValueOnce(errorResponse(409, rawBody));
+
+      const error = await sendAndCatch();
+
+      expect(error).toBeInstanceOf(SaraSupportApiError);
+      expect(error.status).toBe(409);
+      expect(error.message).toContain("409");
+      expect(error.message).not.toContain("not claimed");
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(rawBody));
+    });
+
+    it("403 — conversa assumida por outro operador", async () => {
+      const rawBody = JSON.stringify({
+        error: { code: "FORBIDDEN", message: "Conversation is owned by a different operator" },
+      });
+      fetchMock.mockResolvedValueOnce(errorResponse(403, rawBody));
+
+      const error = await sendAndCatch();
+
+      expect(error).toBeInstanceOf(SaraSupportApiError);
+      expect(error.status).toBe(403);
+      expect(error.message).toContain("403");
+      expect(error.message).not.toContain("different operator");
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(rawBody));
+    });
   });
 });

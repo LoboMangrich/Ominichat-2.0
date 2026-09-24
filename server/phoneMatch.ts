@@ -9,11 +9,11 @@
  * `IN (...)` e aproveitar o índice `idx_customers_phone`.
  */
 
-const BR_COUNTRY_CODE = "55";
+import { phoneDigits } from "@shared/phone";
 
-export function phoneDigits(raw: string): string {
-  return raw.replace(/\D/g, "");
-}
+export { phoneDigits };
+
+const BR_COUNTRY_CODE = "55";
 
 /**
  * Formas nacionais (DDD + número) equivalentes: com e sem o 9º dígito.

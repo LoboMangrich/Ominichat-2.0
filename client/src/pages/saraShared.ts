@@ -43,6 +43,21 @@ export function saraBucket(status: string): ConversationBucket {
   return SARA_STATUS_BUCKET[status] ?? "unknown";
 }
 
+/**
+ * Quem assumiu a conversa da Sara, para "Assumido por …". null quando não há actorId
+ * (assumida sem identificação, ou não assumida). Id sem usuário conhecido no
+ * Cashmiles → "outro atendente".
+ */
+export function saraActorLabel(conv: {
+  actorId?: string | null;
+  actorName?: string | null;
+  assignedToMe?: boolean;
+}): string | null {
+  if (!conv.actorId) return null;
+  if (conv.assignedToMe) return "você";
+  return conv.actorName ?? "outro atendente";
+}
+
 /** Canal próprio: Closed → closed; senão handledByAi decide entre IA e humano. */
 export function legacyBucket(status: string | null, handledByAi: boolean | number | null): ConversationBucket {
   if (status === "Closed") return "closed";
@@ -128,7 +143,7 @@ type UnifiedBase = {
 };
 
 export type UnifiedConversation =
-  | (UnifiedBase & { source: "sara"; id: string })
+  | (UnifiedBase & { source: "sara"; id: string; /** "Assumido por …" — ver saraActorLabel. */ actorLabel: string | null })
   | (UnifiedBase & { source: "legacy"; id: number; channel: string | null })
   // Grupo do WhatsApp (whatsappGroups.id) — só na aba Grupos.
   | (UnifiedBase & { source: "group"; id: number });
@@ -140,6 +155,10 @@ export type SaraListItem = {
   phoneNumber: string | null;
   lastMessageAt: string | null;
   createdAt: string;
+  // Enriquecidos pelo nosso router (sara.listConversations) — ausentes em dado cru.
+  actorId?: string | null;
+  actorName?: string | null;
+  assignedToMe?: boolean;
 };
 
 export type LegacyListItem = {
@@ -170,6 +189,7 @@ export function fromSara(conv: SaraListItem): UnifiedConversation {
     lastActivityAt: toEpoch(conv.lastMessageAt ?? conv.createdAt),
     bucket: saraBucket(conv.status),
     rawStatus: conv.status,
+    actorLabel: saraActorLabel(conv),
   };
 }
 
@@ -240,6 +260,7 @@ export function originLabel(item: UnifiedConversation): string {
 /** Rótulo à direita do item. Grupo não tem status de atendimento. */
 export function statusLabel(item: UnifiedConversation): string {
   if (item.source === "group") return "";
+  if (item.source === "sara" && item.bucket === "human" && item.actorLabel) return `Assumido por ${item.actorLabel}`;
   return BUCKET_LABELS[item.bucket] ?? item.rawStatus;
 }
 

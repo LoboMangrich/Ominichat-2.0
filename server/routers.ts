@@ -4903,6 +4903,14 @@ const tagsRouter = router({
       search: z.string().optional(),
       limit: z.number().default(50),
       offset: z.number().default(0),
+      // Tela única de Conversas (/sara) passa true: grupos têm menu próprio e, misturados,
+      // ocupariam vagas do limit — aí "resposta cheia = tem mais" deixaria de valer.
+      // Padrão false mantém /atendimentos exatamente como era.
+      excludeGroups: z.boolean().optional().default(false),
+      // Filtro por status REAL da conversa (tela única de Conversas: abas "Em Aberto" e
+      // "Aguardando"). Diferente de tagId open/waiting, que depende de
+      // conversationTagAssignments — que nada popula. Sem status, nada muda.
+      status: z.enum(conversations.status.enumValues).optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -4931,6 +4939,9 @@ const tagsRouter = router({
         assignedTo: sql<string | null>`NULL`,
         customerId: conversations.customerId,
         groupId: sql<number | null>`NULL`,
+        // Só leitura, para a tela única de Conversas: IA x humano e selo de canal.
+        handledByAi: conversations.handledByAi,
+        channel: conversations.channel,
       })
         .from(conversations)
         .leftJoin(customers, eq(conversations.customerId, customers.id))
@@ -4947,6 +4958,7 @@ const tagsRouter = router({
           input.tagId && !isGroupFilter
             ? sql`${conversations.id} IN (SELECT conversationId FROM conversationTagAssignments WHERE tagId = ${input.tagId})`
             : undefined,
+          input.status ? eq(conversations.status, input.status) : undefined,
         ))
         .orderBy(desc(conversations.updatedAt))
         .limit(isGroupFilter ? 0 : input.limit); // "Grupos" não traz conversas
@@ -4965,11 +4977,14 @@ const tagsRouter = router({
         assignedTo: sql<string | null>`NULL`,
         customerId: whatsappGroups.linkedCustomerId,
         groupId: whatsappGroups.id,
+        // Mesmo formato das conversas (MySQL devolve o literal como 0).
+        handledByAi: sql<boolean>`false`,
+        channel: sql<string | null>`NULL`,
       })
         .from(whatsappGroups)
         .where(input.search ? like(whatsappGroups.groupName, `%${input.search}%`) : undefined)
         .orderBy(desc(whatsappGroups.updatedAt))
-        .limit(input.tagId === undefined || isGroupFilter ? 50 : 0);
+        .limit(input.excludeGroups ? 0 : input.tagId === undefined || isGroupFilter ? 50 : 0);
 
       const all = [...convs, ...groups].sort((a, b) =>
         new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime()

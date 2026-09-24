@@ -294,6 +294,9 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
   const pendingTasks = pendingJourneyTasks.filter((t: any) => t.status === 'pending').slice(0, 3);
 
   // Mutations
+  // As que mudam status, IA/humano ou updatedAt também invalidam tags.listUnified: é a
+  // lista de /atendimentos e da tela única de Conversas (/sara). Sem isso a lista fica
+  // desatualizada — foi o que fez "Finalizar conversa" parecer quebrado.
   const cancelScheduledMutation = trpc.scheduledMessages.cancel.useMutation({
     onSuccess: () => { toast.success("Mensagem cancelada!"); refetchScheduled(); },
     onError: () => toast.error("Erro ao cancelar mensagem agendada"),
@@ -322,6 +325,7 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
       setForwardAgentId(null);
       setForwardReason("");
       utils.conversations.getById.invalidate({ id: convId });
+      utils.tags.listUnified.invalidate();
     },
     onError: () => toast.error("Erro ao transferir atendimento"),
   });
@@ -330,17 +334,18 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
     onSuccess: () => {
       setMessage("");
       utils.conversations.getById.invalidate({ id: convId });
+      utils.tags.listUnified.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
 
   const simulateMutation = trpc.messages.simulateIncoming.useMutation({
-    onSuccess: () => utils.conversations.getById.invalidate({ id: convId }),
+    onSuccess: () => { utils.conversations.getById.invalidate({ id: convId }); utils.tags.listUnified.invalidate(); },
     onError: (e) => toast.error(e.message),
   });
 
   const statusMutation = trpc.conversations.updateStatus.useMutation({
-    onSuccess: () => { toast.success("Status atualizado!"); utils.conversations.getById.invalidate({ id: convId }); },
+    onSuccess: () => { toast.success("Status atualizado!"); utils.conversations.getById.invalidate({ id: convId }); utils.tags.listUnified.invalidate(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -350,11 +355,11 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
   });
 
   const takeoverMutation = trpc.conversations.takeOver.useMutation({
-    onSuccess: () => { toast.success("👤 Você assumiu o controle do atendimento!"); utils.conversations.getById.invalidate({ id: convId }); utils.messages.list.invalidate({ conversationId: convId }); },
+    onSuccess: () => { toast.success("👤 Você assumiu o controle do atendimento!"); utils.conversations.getById.invalidate({ id: convId }); utils.messages.list.invalidate({ conversationId: convId }); utils.tags.listUnified.invalidate(); },
     onError: (e: { message: string }) => toast.error(e.message),
   });
   const returnToAiMutation = trpc.conversations.returnToAI.useMutation({
-    onSuccess: () => { toast.success("🤖 Atendimento devolvido para a IA!"); utils.conversations.getById.invalidate({ id: convId }); utils.messages.list.invalidate({ conversationId: convId }); },
+    onSuccess: () => { toast.success("🤖 Atendimento devolvido para a IA!"); utils.conversations.getById.invalidate({ id: convId }); utils.messages.list.invalidate({ conversationId: convId }); utils.tags.listUnified.invalidate(); },
     onError: (e: { message: string }) => toast.error(e.message),
   });
 
@@ -386,6 +391,7 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
       setSelectedTemplate(null);
       setTemplateVariables([]);
       utils.conversations.getById.invalidate({ id: convId });
+      utils.tags.listUnified.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });

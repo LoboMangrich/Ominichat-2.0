@@ -25,7 +25,6 @@ import {
   BarChart3,
   Bell,
   BellOff,
-  Bot,
   Brain,
   Briefcase,
   CheckSquare,
@@ -100,15 +99,12 @@ const NAV_MODULES: NavModule[] = [
     key: "atendimento",
     color: "var(--brand-400)", // mesma luminosidade do dourado do CRM e do azul de Estatísticas (~L 0.71-0.73), legível sobre a sidebar escura
     items: [
-      // ── WhatsApp ──
-      // "Caixa de Entrada" e "Todas as Conversas" apontavam para a mesma tela (/atendimentos):
-      // ?canal=whatsapp nunca foi lido em Atendimentos.tsx, então os dois itens eram idênticos.
-      // Removido o segundo, renomeado o que ficou.
-      { icon: Inbox,          label: "Conversas",            path: "/atendimentos", badge: "live", sectionHeader: "Atendimento via WhatsApp" },
+      // Tela única: /sara junta as conversas da Sara e as do canal próprio (ver
+      // "Tela única de Conversas" no CLAUDE.md). /atendimentos só redireciona pra cá,
+      // preservando ?customerId= e ?conversationId=.
+      { icon: Inbox,          label: "Conversas",            path: "/sara" },
       { icon: Megaphone,      label: "Disparos em Massa",    path: "/broadcasts" },
       { icon: Users,          label: "Grupos",               path: "/groups" },
-      // ── Sara IA ──
-      { icon: Bot,            label: "Sara IA (Suporte)",    path: "/sara", sectionHeader: "Atendimento via Sara IA" },
     ],
   },
   {

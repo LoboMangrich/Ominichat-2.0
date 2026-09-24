@@ -12,7 +12,6 @@ import Customers from "./pages/Customers";
 import Conversations from "./pages/Conversations";
 import ConversationDetail from "./pages/ConversationDetail";
 import Sara from "./pages/Sara";
-import SaraConversationDetail from "./pages/SaraConversationDetail";
 import Tasks from "./pages/Tasks";
 import Forms from "./pages/Forms";
 import PublicForm from "./pages/PublicForm";
@@ -28,7 +27,6 @@ import Indicators from "./pages/Indicators";
 
 // Sprint 17 pages
 import Groups from "./pages/Groups";
-import Atendimentos from "./pages/Atendimentos";
 
 // Legacy pages (still accessible via direct URL / old bookmarks)
 import AIAnalysis from "./pages/AIAnalysis";
@@ -52,6 +50,10 @@ import TriggerSimulation from "./pages/TriggerSimulation";
 import ImportCSV from "./pages/ImportCSV";
 import CommunicationIntelligence from "./pages/CommunicationIntelligence";
 
+function AtendimentosRedirect() {
+  return <Redirect to={`/sara${window.location.search}`} replace />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -67,7 +69,9 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/conversations/:id">{() => <ConversationDetail />}</Route>
         <Route path="/sara" component={Sara} />
-        <Route path="/sara/:id" component={SaraConversationDetail} />
+        <Route path="/sara/legado/:id" component={Sara} />
+        <Route path="/sara/grupo/:id" component={Sara} />
+        <Route path="/sara/:id" component={Sara} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/forms" component={Forms} />
         <Route path="/campaigns" component={Campaigns} />
@@ -95,7 +99,9 @@ function Router() {
         <Route path="/surveys"><Redirect to="/indicators/nps" /></Route>
         <Route path="/referrals"><Redirect to="/ia-automation" /></Route>
         <Route path="/groups" component={Groups} />
-        <Route path="/atendimentos" component={Atendimentos} />
+        {/* /atendimentos deixou de ser tela própria: vai para a tela única de Conversas,
+            preservando ?customerId= e ?conversationId= (ver Sara.tsx). */}
+        <Route path="/atendimentos" component={AtendimentosRedirect} />
         <Route path="/program-dashboard" component={ProgramDashboard} />
         <Route path="/productivity"><Redirect to="/metrics" /></Route>
         <Route path="/team"><Redirect to="/metrics" /></Route>

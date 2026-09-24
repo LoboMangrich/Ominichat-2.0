@@ -58,6 +58,14 @@ export interface SaraConversationDetail {
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/**
+ * Id do usuário do Cashmiles que executa a ação. Vai no header
+ * x-sara-actor-id de toda chamada: a chave de API é única (o takeoverAdminId
+ * registrado na Sara é sempre o mesmo), então é esse header que permite à
+ * Sara registrar qual atendente nosso assumiu, respondeu ou encerrou.
+ */
+export type SaraActorId = number;
+
 function assertConfigured(): void {
   if (!ENV.saraSupportApiUrl || !ENV.saraSupportApiKey) {
     throw new Error(
@@ -70,7 +78,7 @@ function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit): Promise<T> {
   assertConfigured();
 
   let response: Response;
@@ -81,6 +89,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: {
         "x-api-key": ENV.saraSupportApiKey,
         "content-type": "application/json",
+        "x-sara-actor-id": String(actorId),
         ...init?.headers,
       },
     });
@@ -116,6 +125,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function listSaraConversations(
   params: SaraListConversationsParams,
+  actorId: SaraActorId,
 ): Promise<SaraListConversationsResult> {
   const query = new URLSearchParams();
   if (params.status) query.set("status", params.status);
@@ -126,52 +136,63 @@ export async function listSaraConversations(
 
   return request<SaraListConversationsResult>(
     `/api/v1/support/conversations${queryString ? `?${queryString}` : ""}`,
+    actorId,
   );
 }
 
-export async function getSaraConversation(id: string): Promise<SaraConversationDetail> {
-  return request<SaraConversationDetail>(`/api/v1/support/conversations/${encodeURIComponent(id)}`);
+export async function getSaraConversation(
+  id: string,
+  actorId: SaraActorId,
+): Promise<SaraConversationDetail> {
+  return request<SaraConversationDetail>(
+    `/api/v1/support/conversations/${encodeURIComponent(id)}`,
+    actorId,
+  );
 }
 
 export async function sendSaraMessage(
   id: string,
   text: string,
+  actorId: SaraActorId,
 ): Promise<{ message: SaraMessage & { whatsappMessageId: string | null } }> {
-  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/messages`, {
+  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/messages`, actorId, {
     method: "POST",
     body: JSON.stringify({ text }),
   });
 }
 
-export async function takeoverSaraConversation(id: string): Promise<{
+export async function takeoverSaraConversation(id: string, actorId: SaraActorId): Promise<{
   conversation: { id: string; status: string; takeoverAdminId: string | null; takeoverAt: string | null };
 }> {
-  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/takeover`, {
+  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/takeover`, actorId, {
     method: "POST",
     body: "{}",
   });
 }
 
-export async function releaseSaraConversation(id: string): Promise<{
+export async function releaseSaraConversation(id: string, actorId: SaraActorId): Promise<{
   conversation: { id: string; status: string; takeoverAdminId: null; takeoverAt: null };
 }> {
-  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/release`, {
+  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/release`, actorId, {
     method: "POST",
     body: "{}",
   });
 }
 
-export async function closeSaraConversation(id: string): Promise<{
+export async function closeSaraConversation(id: string, actorId: SaraActorId): Promise<{
   conversation: { id: string; status: string; outcome: string };
 }> {
-  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/close`, {
+  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/close`, actorId, {
     method: "POST",
     body: "{}",
   });
 }
 
-export async function sendSaraTypingIndicator(id: string): Promise<{ sent: boolean }> {
-  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/typing`, {
+export async function sendSaraTypingIndicator(
+  id: string,
+  actorId: SaraActorId,
+): Promise<{ sent: boolean }> {
+  return request(`/api/v1/support/conversations/${encodeURIComponent(id)}/typing`, actorId, {
     method: "POST",
     body: "{}",
   });

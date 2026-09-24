@@ -555,7 +555,7 @@ export default function Customers() {
                     <button
                       className="h-7 w-7 flex items-center justify-center rounded-lg transition-all"
                       style={{ color: "var(--muted-foreground)" }}
-                      onClick={e => { e.stopPropagation(); setLocation(`/atendimentos?customerId=${c.id}`); }}
+                      onClick={e => { e.stopPropagation(); setLocation(`/sara?customerId=${c.id}`); }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(13,107,78,0.12)"; (e.currentTarget as HTMLElement).style.color = "#0d6b4e"; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)"; }}
                     >
@@ -863,7 +863,7 @@ export default function Customers() {
                             key={conv.id}
                             className="flex items-start gap-2 pb-2 border-b last:border-0 last:pb-0 cursor-pointer hover:opacity-80 transition-opacity"
                             style={{ borderColor: "rgba(0,0,0,0.06)" }}
-                            onClick={() => setLocation(`/atendimentos?conversationId=${conv.id}`)}
+                            onClick={() => setLocation(`/sara?conversationId=${conv.id}`)}
                           >
                             <span className="text-base mt-0.5">{channelIcon}</span>
                             <div className="flex-1 min-w-0">
@@ -894,7 +894,7 @@ export default function Customers() {
                   isCompleting={completeTaskMutation.isPending}
                   isSkipping={skipTaskMutation.isPending}
                   isIniting={initProtocolMutation.isPending}
-                  openChat={() => setLocation(`/atendimentos?customerId=${selectedCustomer.id}`)}
+                  openChat={() => setLocation(`/sara?customerId=${selectedCustomer.id}`)}
                 />
                 <div className="border-t pt-3" style={{ borderColor: 'rgba(0,0,0,0.07)' }}>
                   <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--muted-foreground)' }}>Tarefas Avulsas</p>

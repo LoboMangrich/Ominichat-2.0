@@ -186,6 +186,17 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
   ~47 ocorrências, tela de detalhe da mesma conversa). Adiado de propósito,
   não esquecido.
 
+### Pendências de cor
+
+- **Falta um token semântico de sucesso/verde.** `client/src/index.css` só tem
+  `--brand-*` (azul), `--primary`, `--muted`, `--accent` e `--destructive` —
+  nenhum verde. Todo uso de "verde = humano/ativo/conectado" hoje cai na
+  paleta crua do Tailwind (`emerald-*`). Na tela `/sara`
+  (`SaraConversationDetail.tsx`), a bolha do atendente usa `bg-emerald-700
+  text-white` — não `emerald-600`, que com texto branco fica ~3,8:1, abaixo do
+  AA (4,5:1). Ao criar o token (`--success` ou similar), migrar esses usos
+  junto e manter o contraste AA com texto branco.
+
 ## Backlog — em ordem
 
 Trabalhe um item até o fim antes de abrir o próximo.
@@ -249,10 +260,13 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   `customers.status.enumValues`; se houver linha fora do enum, decidir o
   tratamento (null, valor mais próximo, ou remover o filtro daquela
   campanha) antes de qualquer migração de dados.
-- Tags "Em Aberto"/"Aguardando" filtram por `conversationTagAssignments`, e nada
-  popula essa tabela a partir de `conversations.status`. **Decisão de produto
-  pendente com o time de CS:** essas tags devem espelhar o status
-  automaticamente ou ser marcação manual do atendente? São produtos diferentes.
+- Tags "Em Aberto"/"Aguardando": **na tela única (`/sara`) já filtram pelo
+  status real** (`conversations.status` no canal próprio, status da Sara) —
+  ver "Tela única de Conversas". O caminho antigo via `tags.listUnified({ tagId })`
+  continua filtrando por `conversationTagAssignments`, que nada popula a partir
+  de `conversations.status`; só `Atendimentos.tsx` (hoje sem rota) usava isso.
+  Se `conversationTagAssignments` for mantida para etiquetas personalizadas,
+  não reusar para status.
 - **Status `Waiting` ficou sem nenhum ponto de escrita na interface.** O
   seletor de 3 opções (Aberto/Aguardando/Encerrar) em `ConversationDetail.tsx`
   foi substituído por um botão único "Finalizar conversa" (→ `Closed`) — era o
@@ -267,19 +281,18 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   falta decidir:** esse status é definido manualmente pelo atendente (como
   era antes) ou automaticamente (ex: quando o atendente responde e fica
   esperando o cliente)? A resposta muda a implementação e a aba volta junto.
-- **Histórico de conversas finalizadas com opção de reabrir.** Uma conversa
-  `Closed` **não some** da lista de `/atendimentos` (a tela do menu):
-  `tags.listUnified` não filtra por status, então ela continua lá, misturada
-  com as abertas e sem nenhum indicador visual de status na linha. O
-  problema real é que não dá pra distinguir nem separar as finalizadas, e não
-  há ação de reabrir — o botão "Finalizar conversa" fica desabilitado em
+- **Histórico de conversas finalizadas com opção de reabrir.** Na tela única
+  (`/sara`), uma conversa `Closed` do canal próprio aparece só em "Todos",
+  com selo "Encerrada" (as abas Em Aberto/Aguardando filtram por status real).
+  O problema que resta é que não há aba própria de finalizadas nem ação de
+  reabrir — o botão "Finalizar conversa" fica desabilitado em
   "Conversa encerrada". (`/conversations` tem uma aba "Finalizados"
   funcionando, mas não está no menu.) `conversations.updateStatus` já aceita
   `"Open"`, mas não limpa `closedAt`, e finalizar de novo repete a análise de
   IA e a pesquisa de satisfação. **Direção decidida, story ainda não
   escrita** — aguardando o time de CS confirmar a janela de 24h: cliente que
   escreve de novo dentro da janela (configurável) reabre a mesma conversa,
-  depois dela abre uma nova; aba de finalizadas em `/atendimentos`, com elas
+  depois dela abre uma nova; aba de finalizadas na tela única (`/sara`), com elas
   escondidas por padrão; qualquer atendente pode reabrir; `closedAt` limpo ao
   reabrir; mensagem `system` registrando quem reabriu; pesquisa de satisfação
   não repete. A regra da janela entra em `pickReusableConversation`
@@ -480,6 +493,105 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
   Cashmiles executou a ação — **usar em todas as chamadas**.
 - Suporta áudio e imagem (multipart) e URLs assinadas de 900s para reproduzir
   mídia recebida. A tela atual só trata texto.
+- Só `active` e `human_takeover` são status confirmados — status ou
+  `senderType` fora disso aparecem com o valor cru, nunca com rótulo
+  inventado. "Encerrar" pede confirmação: não há "reabrir" do lado do
+  Cashmiles.
+
+### Tela única de Conversas (`/sara`)
+
+Decisão de produto: "Conversas" é **uma tela só**, com as conversas da Sara e
+as do canal próprio juntas. É o único item de conversa no menu de
+Atendimento (ao lado de Disparos em Massa e Grupos).
+
+- `Sara.tsx` junta `sara.listConversations` + `tags.listUnified`. Tipo único,
+  helpers e mapeamentos em `client/src/pages/saraShared.ts`.
+- **Abas = etiquetas**, com o mesmo visual de chips da antiga
+  `Atendimentos.tsx`: Todos + as etiquetas de `tags.list` + engrenagem do
+  `TagManagerModal` (`client/src/components/conversations/`). As etiquetas
+  padrão, identificadas por `slug`, filtram pelo **status real** — nunca por
+  `conversationTagAssignments`, que nada popula (era a causa de "Em
+  Aberto"/"Aguardando" sempre vazias em `/atendimentos`):
+
+  | Aba | Sara | Canal próprio (`tags.listUnified`) |
+  |---|---|---|
+  | Todos | sem filtro (inclui `error`) | sem `status` (inclui `Closed`), `excludeGroups: true` |
+  | Em Aberto (`open`) | `active` + `human_takeover` | `status: "Open"`, `excludeGroups: true` |
+  | Aguardando (`waiting`) | `awaiting_response` | `status: "Waiting"`, `excludeGroups: true` |
+  | Grupos (`group`) | não aparece | `tagId` da tag `group` (só grupos) → `GroupConversationPanel` |
+  | Etiqueta personalizada | não aparece (aviso: a Sara não tem etiquetas) | `tagId`, `excludeGroups: true` |
+
+  **A aba Aguardando traz só conversas da Sara, e isso é esperado:** desde o
+  PR #38 nada grava `conversations.status = "Waiting"` no canal próprio (ver
+  Backlog, item 3).
+- **Rótulo à direita de cada item** (buckets, `SARA_STATUS_BUCKET`/
+  `legacyBucket`): Sara `active` → "Com a IA", `human_takeover` →
+  "Atendimento humano", `awaiting_response` → "Aguardando resposta", `error`
+  → "Erro", qualquer outro → valor cru. Canal próprio: `Closed` →
+  "Encerrada"; senão `handledByAi` decide entre "Com a IA" e "Atendimento
+  humano" — inclusive em `Waiting` (decisão deliberada). Enum de status da
+  Sara conforme a doc nova do `GET /conversations`: `awaiting_response`,
+  `active`, `error`, `human_takeover`.
+- **URL:** `/sara/:id` (Sara — links antigos continuam funcionando),
+  `/sara/legado/:id` (canal próprio, `ConversationDetail` embutido) e
+  `/sara/grupo/:id` (grupo, `whatsappGroups.id`).
+- **Links diretos:** `?conversationId=X` abre a conversa X do canal próprio.
+  `?customerId=X` abre a conversa mais recente do cliente: a última do canal
+  próprio (`customers.getLastInteractions`) contra as da Sara achadas pelo
+  telefone do cliente, com e sem o 9º dígito (`e164Candidates`,
+  `shared/phone.ts` — no máximo 2 consultas de leitura à Sara, em paralelo).
+  `Customers.tsx` e `Home.tsx` apontam direto para `/sara`.
+- **Busca:** o filtro `phone` da Sara é E.164; só vai para a API quando o
+  termo é telefone completo (`toE164Phone`). Nome ou número parcial filtram
+  no client as conversas da Sara já carregadas. O canal próprio sempre
+  recebe o termo.
+- Falha de uma fonte não esvazia a tela: mostra a outra + aviso.
+- Cliente com conversa nas duas origens aparece duas vezes, uma com cada
+  selo — são conversas diferentes, não há deduplicação.
+- **`/atendimentos` não é mais tela:** a rota só redireciona para `/sara`,
+  preservando `?customerId=`/`?conversationId=`. **`client/src/pages/Atendimentos.tsx`
+  ficou sem uso** (nenhuma rota o importa) e pode ser removido depois — junto
+  com `TAG_STATUS_MAP` e `Atendimentos.statusFilter.test.ts`, que só existem
+  para ele. `TagManagerModal`, `GroupConversationPanel` e `timeAgo` já foram
+  extraídos e não saem junto.
+- **Limitações conhecidas:**
+  - "Em Aberto" na Sara são dois status, e a API filtra por um só: a tela
+    busca sem filtro e separa no client, então uma página pode vir com menos
+    conversas abertas que o `limit` ("Carregar mais" continua funcionando).
+  - A Sara aceita `limit` até 100: "Carregar mais" para de crescer do lado
+    da Sara nesse ponto (paginação por `offset` não implementada).
+  - Grupo só abre se estiver na lista carregada (o painel precisa do nome).
+  - O badge "live" de conversas abertas, que ficava no item de
+    `/atendimentos`, saiu junto com ele — contava só o canal próprio e
+    ficaria enganoso na tela única.
+
+### Decisão de arquitetura — Sara como canal único de WhatsApp
+
+A Sara passa a ser o **canal único de atendimento por WhatsApp**. O Cashmiles
+deixa de receber mensagem por webhook próprio e passa a consumir as conversas
+pela API da Sara.
+
+Divisão de responsabilidade:
+
+- **Sara é dona das conversas:** WhatsApp, IA, histórico, assumir, encerrar.
+- **Cashmiles é dono do cliente:** cadastro, NPS, renovação, tarefas, jornada,
+  health score, campanhas, alertas.
+- **A ligação entre os dois é o telefone.**
+- **O health score continua sendo calculado pelo Cashmiles.** A API da Sara não
+  tem esses dados e não deve tê-los — não mover esse cálculo nem mandar esses
+  dados para lá.
+
+Consequência a tratar **quando a Sara estiver pronta** (não antes):
+
+- Ficam sem uso os receptores de conversa em `server/webhooks.ts`:
+  `/api/webhooks/whatsapp`, `/api/webhooks/zapi`, `/api/webhooks/evolution` e,
+  possivelmente, `/api/webhooks/instagram` e `/api/webhooks/telegram`.
+- Continuam necessários, porque não são de conversa: `/api/webhooks/guru`,
+  `/api/webhooks/ghl`, `/api/webhooks/pagarme` e `/api/webhooks/email-ticket`.
+
+**Não remover nada ainda.** O time de TI ainda vai ajustar as rotas da Sara, e
+o webhook de notificação Sara → Cashmiles não existe — o que há abaixo é só a
+especificação recebida. Até lá, o caminho próprio fica como está.
 
 ### Webhook de saída da Sara (Epic 72) — a implementar
 

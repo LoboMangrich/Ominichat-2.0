@@ -19,6 +19,7 @@ import { AlertTriangle, Bot, Mail, Phone, Send, Tag, TrendingUp, User, UserX, X,
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
 import { statusConfig } from "./Customers";
 import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
 import { SARA_STATUS_LABELS, initials, saraActorLabel } from "./saraShared";
@@ -423,7 +424,13 @@ export default function SaraConversationDetail({ id }: { id: string }) {
                     {isUnknown && (
                       <p className="mb-0.5 text-xs font-medium text-muted-foreground">{message.senderType}</p>
                     )}
-                    <p className="whitespace-pre-wrap break-words">{message.text || "(sem texto)"}</p>
+                    {message.audio && <SaraAudio audio={message.audio} />}
+                    {message.image && <SaraImage image={message.image} />}
+                    {message.text ? (
+                      <p className="whitespace-pre-wrap break-words">{message.text}</p>
+                    ) : (
+                      !message.audio && !message.image && <p className="whitespace-pre-wrap break-words">(sem texto)</p>
+                    )}
                     <p className="mt-1 text-right text-[10px] opacity-70">{formatDateTime(message.createdAt)}</p>
                   </div>
                 </div>

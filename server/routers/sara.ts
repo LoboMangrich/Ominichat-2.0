@@ -16,7 +16,9 @@ import { phoneDigitCandidates, phoneLookupCandidates } from "../phoneMatch";
 import {
   SaraSupportApiError,
   closeSaraConversation,
+  getSaraAudioUrl,
   getSaraConversation,
+  getSaraImageUrl,
   listSaraConversations,
   releaseSaraConversation,
   sendSaraMessage,
@@ -201,6 +203,28 @@ export const saraRouter = router({
       throw await wrapSaraError(error, ctx.user.id);
     }
   }),
+  // Mídia recebida: URL assinada de 900s, buscada sob demanda (só leitura, GET).
+  // A URL não é logada em lugar nenhum.
+  audioUrl: protectedProcedure
+    .input(z.object({ audioMessageId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getSaraAudioUrl(input.audioMessageId, ctx.user.id);
+      } catch (error) {
+        throw await wrapSaraError(error, ctx.user.id);
+      }
+    }),
+
+  imageUrl: protectedProcedure
+    .input(z.object({ imageMessageId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getSaraImageUrl(input.imageMessageId, ctx.user.id);
+      } catch (error) {
+        throw await wrapSaraError(error, ctx.user.id);
+      }
+    }),
+
   /**
    * Cliente do Cashmiles ligado a uma conversa da Sara, pelo telefone.
    * Sara é dona da conversa; Cashmiles é dono do cliente (CLAUDE.md). Nada

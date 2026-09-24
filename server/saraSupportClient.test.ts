@@ -3,7 +3,9 @@ import { ENV } from "./_core/env";
 import {
   SaraSupportApiError,
   closeSaraConversation,
+  getSaraAudioUrl,
   getSaraConversation,
+  getSaraImageUrl,
   listSaraConversations,
   releaseSaraConversation,
   sendSaraMessage,
@@ -275,5 +277,54 @@ describe("saraSupportClient", () => {
       expect(error.message).not.toContain("different operator");
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining(rawBody));
     });
+  });
+});
+
+describe("saraSupportClient — URL assinada de mídia (GET, 900s)", () => {
+  const originalUrl = ENV.saraSupportApiUrl;
+  const originalKey = ENV.saraSupportApiKey;
+  const SIGNED = "https://storage.example.test/audio/abc?X-Signature=segredo";
+  let fetchMock: ReturnType<typeof vi.fn>;
+  const spies: Array<ReturnType<typeof vi.spyOn>> = [];
+
+  beforeEach(() => {
+    ENV.saraSupportApiUrl = "https://sara.example.test";
+    ENV.saraSupportApiKey = "test-api-key";
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    for (const method of ["log", "info", "warn", "error", "debug"] as const) {
+      spies.push(vi.spyOn(console, method).mockImplementation(() => {}));
+    }
+  });
+
+  afterEach(() => {
+    ENV.saraSupportApiUrl = originalUrl;
+    ENV.saraSupportApiKey = originalKey;
+    vi.unstubAllGlobals();
+    spies.splice(0).forEach(s => s.mockRestore());
+  });
+
+  function loggedAnything(text: string): boolean {
+    return spies.some(s => s.mock.calls.some(args => args.some(a => String(a).includes(text))));
+  }
+
+  it.each([
+    ["getSaraAudioUrl", getSaraAudioUrl, "https://sara.example.test/api/v1/support/audio/a%2F1/url"],
+    ["getSaraImageUrl", getSaraImageUrl, "https://sara.example.test/api/v1/support/images/a%2F1/url"],
+  ] as const)("%s: GET no caminho da doc, id com encodeURIComponent", async (_name, fn, expected) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { url: SIGNED, expiresIn: 900, mimeType: "audio/ogg" }));
+
+    const result = await fn("a/1", ACTOR_ID);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(expected);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBeUndefined(); // GET
+    expect(result).toEqual({ url: SIGNED, expiresIn: 900, mimeType: "audio/ogg" });
+  });
+
+  it("nunca loga a URL assinada", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { url: SIGNED, expiresIn: 900, mimeType: "image/jpeg" }));
+    await getSaraImageUrl("i1", ACTOR_ID);
+    expect(loggedAnything("X-Signature")).toBe(false);
+    expect(loggedAnything(SIGNED)).toBe(false);
   });
 });

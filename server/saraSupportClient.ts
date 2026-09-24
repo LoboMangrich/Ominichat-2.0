@@ -238,3 +238,22 @@ export async function sendSaraTypingIndicator(
     body: "{}",
   });
 }
+
+/**
+ * URL assinada temporária (expiresIn = 900s na doc) para tocar um áudio ou exibir
+ * uma imagem recebida. Buscada sob demanda pela tela. NUNCA logar `url` — é
+ * credencial temporária de acesso à mídia do cliente.
+ */
+export interface SaraMediaUrl {
+  url: string;
+  expiresIn: number;
+  mimeType: string;
+}
+
+export async function getSaraAudioUrl(audioMessageId: string, actorId: SaraActorId): Promise<SaraMediaUrl> {
+  return request<SaraMediaUrl>(`/api/v1/support/audio/${encodeURIComponent(audioMessageId)}/url`, actorId);
+}
+
+export async function getSaraImageUrl(imageMessageId: string, actorId: SaraActorId): Promise<SaraMediaUrl> {
+  return request<SaraMediaUrl>(`/api/v1/support/images/${encodeURIComponent(imageMessageId)}/url`, actorId);
+}

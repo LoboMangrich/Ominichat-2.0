@@ -337,3 +337,27 @@ describe("sara.takeover — 409 vira CONFLICT \"Já assumida por <nome>\"", () =
     );
   });
 });
+
+describe("sara.audioUrl / sara.imageUrl — mídia sob demanda", () => {
+  it("devolvem a URL assinada da Sara (só leitura, sem POST)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { url: "https://s.test/a?sig=1", expiresIn: 900, mimeType: "audio/ogg" }))
+      .mockResolvedValueOnce(jsonResponse(200, { url: "https://s.test/i?sig=2", expiresIn: 900, mimeType: "image/jpeg" }));
+
+    const caller = saraRouter.createCaller(createContext());
+    await expect(caller.audioUrl({ audioMessageId: "a1" })).resolves.toMatchObject({ expiresIn: 900 });
+    await expect(caller.imageUrl({ imageMessageId: "i1" })).resolves.toMatchObject({ mimeType: "image/jpeg" });
+    expect(postCalls(fetchMock)).toEqual([]);
+  });
+
+  it("mídia inexistente → NOT_FOUND", async () => {
+    fetchMock.mockResolvedValueOnce(errorResponse(404, "{}"));
+    const error = await catchError(saraRouter.createCaller(createContext()).audioUrl({ audioMessageId: "x" }));
+    expect(error.code).toBe("NOT_FOUND");
+  });
+
+  it("rejeita id vazio sem chamar a Sara", async () => {
+    await expect(saraRouter.createCaller(createContext()).imageUrl({ imageMessageId: "" })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

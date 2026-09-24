@@ -253,6 +253,45 @@ export function conversationHref(item: Pick<UnifiedConversation, "source" | "id"
   return `/sara/legado/${item.id}`;
 }
 
+// ─── Links diretos (?conversationId= / ?customerId=) ─────────────────────────
+// /atendimentos redireciona para /sara preservando a query; Customers.tsx e Home.tsx
+// apontam direto para /sara com o mesmo parâmetro.
+export type DeepLink = { kind: "conversation"; id: number } | { kind: "customer"; id: number } | null;
+
+function positiveIntParam(value: string | null): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+export function parseDeepLink(search: string): DeepLink {
+  const params = new URLSearchParams(search);
+  const conversationId = positiveIntParam(params.get("conversationId"));
+  if (conversationId) return { kind: "conversation", id: conversationId };
+  const customerId = positiveIntParam(params.get("customerId"));
+  if (customerId) return { kind: "customer", id: customerId };
+  return null;
+}
+
+/**
+ * Conversa mais recente do cliente: a última do canal próprio
+ * (customers.getLastInteractions) contra as da Sara achadas pelo telefone
+ * (e164Candidates, com e sem o 9). Empate fica com o canal próprio.
+ */
+export function latestConversationHref(
+  legacy: { id: number; updatedAt: string | Date | null } | undefined,
+  saraLists: SaraListItem[][],
+): string | null {
+  let best: { href: string; at: number } | null = legacy
+    ? { href: conversationHref({ source: "legacy", id: legacy.id }), at: toEpoch(legacy.updatedAt) ?? 0 }
+    : null;
+  for (const conv of saraLists.flat()) {
+    const at = fromSara(conv).lastActivityAt ?? 0;
+    if (!best || at > best.at) best = { href: conversationHref({ source: "sara", id: conv.id }), at };
+  }
+  return best?.href ?? null;
+}
+
 // ─── Busca ───────────────────────────────────────────────────────────────────
 /**
  * O filtro phone da Sara é E.164: só vai para a API quando o termo é um telefone

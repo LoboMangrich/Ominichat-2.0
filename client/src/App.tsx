@@ -27,7 +27,6 @@ import Indicators from "./pages/Indicators";
 
 // Sprint 17 pages
 import Groups from "./pages/Groups";
-import Atendimentos from "./pages/Atendimentos";
 
 // Legacy pages (still accessible via direct URL / old bookmarks)
 import AIAnalysis from "./pages/AIAnalysis";
@@ -50,6 +49,10 @@ import TriggerRules from "./pages/TriggerRules";
 import TriggerSimulation from "./pages/TriggerSimulation";
 import ImportCSV from "./pages/ImportCSV";
 import CommunicationIntelligence from "./pages/CommunicationIntelligence";
+
+function AtendimentosRedirect() {
+  return <Redirect to={`/sara${window.location.search}`} replace />;
+}
 
 function Router() {
   return (
@@ -96,7 +99,9 @@ function Router() {
         <Route path="/surveys"><Redirect to="/indicators/nps" /></Route>
         <Route path="/referrals"><Redirect to="/ia-automation" /></Route>
         <Route path="/groups" component={Groups} />
-        <Route path="/atendimentos" component={Atendimentos} />
+        {/* /atendimentos deixou de ser tela própria: vai para a tela única de Conversas,
+            preservando ?customerId= e ?conversationId= (ver Sara.tsx). */}
+        <Route path="/atendimentos" component={AtendimentosRedirect} />
         <Route path="/program-dashboard" component={ProgramDashboard} />
         <Route path="/productivity"><Redirect to="/metrics" /></Route>
         <Route path="/team"><Redirect to="/metrics" /></Route>

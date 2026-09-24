@@ -7,7 +7,9 @@ import { trpc } from "@/lib/trpc";
 import { timeAgo } from "@/lib/timeAgo";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Info, MessageSquare, Search, Settings2, Users } from "lucide-react";
-import { useState } from "react";
+import { e164Candidates } from "@shared/phone";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useLocation, useParams, useRoute } from "wouter";
 import ConversationDetail from "./ConversationDetail";
 import SaraConversationDetail from "./SaraConversationDetail";
@@ -16,10 +18,12 @@ import {
   displayName,
   includesSara,
   initials,
+  latestConversationHref,
   legacyQueryInput,
   matchesLocalSearch,
   mergeConversations,
   originLabel,
+  parseDeepLink,
   saraMatchesFilter,
   saraSearch,
   saraStatusParam,
@@ -44,6 +48,54 @@ function positiveInt(value: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+/**
+ * Links diretos vindos de Customers.tsx/Home.tsx (ou do redirect de /atendimentos):
+ * - ?conversationId=X → conversa X do canal próprio.
+ * - ?customerId=X → conversa mais recente do cliente: a última do canal próprio contra
+ *   as da Sara achadas pelo telefone dele, com e sem o 9º dígito (no máximo 2
+ *   consultas de leitura à Sara, em paralelo). Nenhuma outra chamada à Sara.
+ * Resolve uma vez, ao montar, e troca a URL (replace) pela da conversa.
+ */
+function useDeepLinkRedirect(navigate: (to: string, options?: { replace?: boolean }) => void) {
+  const [deepLink, setDeepLink] = useState(() => parseDeepLink(window.location.search));
+  const customerId = deepLink?.kind === "customer" ? deepLink.id : null;
+
+  const lastInteraction = trpc.customers.getLastInteractions.useQuery(
+    { customerId: customerId ?? 0, limit: 1 },
+    { enabled: customerId !== null },
+  );
+  const customer = trpc.customers.getById.useQuery({ id: customerId ?? 0 }, { enabled: customerId !== null });
+  const phoneForms = customer.data?.phone ? e164Candidates(customer.data.phone) : [];
+  const saraByPhone = trpc.useQueries(t =>
+    phoneForms.map(phone => t.sara.listConversations({ phone, limit: 20, offset: 0 })),
+  );
+  const saraPending = saraByPhone.some(q => q.isLoading);
+
+  useEffect(() => {
+    if (!deepLink) return;
+    if (deepLink.kind === "conversation") {
+      setDeepLink(null);
+      navigate(conversationHref({ source: "legacy", id: deepLink.id }), { replace: true });
+      return;
+    }
+    if (lastInteraction.isLoading || customer.isLoading || saraPending) return;
+    setDeepLink(null);
+    const href = latestConversationHref(
+      lastInteraction.data?.[0],
+      saraByPhone.map(q => q.data?.data ?? []),
+    );
+    if (href) {
+      navigate(href, { replace: true });
+    } else {
+      navigate("/sara", { replace: true });
+      toast.info("Nenhuma conversa encontrada para este cliente.");
+    }
+    // saraByPhone muda de identidade a cada render; saraPending cobre o que importa.
+  }, [deepLink, lastInteraction.isLoading, lastInteraction.data, customer.isLoading, saraPending]);
+
+  return { resolving: customerId !== null };
+}
+
 // Tela única de Conversas: Sara + canal próprio (+ grupos, na aba Grupos) na mesma lista.
 // Seleção na URL: /sara/:id (Sara — links antigos continuam funcionando),
 // /sara/legado/:id (canal próprio) e /sara/grupo/:id (grupo do WhatsApp).
@@ -56,6 +108,7 @@ export default function Sara() {
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const { resolving } = useDeepLinkRedirect(navigate);
 
   const selection: Selection = (() => {
     if (!params.id) return null;
@@ -291,6 +344,10 @@ export default function Sara() {
             item={{ name: selectedGroup.name, groupId: selectedGroup.id }}
             onClose={() => navigate("/sara")}
           />
+        ) : resolving ? (
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground bg-muted/10">
+            Abrindo conversa do cliente...
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground select-none bg-muted/10">
             <MessageSquare className="w-12 h-12 opacity-20" />

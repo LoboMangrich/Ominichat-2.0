@@ -168,7 +168,7 @@ export default function Home() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const openChat = (id: number) => setLocation(`/atendimentos?customerId=${id}`);
+  const openChat = (id: number) => setLocation(`/sara?customerId=${id}`);
   const openView = (id: number) => setLocation(`/customers?selectedId=${id}`);
 
   // Indicador counts from the full list
@@ -324,7 +324,7 @@ export default function Home() {
               <p className="text-xs text-muted-foreground">Atendimentos Abertos</p>
               <p className="text-xl font-bold text-foreground">{convStats?.open ?? 0}</p>
             </div>
-            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setLocation("/atendimentos")}>
+            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setLocation("/sara")}>
               <ArrowRight className="w-4 h-4" />
             </Button>
           </CardContent>
@@ -367,7 +367,7 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => setLocation("/atendimentos")}>
+            <Button variant="outline" size="sm" onClick={() => setLocation("/sara")}>
               <MessageSquare className="w-3.5 h-3.5 mr-1.5" /> Ver Atendimentos
             </Button>
             <Button variant="outline" size="sm" onClick={() => setLocation("/customers")}>

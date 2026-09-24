@@ -100,8 +100,8 @@ const NAV_MODULES: NavModule[] = [
     color: "var(--brand-400)", // mesma luminosidade do dourado do CRM e do azul de Estatísticas (~L 0.71-0.73), legível sobre a sidebar escura
     items: [
       // Tela única: /sara junta as conversas da Sara e as do canal próprio (ver
-      // "Tela única de Conversas" no CLAUDE.md). /atendimentos saiu do menu, mas a
-      // rota continua existindo — Customers.tsx e Home.tsx ainda apontam pra lá.
+      // "Tela única de Conversas" no CLAUDE.md). /atendimentos só redireciona pra cá,
+      // preservando ?customerId= e ?conversationId=.
       { icon: Inbox,          label: "Conversas",            path: "/sara" },
       { icon: Megaphone,      label: "Disparos em Massa",    path: "/broadcasts" },
       { icon: Users,          label: "Grupos",               path: "/groups" },

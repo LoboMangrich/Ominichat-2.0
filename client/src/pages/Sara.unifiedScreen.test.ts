@@ -7,10 +7,12 @@ import {
   fromLegacy,
   fromSara,
   includesSara,
+  latestConversationHref,
   legacyQueryInput,
   matchesLocalSearch,
   mergeConversations,
   originLabel,
+  parseDeepLink,
   saraMatchesFilter,
   saraSearch,
   saraStatusParam,
@@ -277,5 +279,38 @@ describe("saraShared — busca", () => {
     expect(matchesLocalSearch(conv, "984-05")).toBe(true);
     expect(matchesLocalSearch(conv, "joão")).toBe(false);
     expect(matchesLocalSearch({ ...conv, phoneNumber: null }, "98405")).toBe(false);
+  });
+});
+
+describe("Links diretos — ?conversationId= e ?customerId=", () => {
+  const sara = (id: string, lastMessageAt: string) => ({
+    id, status: "active", userName: null, phoneNumber: "+5548984053595", lastMessageAt, createdAt: "2026-01-01T00:00:00Z",
+  });
+
+  it("parseDeepLink: conversationId tem prioridade; valores inválidos são ignorados", () => {
+    expect(parseDeepLink("?conversationId=12")).toEqual({ kind: "conversation", id: 12 });
+    expect(parseDeepLink("?customerId=7")).toEqual({ kind: "customer", id: 7 });
+    expect(parseDeepLink("?customerId=7&conversationId=12")).toEqual({ kind: "conversation", id: 12 });
+    expect(parseDeepLink("?customerId=abc")).toBeNull();
+    expect(parseDeepLink("?conversationId=0")).toBeNull();
+    expect(parseDeepLink("")).toBeNull();
+  });
+
+  it("latestConversationHref: a mais recente entre canal próprio e Sara (com e sem o 9)", () => {
+    const legacy = { id: 3, updatedAt: new Date("2026-09-10T10:00:00Z") };
+    expect(latestConversationHref(legacy, [[sara("old", "2026-09-01T10:00:00Z")], []])).toBe("/sara/legado/3");
+    expect(
+      latestConversationHref(legacy, [[sara("a", "2026-09-01T10:00:00Z")], [sara("b", "2026-09-20T10:00:00Z")]]),
+    ).toBe("/sara/b");
+    expect(latestConversationHref(undefined, [[sara("s", "2026-09-01T10:00:00Z")]])).toBe("/sara/s");
+    expect(latestConversationHref(undefined, [[], []])).toBeNull();
+  });
+
+  it("Sara.tsx: ?customerId consulta a Sara só com listConversations por telefone (e164Candidates)", () => {
+    expect(list).toContain("parseDeepLink(window.location.search)");
+    expect(list).toMatch(/e164Candidates\(customer\.data\.phone\)/);
+    expect(list).toMatch(/trpc\.useQueries\(t =>\s*phoneForms\.map\(phone => t\.sara\.listConversations\(/);
+    // Nenhuma ação que altera conversa real da Sara na tela de lista.
+    expect(list).not.toMatch(/sara\.(sendMessage|takeover|release|close|sendTyping)/);
   });
 });

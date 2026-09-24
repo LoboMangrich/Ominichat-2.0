@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { phoneDigits, toE164Phone } from "./phone";
+import { e164Candidates, phoneDigits, toE164Phone } from "./phone";
 
 describe("toE164Phone — só telefone completo vira filtro phone da Sara", () => {
   it("já em E.164 (formato da Sara) passa igual", () => {
@@ -44,6 +44,34 @@ describe("toE164Phone — só telefone completo vira filtro phone da Sara", () =
 
   it("mais de 15 dígitos não é E.164", () => {
     expect(toE164Phone("+1234567890123456")).toBeNull();
+  });
+});
+
+describe("e164Candidates — com e sem o 9º dígito, no máximo 2 (consulta à Sara por ?customerId)", () => {
+  it("celular com 9 gera também a forma sem 9", () => {
+    expect(e164Candidates("+5548984053595")).toEqual(["+5548984053595", "+554884053595"]);
+    expect(e164Candidates("48984053595")).toEqual(["+5548984053595", "+554884053595"]);
+  });
+
+  it("número gravado sem 9 gera também a forma com 9", () => {
+    expect(e164Candidates("554884053595")).toEqual(["+554884053595", "+5548984053595"]);
+    expect(e164Candidates("(48) 8405-3595")).toEqual(["+554884053595", "+5548984053595"]);
+  });
+
+  it("nunca passa de 2 formas", () => {
+    for (const raw of ["+5548984053595", "48984053595", "554884053595", "4884053595"]) {
+      expect(e164Candidates(raw).length).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("internacional com + (não 55) fica com a forma única", () => {
+    expect(e164Candidates("+1 415 555 0100")).toEqual(["+14155550100"]);
+    expect(e164Candidates("+1 419 955 0100")).toEqual(["+14199550100"]); // 3º dígito 9, mas não é BR
+  });
+
+  it("parcial ou vazio não gera forma nenhuma", () => {
+    expect(e164Candidates("98405")).toEqual([]);
+    expect(e164Candidates("")).toEqual([]);
   });
 });
 

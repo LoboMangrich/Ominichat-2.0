@@ -18,6 +18,42 @@ export function phoneDigits(raw: string): string {
 }
 
 /**
+ * Formas nacionais (DDD + número) equivalentes: com e sem o 9º dígito.
+ * Retorna [] quando o número não parece brasileiro. Usada por
+ * `server/phoneMatch.ts` (cadastro do Cashmiles) e por `e164Candidates` (Sara).
+ */
+export function brazilianNationalForms(digits: string): string[] {
+  let national = digits;
+  if (national.startsWith(BR_COUNTRY_CODE) && (national.length === 12 || national.length === 13)) {
+    national = national.slice(2);
+  }
+  if (national.length === 11 && national[2] === "9") {
+    return [national, national.slice(0, 2) + national.slice(3)];
+  }
+  if (national.length === 10) {
+    return [national, national.slice(0, 2) + "9" + national.slice(2)];
+  }
+  return [];
+}
+
+/**
+ * Formas E.164 com e sem o 9º dígito — no máximo 2 — para consultar o filtro
+ * `phone` da Sara a partir de um telefone gravado no Cashmiles, que pode estar
+ * sem o 9 (ou sem DDI). Número com "+" que não é brasileiro, ou fora do padrão
+ * brasileiro, cai no E.164 único de `toE164Phone` (ou em nenhuma forma).
+ */
+export function e164Candidates(raw: string): string[] {
+  const digits = phoneDigits(raw);
+  const explicitInternational = raw.trim().startsWith("+");
+  if (!explicitInternational || digits.startsWith(BR_COUNTRY_CODE)) {
+    const national = brazilianNationalForms(digits);
+    if (national.length > 0) return national.map(n => `+${BR_COUNTRY_CODE}${n}`);
+  }
+  const single = toE164Phone(raw);
+  return single ? [single] : [];
+}
+
+/**
  * Converte um telefone completo (≥10 dígitos) para E.164. Retorna `null` quando
  * o termo não é um telefone completo ou quando o formato é ambíguo — nesse caso
  * quem chama não deve mandá-lo como filtro `phone`.

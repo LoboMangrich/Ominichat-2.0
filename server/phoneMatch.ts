@@ -9,29 +9,11 @@
  * `IN (...)` e aproveitar o índice `idx_customers_phone`.
  */
 
-import { phoneDigits } from "@shared/phone";
+import { brazilianNationalForms, phoneDigits } from "@shared/phone";
 
 export { phoneDigits };
 
 const BR_COUNTRY_CODE = "55";
-
-/**
- * Formas nacionais (DDD + número) equivalentes: com e sem o 9º dígito.
- * Retorna [] quando o número não parece brasileiro.
- */
-function brazilianNationalForms(digits: string): string[] {
-  let national = digits;
-  if (national.startsWith(BR_COUNTRY_CODE) && (national.length === 12 || national.length === 13)) {
-    national = national.slice(2);
-  }
-  if (national.length === 11 && national[2] === "9") {
-    return [national, national.slice(0, 2) + national.slice(3)];
-  }
-  if (national.length === 10) {
-    return [national, national.slice(0, 2) + "9" + national.slice(2)];
-  }
-  return [];
-}
 
 /** Só dígitos — para comparar contra `REGEXP_REPLACE(phone, '[^0-9]', '')`. */
 export function phoneDigitCandidates(raw: string): string[] {

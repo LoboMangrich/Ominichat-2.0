@@ -536,6 +536,24 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
     /conversations` não traz nenhum dos dois (só `messageCount` e
     `lastMessageAt`). A lista da tela única não mostra prévia nem "não lidas"
     por isso. A Sara pode passar a mandar `lastMessageText`/`unreadCount`?
+  - **Prompts (`/prompts`):** corpo do `POST /prompts` e formato das
+    respostas de `GET /prompts` e `POST /prompts/{id}/activate` — a doc não
+    traz nenhum dos dois (ver "Prompt da Sara" abaixo).
+- **Prompt da Sara (`GET`/`POST /api/v1/support/prompts`,
+  `POST /api/v1/support/prompts/{id}/activate`) — NÃO implementar ainda.**
+  Esses endpoints **alteram a IA que fala com clientes reais**: ativar uma
+  versão troca, na hora, o comportamento da Sara em produção. A doc não traz o
+  corpo do `POST` nem o formato das respostas (perguntado ao TI). Nenhum
+  código para eles existe no Cashmiles.
+  - **Não aceitam `x-sara-actor-id`.** Quando forem implementados, o registro
+    de quem criou e quem ativou cada versão (e quando) tem que ficar no
+    Cashmiles — a Sara não guarda.
+  - **Proteções já decididas para a futura tela "Prompt da Sara":**
+    - só Admin, checado **no servidor** (não só esconder o botão);
+    - criar ≠ ativar: criar gera versão inativa; ativar é ação separada;
+    - antes de ativar, comparação lado a lado com a versão ativa;
+    - confirmação digitando "ATIVAR";
+    - reverter = ativar a versão anterior (não existe "desfazer" próprio).
 - **Pendências — fora do escopo até agora:**
   - Envio de áudio e imagem (depende da resposta acima sobre o multipart). O
     composer não mostra botão de anexo/áudio/imagem — nem desabilitado.

@@ -42,9 +42,10 @@ describe("SaraMedia — URL assinada de 900s", () => {
     expect(media).not.toMatch(/console\./);
   });
 
-  it("bolha do chat renderiza áudio e imagem, sem \"(sem texto)\" quando há mídia", () => {
+  it("bolha do chat renderiza áudio e imagem; sem texto e sem mídia mostra \"[<messageType>]\"", () => {
     expect(detail).toContain("{message.audio && <SaraAudio audio={message.audio} />}");
     expect(detail).toContain("{message.image && <SaraImage image={message.image} />}");
-    expect(detail).toMatch(/!message\.audio && !message\.image && <p[^>]*>\(sem texto\)<\/p>/);
+    expect(detail).toMatch(/!message\.audio && !message\.image && \(\s*<p[^>]*>\[\{message\.messageType\}\]<\/p>/);
+    expect(detail).not.toContain("(sem texto)");
   });
 });

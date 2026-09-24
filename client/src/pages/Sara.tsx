@@ -6,7 +6,7 @@ import TagManagerModal, { type Tag } from "@/components/conversations/TagManager
 import { trpc } from "@/lib/trpc";
 import { timeAgo } from "@/lib/timeAgo";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Info, MessageSquare, Search, Settings2, Users } from "lucide-react";
+import { AlertTriangle, MessageSquare, Search, Settings2, Users } from "lucide-react";
 import { e164Candidates } from "@shared/phone";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -16,7 +16,6 @@ import SaraConversationDetail from "./SaraConversationDetail";
 import {
   conversationHref,
   displayName,
-  includesSara,
   initials,
   latestConversationHref,
   legacyQueryInput,
@@ -26,6 +25,7 @@ import {
   parseDeepLink,
   saraMatchesFilter,
   saraSearch,
+  saraSource,
   saraStatusParam,
   statusLabel,
   tabFilterFor,
@@ -36,6 +36,7 @@ const PAGE_SIZE = 20;
 // sara.listConversations aceita no máximo 100 (server/routers/sara.ts).
 const SARA_MAX_LIMIT = 100;
 const LIST_REFETCH_MS = 15000;
+const TAGGED_STALE_MS = 60_000;
 
 type Selection =
   | { source: "sara"; id: string }
@@ -129,7 +130,9 @@ export default function Sara() {
   const tags = (rawTags as Tag[]).filter(t => t.name !== "Todos");
   const selectedTag = tags.find(t => t.id === selectedTagId);
   const filter = tabFilterFor(selectedTag);
-  const saraEnabled = includesSara(filter);
+  const source = saraSource(filter);
+  const saraEnabled = source === "list";
+  const taggedEnabled = source === "tag";
 
   const { phone: saraPhone, localFilter } = saraSearch(search);
   const saraLimit = Math.min(limit, SARA_MAX_LIMIT);
@@ -141,16 +144,26 @@ export default function Sara() {
       limit: saraLimit,
       offset: 0,
     },
-    // Grupos e etiqueta personalizada não têm Sara — nem consulta.
+    // Grupos não têm Sara; etiqueta personalizada usa listTaggedConversations.
     { refetchInterval: LIST_REFETCH_MS, enabled: saraEnabled },
   );
+
+  // Etiqueta personalizada → conversas da Sara buscadas por id (até 50, 5 em paralelo, no
+  // servidor). SEM polling: a Sara é produção — atualiza ao abrir a aba ou trocar de
+  // etiqueta (staleTime 60s).
+  const taggedTagId = filter.kind === "tag" ? filter.tagId : 0;
+  const taggedQuery = trpc.sara.listTaggedConversations.useQuery(
+    { tagId: taggedTagId },
+    { enabled: taggedEnabled, staleTime: TAGGED_STALE_MS, refetchInterval: false, refetchOnWindowFocus: false },
+  );
+  const activeSaraQuery = taggedEnabled ? taggedQuery : saraQuery;
 
   const legacyQuery = trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit), {
     refetchInterval: LIST_REFETCH_MS,
   });
 
-  const saraItems = saraEnabled
-    ? (saraQuery.data?.data ?? []).filter(
+  const saraItems = saraEnabled || taggedEnabled
+    ? (activeSaraQuery.data?.data ?? []).filter(
         c => saraMatchesFilter(c.status, filter) && (localFilter ? matchesLocalSearch(c, localFilter) : true),
       )
     : [];
@@ -162,9 +175,11 @@ export default function Sara() {
     saraEnabled && (saraQuery.data?.pagination.hasMore ?? false) && saraLimit < SARA_MAX_LIMIT;
   const legacyHasMore = (legacyQuery.data?.length ?? 0) >= limit;
   const hasMore = saraHasMore || legacyHasMore;
-  const isFetching = saraQuery.isFetching || legacyQuery.isFetching;
+  const isFetching = activeSaraQuery.isFetching || legacyQuery.isFetching;
+  const saraActive = saraEnabled || taggedEnabled;
   // Só "carregando" enquanto nenhuma fonte ativa respondeu (com dado ou erro).
-  const isLoading = (!saraEnabled || saraQuery.isLoading) && legacyQuery.isLoading;
+  const isLoading = (!saraActive || activeSaraQuery.isLoading) && legacyQuery.isLoading;
+  const saraFailed = saraActive && activeSaraQuery.isError;
 
   // Grupo só abre se estiver na lista carregada (o painel precisa do nome do grupo).
   const selectedGroup =
@@ -237,19 +252,10 @@ export default function Sara() {
           </button>
         </div>
 
-        {filter.kind === "tag" && (
-          <div className="px-3 pb-2 shrink-0">
-            <div className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-              <Info className="w-3.5 h-3.5 shrink-0" />
-              Conversas da Sara não têm etiquetas — mostrando só o canal próprio.
-            </div>
-          </div>
-        )}
-
         {/* Falha de uma fonte não esvazia a tela: mostra a outra + aviso. */}
-        {((saraEnabled && saraQuery.isError) || legacyQuery.isError) && (
+        {(saraFailed || legacyQuery.isError) && (
           <div className="px-3 pb-2 space-y-1 shrink-0">
-            {saraEnabled && saraQuery.isError && (
+            {saraFailed && (
               <div className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-[11px] text-destructive">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Sara indisponível
               </div>

@@ -12,17 +12,19 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Bot, Mail, Phone, Send, Tag, TrendingUp, User, UserX, X, Zap } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Bot, Lock, Mail, Phone, Tag, TrendingUp, User, UserX, X, Zap } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
+import SaraComposer from "@/components/conversations/SaraComposer";
+import SaraRegisterCustomer from "@/components/conversations/SaraRegisterCustomer";
+import { SaraTagPicker, SaraTagStrip } from "@/components/conversations/SaraTags";
 import { statusConfig } from "./Customers";
 import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
-import { SARA_STATUS_LABELS, initials, saraActorLabel } from "./saraShared";
+import { SARA_STATUS_LABELS, initials, mergeTimeline, saraActorLabel } from "./saraShared";
 
 // Mesmo padrão de fundo da área de mensagens de ConversationDetail.tsx — só tokens.
 const CHAT_BACKGROUND = {
@@ -30,7 +32,14 @@ const CHAT_BACKGROUND = {
   backgroundColor: "hsl(var(--muted)/0.3)",
 };
 
-function formatDateTime(value: string): string {
+/** Renovação em até 30 dias fica destacada (mesma regra de ConversationDetail.tsx). */
+const RENEWAL_SOON_MS = 30 * 24 * 60 * 60 * 1000;
+
+function formatBRL(value: number | null): string {
+  return `R$ ${Number(value ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+}
+
+function formatDateTime(value: string | Date): string {
   return new Date(value).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -42,7 +51,15 @@ function formatDateTime(value: string): string {
 // ─── Painel do cliente (Cashmiles) ───────────────────────────────────────────
 // Sara é dona da conversa; o Cashmiles é dono do cliente (CLAUDE.md). A ligação é
 // o telefone, via sara.customerByPhone — leitura local, nada vai para a Sara.
-function SaraCustomerPanel({ phone }: { phone: string | null }) {
+function SaraCustomerPanel({
+  conversationId,
+  phone,
+  userName,
+}: {
+  conversationId: string;
+  phone: string | null;
+  userName: string | null;
+}) {
   const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.sara.customerByPhone.useQuery(
     { phone: phone ?? "" },
@@ -71,11 +88,16 @@ function SaraCustomerPanel({ phone }: { phone: string | null }) {
       <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
         <UserX className="w-6 h-6 opacity-40" />
         Cliente não cadastrado
+        <SaraRegisterCustomer conversationId={conversationId} phone={phone} suggestedName={userName} />
       </div>
     );
   }
 
   const score = customer.healthScore;
+  const hasMrr = (customer.mrr ?? 0) > 0;
+  const renewal = customer.renewalDate ? new Date(customer.renewalDate) : null;
+  const renewalSoon = renewal !== null && renewal.getTime() <= Date.now() + RENEWAL_SOON_MS;
+  const hasLtv = (customer.lifetimeValue ?? 0) > 0;
 
   return (
     <div className="p-4 space-y-5">
@@ -146,6 +168,36 @@ function SaraCustomerPanel({ phone }: { phone: string | null }) {
         </div>
       )}
 
+      {/* MRR & Renovação — mesma regra de ConversationDetail.tsx: renovação em até 30
+          dias fica destacada. NPS/CSAT não entram aqui (hoje saem pelo canal próprio). */}
+      {(hasMrr || renewal) && (
+        <div className="grid grid-cols-2 gap-2">
+          {hasMrr && (
+            <div className="bg-muted/40 rounded-xl p-2.5">
+              <p className="text-sm font-bold text-foreground">{formatBRL(customer.mrr)}</p>
+              <p className="text-[10px] text-muted-foreground">MRR</p>
+            </div>
+          )}
+          {renewal && (
+            <div className={cn("rounded-xl p-2.5", renewalSoon ? "bg-destructive/10" : "bg-muted/40")}>
+              <p className={cn("text-sm font-bold", renewalSoon ? "text-destructive" : "text-foreground")}>
+                {renewal.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {renewalSoon ? "Renovação próxima" : "Renovação"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasLtv && (
+        <div className="bg-muted/40 rounded-xl p-2.5 flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">LTV</span>
+          <span className="text-sm font-bold text-foreground">{formatBRL(customer.lifetimeValue)}</span>
+        </div>
+      )}
+
       {pendingTasks.length > 0 && (
         <div>
           <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 flex items-center gap-1">
@@ -186,7 +238,6 @@ function SaraCustomerPanel({ phone }: { phone: string | null }) {
 
 // ─── Painel da conversa (embutido em Sara.tsx) ───────────────────────────────
 export default function SaraConversationDetail({ id }: { id: string }) {
-  const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const utils = trpc.useUtils();
 
@@ -195,11 +246,15 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     { refetchInterval: 5000 },
   );
 
+  // Notas internas: só no Cashmiles (nunca vão para a Sara). Atualizam junto com a conversa.
+  const { data: notes = [] } = trpc.sara.listNotes.useQuery(
+    { conversationId: id },
+    { refetchInterval: 5000 },
+  );
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [data?.messages.length]);
-
-  useEffect(() => setDraft(""), [id]);
+  }, [data?.messages.length, notes.length]);
 
   // Toda ação invalida a conversa aberta E a lista — sem a lista, o status e as abas
   // ficam desatualizados até o próximo refetch (foi o que fez "Finalizar conversa"
@@ -210,10 +265,15 @@ export default function SaraConversationDetail({ id }: { id: string }) {
   };
 
   const sendMutation = trpc.sara.sendMessage.useMutation({
-    onSuccess: () => {
-      setDraft("");
-      invalidateAll();
-    },
+    onSuccess: () => invalidateAll(),
+    onError: e => toast.error(e.message),
+  });
+
+  // "Digitando..." é best-effort: falha não interrompe quem está digitando.
+  const typingMutation = trpc.sara.sendTyping.useMutation();
+
+  const addNoteMutation = trpc.sara.addNote.useMutation({
+    onSuccess: () => utils.sara.listNotes.invalidate({ conversationId: id }),
     onError: e => toast.error(e.message),
   });
 
@@ -272,12 +332,6 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     : conversation.actorId === null
       ? SARA_UNIDENTIFIED_ACTOR_NOTICE
       : `Conversa assumida por ${actorLabel}. Só quem assumiu pode responder.`;
-
-  function handleSend() {
-    const text = draft.trim();
-    if (!text || !canSend) return;
-    sendMutation.mutate({ id, text });
-  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
@@ -389,7 +443,24 @@ export default function SaraConversationDetail({ id }: { id: string }) {
           )}
 
           <div className="flex-1 overflow-y-auto p-4 space-y-1.5" style={CHAT_BACKGROUND}>
-            {messages.map(message => {
+            <SaraTagStrip conversationId={id} />
+            {mergeTimeline(messages, notes).map(entry => {
+              if (entry.kind === "note") {
+                const note = entry.item;
+                // Mesmo estilo âmbar de nota interna do ConversationDetail.
+                return (
+                  <div key={entry.key} className="flex justify-end">
+                    <div className="max-w-[72%] rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-100">
+                      <p className="mb-1 flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        <Lock className="w-3 h-3" /> Nota interna · {note.authorName ?? "Atendente"}
+                      </p>
+                      <p className="whitespace-pre-wrap break-words">{note.text}</p>
+                      <p className="mt-1 text-right text-[10px] opacity-70">{formatDateTime(note.createdAt)}</p>
+                    </div>
+                  </div>
+                );
+              }
+              const message = entry.item;
               const isCustomer = message.senderType === "user";
               const isSara = message.senderType === "sara";
               const isAdmin = message.senderType === "admin";
@@ -398,7 +469,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
               const isUnknown = !isCustomer && !isSara && !isAdmin;
               const alignRight = isSara || isAdmin;
               return (
-                <div key={message.id} className={`flex ${alignRight ? "justify-end" : "justify-start"}`}>
+                <div key={entry.key} className={`flex ${alignRight ? "justify-end" : "justify-start"}`}>
                   <div
                     className={cn(
                       "max-w-[72%] rounded-2xl px-3 py-2 text-sm shadow-sm",
@@ -429,7 +500,10 @@ export default function SaraConversationDetail({ id }: { id: string }) {
                     {message.text ? (
                       <p className="whitespace-pre-wrap break-words">{message.text}</p>
                     ) : (
-                      !message.audio && !message.image && <p className="whitespace-pre-wrap break-words">(sem texto)</p>
+                      // Sem texto e sem mídia: mostra o tipo cru (ex.: [sticker]) em vez de esconder.
+                      !message.audio && !message.image && (
+                        <p className="whitespace-pre-wrap break-words italic opacity-80">[{message.messageType}]</p>
+                      )
                     )}
                     <p className="mt-1 text-right text-[10px] opacity-70">{formatDateTime(message.createdAt)}</p>
                   </div>
@@ -439,46 +513,31 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t bg-card p-3 shrink-0">
-            {canSend ? (
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={draft}
-                  onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="Digite sua resposta..."
-                  className="min-h-[44px] flex-1 resize-none"
-                  maxLength={4096}
-                  disabled={sendMutation.isPending}
-                />
-                <Button
-                  size="icon"
-                  className="shrink-0 h-9 w-9 rounded-full"
-                  onClick={handleSend}
-                  disabled={sendMutation.isPending || !draft.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <p className="text-center text-sm text-muted-foreground">
-                {ownershipNotice ??
-                  (isActive
-                    ? "Assuma o atendimento para responder diretamente ao cliente."
-                    : "Esta conversa não aceita resposta.")}
-              </p>
-            )}
-          </div>
+          <SaraComposer
+            key={id}
+            canReply={canSend}
+            replyNotice={
+              ownershipNotice ??
+              (isActive
+                ? "Assuma o atendimento para responder diretamente ao cliente."
+                : "Esta conversa não aceita resposta.")
+            }
+            isSending={sendMutation.isPending}
+            onSend={text => sendMutation.mutateAsync({ id, text })}
+            onTyping={() => typingMutation.mutate({ id })}
+            isAddingNote={addNoteMutation.isPending}
+            onAddNote={text => addNoteMutation.mutateAsync({ conversationId: id, text })}
+            headerActions={<SaraTagPicker conversationId={id} />}
+          />
         </div>
 
         {/* ── Painel do cliente ── */}
         <div className="w-72 border-l bg-card overflow-y-auto shrink-0">
-          <SaraCustomerPanel phone={conversation.phoneNumber} />
+          <SaraCustomerPanel
+            conversationId={conversation.id}
+            phone={conversation.phoneNumber}
+            userName={conversation.userName}
+          />
         </div>
       </div>
     </div>

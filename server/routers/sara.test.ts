@@ -361,3 +361,302 @@ describe("sara.audioUrl / sara.imageUrl — mídia sob demanda", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sara.registerCustomer — cadastra o cliente com o telefone vindo da Sara", () => {
+  const SARA_PHONE = "+5548984053595";
+
+  function detailWithPhone(phoneNumber: string | null) {
+    const d = conversationDetail(null, "active");
+    return { ...d, conversation: { ...d.conversation, phoneNumber, userName: "Maria" } };
+  }
+
+  /** Banco falso: select devolve `existing`; insert registra os valores. */
+  function fakeDb(existing: Array<Record<string, unknown>>) {
+    const inserted: Array<Record<string, unknown>> = [];
+    const selectChain = {
+      from: () => selectChain,
+      where: () => selectChain,
+      orderBy: () => selectChain,
+      limit: () => Promise.resolve(existing),
+    };
+    const db = {
+      select: () => selectChain,
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted.push(v);
+          return { $returningId: () => Promise.resolve([{ id: 321 }]) };
+        },
+      }),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+    return inserted;
+  }
+
+  it("telefone vem do GET da conversa (só dígitos com DDI), nunca do client", async () => {
+    const inserted = fakeDb([]);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(SARA_PHONE)));
+
+    const result = await saraRouter.createCaller(createContext()).registerCustomer({
+      conversationId: "conv-1",
+      name: "Maria",
+      email: "",
+      // Campo extra do client é descartado pelo schema — o telefone não entra por aqui.
+      phone: "11999999999",
+    } as never);
+
+    expect(result).toEqual({ id: 321 });
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({ name: "Maria", phone: "5548984053595", email: null, status: "New" });
+    expect(postCalls(fetchMock)).toEqual([]); // só GET na Sara
+  });
+
+  it("duplicado → CONFLICT \"Já existe cliente com este telefone\", sem inserir", async () => {
+    const inserted = fakeDb([{ id: 5, name: "Maria", phone: "5548984053595" }]);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(SARA_PHONE)));
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).registerCustomer({ conversationId: "conv-1", name: "Maria" }),
+    );
+
+    expect(error.code).toBe("CONFLICT");
+    expect(error.message).toBe("Já existe cliente com este telefone");
+    expect(inserted).toEqual([]);
+  });
+
+  it("sem banco → erro claro, sem inserir", async () => {
+    vi.mocked(getDb).mockResolvedValue(null);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(SARA_PHONE)));
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).registerCustomer({ conversationId: "conv-1", name: "Maria" }),
+    );
+
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+    expect(error.message).toMatch(/Banco de dados indisponível/);
+  });
+
+  it("conversa sem telefone → BAD_REQUEST", async () => {
+    fakeDb([]);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(null)));
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).registerCustomer({ conversationId: "conv-1", name: "Maria" }),
+    );
+
+    expect(error.code).toBe("BAD_REQUEST");
+  });
+
+  it("valida e-mail, nome e status", async () => {
+    const caller = saraRouter.createCaller(createContext());
+    await expect(caller.registerCustomer({ conversationId: "c", name: "", email: "" })).rejects.toThrow();
+    await expect(caller.registerCustomer({ conversationId: "c", name: "M", email: "nao-e-email" })).rejects.toThrow();
+    await expect(caller.registerCustomer({ conversationId: "c", name: "M", status: "Ativo" as never })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sara.sendTyping — mesma regra do envio (só o dono), checada antes do POST", () => {
+  const typingPath = "https://sara.example.test/api/v1/support/conversations/conv-1/typing";
+
+  it("dono: chama o POST /typing", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID))))
+      .mockResolvedValueOnce(jsonResponse(200, { sent: true }));
+
+    await saraRouter.createCaller(createContext()).sendTyping({ id: "conv-1" });
+
+    expect(postCalls(fetchMock)).toEqual([typingPath]);
+  });
+
+  it.each([
+    ["outro atendente", createContext("Agent"), String(OTHER_ID)],
+    ["Admin (não é exceção)", createContext("Admin"), String(OTHER_ID)],
+    ["actorId null", createContext("Agent"), null],
+  ])("%s: FORBIDDEN sem chamar o POST", async (_label, ctx, actorId) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, conversationDetail(actorId)));
+
+    const error = await catchError(saraRouter.createCaller(ctx).sendTyping({ id: "conv-1" }));
+
+    expect(error.code).toBe("FORBIDDEN");
+    expect(postCalls(fetchMock)).toEqual([]);
+  });
+});
+
+describe("sara.addNote / listNotes — nota interna fica só no Cashmiles", () => {
+  function fakeNotesDb(rows: Array<Record<string, unknown>> = []) {
+    const inserted: Array<Record<string, unknown>> = [];
+    const selectChain = {
+      from: () => selectChain,
+      leftJoin: () => selectChain,
+      where: () => selectChain,
+      orderBy: () => Promise.resolve(rows),
+    };
+    vi.mocked(getDb).mockResolvedValue({
+      select: () => selectChain,
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted.push(v);
+          return { $returningId: () => Promise.resolve([{ id: 9 }]) };
+        },
+      }),
+    } as never);
+    return inserted;
+  }
+
+  it.each([
+    ["dono", createContext("Agent")],
+    ["atendente que não assumiu", createContext("Agent", OTHER_ID)],
+    ["Admin", createContext("Admin")],
+  ])("%s escreve nota — sem chamar a Sara", async (_label, ctx) => {
+    const inserted = fakeNotesDb();
+
+    const result = await saraRouter.createCaller(ctx).addNote({ conversationId: "conv-1", text: "  cliente pediu retorno  " });
+
+    expect(result).toEqual({ id: 9 });
+    expect(inserted[0]).toMatchObject({ saraConversationId: "conv-1", text: "cliente pediu retorno" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("autor é sempre o usuário logado (não vem do client)", async () => {
+    const inserted = fakeNotesDb();
+    await saraRouter
+      .createCaller(createContext("Agent", OTHER_ID))
+      .addNote({ conversationId: "conv-1", text: "x", authorId: 1 } as never);
+    expect(inserted[0].authorId).toBe(OTHER_ID);
+  });
+
+  it("nota vazia é rejeitada; sem banco → erro claro", async () => {
+    await expect(
+      saraRouter.createCaller(createContext()).addNote({ conversationId: "conv-1", text: "   " }),
+    ).rejects.toThrow();
+    vi.mocked(getDb).mockResolvedValue(null);
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).addNote({ conversationId: "conv-1", text: "oi" }),
+    );
+    expect(error.message).toMatch(/Banco de dados indisponível/);
+  });
+
+  it("listNotes lê do banco, sem chamar a Sara; sem banco → []", async () => {
+    fakeNotesDb([{ id: 1, text: "n", createdAt: new Date(), authorId: 7, authorName: "Ana" }]);
+    await expect(saraRouter.createCaller(createContext()).listNotes({ conversationId: "conv-1" })).resolves.toHaveLength(1);
+    vi.mocked(getDb).mockResolvedValue(null);
+    await expect(saraRouter.createCaller(createContext()).listNotes({ conversationId: "conv-1" })).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sara.listTaggedConversations — etiqueta → conversas da Sara (GET por id, com limites)", () => {
+  /** Banco falso: ids etiquetados na consulta de saraConversationTags; nomes vazios. */
+  function fakeTaggedDb(ids: string[]) {
+    const where = () => ({
+      orderBy: () => ({ limit: (n: number) => Promise.resolve(ids.slice(0, n).map(id => ({ id }))) }),
+      // resolveActorNames faz `await db.select().from(users).where(...)`
+      then: (resolve: (v: unknown[]) => unknown) => resolve([]),
+    });
+    const chain = { from: () => ({ where }) };
+    vi.mocked(getDb).mockResolvedValue({ select: () => chain } as never);
+  }
+
+  it("com 12 ids, nunca mais de 5 fetch simultâneos — e busca todos", async () => {
+    fakeTaggedDb(Array.from({ length: 12 }, (_, i) => `c${i}`));
+    let inFlight = 0;
+    let maxInFlight = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(r => setTimeout(r, 5));
+      inFlight--;
+      const id = String(url).split("/").pop()!;
+      const d = conversationDetail(null, "active");
+      return jsonResponse(200, { ...d, conversation: { ...d.conversation, id } });
+    });
+
+    const { data } = await saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+    expect(maxInFlight).toBeLessThanOrEqual(5);
+    expect(maxInFlight).toBeGreaterThan(1); // paralelo de verdade, não sequencial
+    expect(data.map(c => c.id)).toEqual(Array.from({ length: 12 }, (_, i) => `c${i}`));
+    expect(postCalls(fetchMock)).toEqual([]); // só leitura
+  });
+
+  it("teto de 50 ids", async () => {
+    fakeTaggedDb(Array.from({ length: 80 }, (_, i) => `c${i}`));
+    fetchMock.mockImplementation(async () => jsonResponse(200, conversationDetail(null, "active")));
+
+    await saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(50);
+  });
+
+  it("404 da Sara para um id etiquetado: some da lista, sem erro", async () => {
+    fakeTaggedDb(["ok-1", "sumiu", "ok-2"]);
+    fetchMock.mockImplementation(async (url: string) => {
+      const id = String(url).split("/").pop()!;
+      if (id === "sumiu") return errorResponse(404, "{}");
+      const d = conversationDetail(null, "active");
+      return jsonResponse(200, { ...d, conversation: { ...d.conversation, id } });
+    });
+
+    const { data } = await saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 });
+
+    expect(data.map(c => c.id)).toEqual(["ok-1", "ok-2"]);
+  });
+
+  it("outro erro da Sara (500) falha a consulta — a tela mostra \"Sara indisponível\"", async () => {
+    fakeTaggedDb(["a"]);
+    fetchMock.mockResolvedValue(errorResponse(500, "{}"));
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).listTaggedConversations({ tagId: 3 }),
+    );
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+  });
+});
+
+describe("sara.addTag — só etiquetas personalizadas", () => {
+  function fakeTagDb(tag: { id: number; slug: string | null } | undefined) {
+    const inserted: Array<Record<string, unknown>> = [];
+    const chain = { from: () => chain, where: () => chain, limit: () => Promise.resolve(tag ? [tag] : []) };
+    vi.mocked(getDb).mockResolvedValue({
+      select: () => chain,
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted.push(v);
+          return { onDuplicateKeyUpdate: () => Promise.resolve() };
+        },
+      }),
+    } as never);
+    return inserted;
+  }
+
+  it("etiqueta personalizada: grava com quem atribuiu, sem chamar a Sara", async () => {
+    const inserted = fakeTagDb({ id: 4, slug: null });
+    await saraRouter.createCaller(createContext()).addTag({ conversationId: "conv-1", tagId: 4 });
+    expect(inserted[0]).toMatchObject({ saraConversationId: "conv-1", tagId: 4, assignedBy: USER_ID });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("etiqueta de status (slug) → BAD_REQUEST; inexistente → NOT_FOUND", async () => {
+    fakeTagDb({ id: 1, slug: "open" });
+    expect((await catchError(saraRouter.createCaller(createContext()).addTag({ conversationId: "c", tagId: 1 }))).code).toBe(
+      "BAD_REQUEST",
+    );
+    fakeTagDb(undefined);
+    expect((await catchError(saraRouter.createCaller(createContext()).addTag({ conversationId: "c", tagId: 9 }))).code).toBe(
+      "NOT_FOUND",
+    );
+  });
+});
+
+describe("sara.customerByPhone — painel recebe LTV junto", () => {
+  it("devolve lifetimeValue, mrr e renewalDate do cliente", async () => {
+    const row = { id: 1, name: "Maria", mrr: 300, renewalDate: new Date("2026-10-01"), lifetimeValue: 5400 };
+    const chain = { from: () => chain, where: () => chain, orderBy: () => chain, limit: () => Promise.resolve([row]) };
+    vi.mocked(getDb).mockResolvedValue({ select: () => chain } as never);
+
+    const result = await saraRouter.createCaller(createContext()).customerByPhone({ phone: "+5548984053595" });
+
+    expect(result?.customer).toMatchObject({ lifetimeValue: 5400, mrr: 300 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

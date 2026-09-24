@@ -94,9 +94,17 @@ export function tabFilterFor(tag: { id: number; slug: string | null } | null | u
   return { kind: "tag", tagId: tag.id };
 }
 
-/** A Sara entra na lista? Não em Grupos nem em etiqueta personalizada. */
-export function includesSara(filter: TabFilter): boolean {
-  return filter.kind === "all" || filter.kind === "status";
+/**
+ * De onde vêm as conversas da Sara nesta aba:
+ * - "list": sara.listConversations (Todos, Em Aberto, Aguardando);
+ * - "tag": sara.listTaggedConversations (etiqueta personalizada — a API da Sara não
+ *   filtra por etiqueta, então buscamos cada conversa etiquetada por id);
+ * - "none": Grupos (não há Sara).
+ */
+export function saraSource(filter: TabFilter): "list" | "tag" | "none" {
+  if (filter.kind === "all" || filter.kind === "status") return "list";
+  if (filter.kind === "tag") return "tag";
+  return "none";
 }
 
 /**
@@ -109,7 +117,7 @@ export function saraStatusParam(filter: TabFilter): SaraConversationStatus | und
 }
 
 export function saraMatchesFilter(status: string, filter: TabFilter): boolean {
-  if (filter.kind === "all") return true;
+  if (filter.kind === "all" || filter.kind === "tag") return true; // etiqueta: qualquer status
   if (filter.kind === "status") return (filter.saraStatuses as readonly string[]).includes(status);
   return false;
 }
@@ -340,4 +348,60 @@ export function matchesLocalSearch(conv: SaraListItem, term: string): boolean {
 export function initials(name: string | null): string {
   if (!name) return "?";
   return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+}
+
+// ─── "Digitando..." ──────────────────────────────────────────────────────────
+/** No máximo 1 sara.sendTyping a cada 5s enquanto o dono digita (é chamada real ao cliente). */
+export const SARA_TYPING_INTERVAL_MS = 5000;
+
+export function shouldSendTyping(lastSentAt: number | null, now: number, intervalMs = SARA_TYPING_INTERVAL_MS): boolean {
+  return lastSentAt === null || now - lastSentAt >= intervalMs;
+}
+
+// ─── Respostas rápidas ───────────────────────────────────────────────────────
+export type QuickReply = { id: number; title: string; content: string; shortcut: string | null };
+
+/** Mesmo filtro do "/" de ConversationDetail.tsx: atalho (começa com), título ou conteúdo (contém). */
+export function filterQuickReplies(list: QuickReply[], query: string): QuickReply[] {
+  if (!query) return list;
+  return list.filter(
+    qr =>
+      String(qr.shortcut ?? "").toLowerCase().startsWith(query) ||
+      String(qr.title ?? "").toLowerCase().includes(query) ||
+      String(qr.content ?? "").toLowerCase().includes(query),
+  );
+}
+
+// ─── Linha do tempo: mensagens da Sara + notas internas do Cashmiles ─────────
+export type TimelineEntry<M, N> =
+  | { kind: "message"; key: string; at: number; item: M }
+  | { kind: "note"; key: string; at: number; item: N };
+
+/**
+ * Intercala mensagens e notas pelo horário (asc). Empate: mensagem antes da nota.
+ * Ordem estável — a ordem original de cada lista se mantém.
+ */
+export function mergeTimeline<
+  M extends { id: string; createdAt: string },
+  N extends { id: number; createdAt: string | Date },
+>(messages: M[], notes: N[]): Array<TimelineEntry<M, N>> {
+  const entries: Array<TimelineEntry<M, N> & { order: number }> = [
+    ...messages.map((item, i) => ({
+      kind: "message" as const,
+      key: `msg:${item.id}`,
+      at: toEpoch(item.createdAt) ?? 0,
+      item,
+      order: i,
+    })),
+    ...notes.map((item, i) => ({
+      kind: "note" as const,
+      key: `note:${item.id}`,
+      at: toEpoch(item.createdAt) ?? 0,
+      item,
+      order: messages.length + i,
+    })),
+  ];
+  return entries
+    .sort((a, b) => a.at - b.at || a.order - b.order)
+    .map(({ order: _order, ...entry }) => entry as TimelineEntry<M, N>);
 }

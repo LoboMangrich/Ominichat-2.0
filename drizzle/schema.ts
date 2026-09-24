@@ -1,6 +1,7 @@
 import {
   int,
   index,
+  uniqueIndex,
   mysqlEnum,
   mysqlTable,
   text,
@@ -1033,6 +1034,36 @@ export const conversationTagAssignments = mysqlTable("conversationTagAssignments
   assignedAt: timestamp("assignedAt").defaultNow().notNull(),
 });
 export type ConversationTagAssignment = typeof conversationTagAssignments.$inferSelect;
+
+// ─── Conversas da Sara: dados que ficam só no Cashmiles ──────────────────────
+// A Sara é dona da conversa (id string, externo); estas tabelas guardam o que é
+// nosso sobre ela e NUNCA vai para a Sara. Ver "Integração — Sara Support API"
+// no CLAUDE.md.
+
+// Nota interna (sussurro) numa conversa da Sara — visível só para a equipe.
+export const saraInternalNotes = mysqlTable("saraInternalNotes", {
+  id: int("id").autoincrement().primaryKey(),
+  saraConversationId: varchar("saraConversationId", { length: 64 }).notNull(),
+  authorId: int("authorId").notNull(),
+  text: text("text").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_saraInternalNotes_conversation").on(table.saraConversationId),
+]);
+export type SaraInternalNote = typeof saraInternalNotes.$inferSelect;
+
+// Etiqueta personalizada (conversationTags sem slug) numa conversa da Sara.
+export const saraConversationTags = mysqlTable("saraConversationTags", {
+  id: int("id").autoincrement().primaryKey(),
+  saraConversationId: varchar("saraConversationId", { length: 64 }).notNull(),
+  tagId: int("tagId").notNull(),
+  assignedBy: int("assignedBy"),
+  assignedAt: timestamp("assignedAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_saraConversationTags_conversation_tag").on(table.saraConversationId, table.tagId),
+  index("idx_saraConversationTags_tag").on(table.tagId),
+]);
+export type SaraConversationTag = typeof saraConversationTags.$inferSelect;
 
 // ─── Knowledge Captures (Base de Conhecimento Viva) ──────────────────────────
 // Every time the AI handles a client question, it is captured here.

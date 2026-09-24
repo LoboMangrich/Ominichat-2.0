@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import {
   ASSIGNMENT_TABS,
   DEFAULT_ASSIGNMENT_TAB,
+  PANEL_SECTIONS,
+  previousConversations,
+  readClosedSections,
+  writeClosedSections,
   SARA_STATUS_LABELS,
   formatTabCount,
   readAssignmentTab,
@@ -460,19 +464,99 @@ describe("mergeTimeline — mensagens e notas intercaladas por horário", () => 
 });
 
 describe("Painel do cliente (Sara) — mesmo conteúdo do ConversationDetail, sem NPS/CSAT", () => {
+  const panel = readFileSync(
+    new URL("../components/conversations/SaraCustomerPanel.tsx", import.meta.url),
+    "utf-8",
+  );
+
+  it("o painel saiu do SaraConversationDetail para SaraCustomerPanel", () => {
+    expect(detail).toContain('import SaraCustomerPanel from "@/components/conversations/SaraCustomerPanel";');
+    expect(detail).not.toContain("function SaraCustomerPanel(");
+  });
+
   it("mostra saúde, MRR, renovação (destaque em até 30 dias), LTV, tarefas e Ver perfil", () => {
-    expect(detail).toContain("Índice de Saúde");
-    expect(detail).toMatch(/>MRR</);
-    expect(detail).toContain("Renovação próxima");
-    expect(detail).toContain("const RENEWAL_SOON_MS = 30 * 24 * 60 * 60 * 1000;");
-    expect(detail).toMatch(/>LTV</);
-    expect(detail).toContain("Próximas Tarefas");
-    expect(detail).toContain("Ver perfil completo");
+    expect(panel).toContain("Índice de Saúde");
+    expect(panel).toMatch(/>MRR</);
+    expect(panel).toContain("Renovação próxima");
+    expect(panel).toContain("const RENEWAL_SOON_MS = 30 * 24 * 60 * 60 * 1000;");
+    expect(panel).toMatch(/>LTV</);
+    expect(panel).toContain('sectionKey="tarefas"');
+    expect(panel).toContain("Ver perfil completo");
   });
 
   it("NPS/CSAT não entram (saem pelo canal próprio, outro número)", () => {
-    expect(detail).not.toMatch(/trpc\.(surveys|satisfaction)\./);
-    expect(detail).not.toMatch(/type: "(NPS|CSAT)"/);
+    for (const source of [detail, panel]) {
+      expect(source).not.toMatch(/trpc\.(surveys|satisfaction)\./);
+      expect(source).not.toMatch(/type: "(NPS|CSAT)"/);
+    }
+  });
+
+  it("seções na ordem pedida, abrindo e fechando, com estado no localStorage", () => {
+    expect(PANEL_SECTIONS.map(s => s.title)).toEqual([
+      "Cliente",
+      "Saúde e financeiro",
+      "Próximas tarefas",
+      "Conversas anteriores",
+      "Notas do cliente",
+    ]);
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    writeClosedSections(storage, ["saude", "notas"]);
+    expect(readClosedSections(storage)).toEqual(["saude", "notas"]);
+    store.set("conversas.painel.secoes", '["saude","inexistente"]');
+    expect(readClosedSections(storage)).toEqual(["saude"]);
+    store.set("conversas.painel.secoes", "{json quebrado");
+    expect(readClosedSections(storage)).toEqual([]);
+    const broken = { getItem: () => { throw new Error("x"); }, setItem: () => { throw new Error("x"); } };
+    expect(readClosedSections(broken)).toEqual([]);
+    expect(() => writeClosedSections(broken, ["saude"])).not.toThrow();
+  });
+
+  it("sem cliente cadastrado: só a seção Cliente, com o botão Cadastrar", () => {
+    expect(panel).toMatch(
+      /if \(!customer\) \{\s*return \(\s*<PanelSection sectionKey="cliente"[\s\S]*?<SaraRegisterCustomer[\s\S]*?<\/PanelSection>\s*\);\s*\}/,
+    );
+  });
+
+  it("\"Notas do cliente\" = customerNotes (3 últimas + adicionar), não a nota interna da conversa", () => {
+    expect(panel).toContain("trpc.customerNotes.listByCustomer.useQuery({ customerId })");
+    expect(panel).toContain("notes.slice(0, NOTES_SHOWN)");
+    expect(panel).toContain("const NOTES_SHOWN = 3;");
+    expect(panel).toContain('create.mutate({ customerId, content, type: "note" })');
+    expect(panel).not.toMatch(/sara\.addNote|saraInternalNotes/);
+    expect(panel).not.toMatch(/console\./);
+  });
+
+  it("\"Conversas anteriores\": Sara por telefone (e164Candidates, sem polling) + canal próprio por customerId", () => {
+    expect(panel).toContain("const phoneForms = phone ? e164Candidates(phone) : [];");
+    expect(panel).toMatch(/t\.sara\.listConversations\([\s\S]*?refetchInterval: false/);
+    expect(panel).toContain("trpc.customers.getLastInteractions.useQuery({ customerId, limit: 10 })");
+    expect(panel).not.toMatch(/sara\.(sendMessage|takeover|release|close|sendTyping)/);
+  });
+
+  it("previousConversations: junta, tira a aberta e duplicadas, ordena desc, máximo 10", () => {
+    const sara = (id: string, at: string) => ({
+      id, status: "active", userName: null, phoneNumber: null, lastMessageAt: at, createdAt: at,
+    });
+    const legacy = (id: number, at: string) => ({
+      id, channel: "whatsapp", status: "Closed", handledByAi: false, updatedAt: new Date(at),
+    });
+    const result = previousConversations(
+      // a mesma conversa pode vir nas duas formas do telefone (com e sem o 9)
+      [[sara("atual", "2026-09-24T12:00:00Z"), sara("s1", "2026-09-20T10:00:00Z")], [sara("s1", "2026-09-20T10:00:00Z")]],
+      [legacy(5, "2026-09-22T10:00:00Z")],
+      "sara:atual",
+    );
+    expect(result.map(c => c.key)).toEqual(["legacy:5", "sara:s1"]);
+    expect(result[0]).toMatchObject({ origin: "WhatsApp", status: "Encerrada", href: "/sara/legado/5" });
+    expect(result[1]).toMatchObject({ origin: "Sara", status: "Com a IA", href: "/sara/s1" });
+
+    const many = Array.from({ length: 15 }, (_, i) => legacy(i + 1, `2026-09-${String(i + 1).padStart(2, "0")}T10:00:00Z`));
+    expect(previousConversations([], many, null)).toHaveLength(10);
+  });
+
+  it("painel sem cor hex nova", () => {
+    expect(panel).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 });
 

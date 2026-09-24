@@ -514,3 +514,85 @@ export function writeAssignmentTab(
     // sem localStorage: a escolha vale só nesta visita
   }
 }
+
+// ─── Painel do cliente: conversas anteriores ─────────────────────────────────
+export const PREVIOUS_CONVERSATIONS_MAX = 10;
+
+export type PreviousConversation = {
+  key: string;
+  href: string;
+  at: number | null;
+  origin: string;
+  status: string;
+};
+
+/**
+ * Conversas anteriores do mesmo cliente: as da Sara (achadas pelo telefone, com e sem o
+ * 9º dígito — pode vir a mesma conversa nas duas consultas) + as do canal próprio (por
+ * customerId). Tira a conversa aberta, ordena da mais recente e corta em 10.
+ */
+export function previousConversations(
+  saraLists: SaraListItem[][],
+  legacyRows: Array<{ id: number; channel: string | null; status: string | null; handledByAi: boolean | number | null; updatedAt: string | Date | null }>,
+  currentKey: string | null,
+  max = PREVIOUS_CONVERSATIONS_MAX,
+): PreviousConversation[] {
+  const seen = new Set<string>();
+  const out: PreviousConversation[] = [];
+  for (const conv of saraLists.flat()) {
+    const item = fromSara(conv);
+    if (seen.has(item.key)) continue;
+    seen.add(item.key);
+    out.push({ key: item.key, href: conversationHref(item), at: item.lastActivityAt, origin: "Sara", status: statusLabel(item) });
+  }
+  for (const row of legacyRows) {
+    const item = fromLegacy({ ...row, type: "conversation", name: null, phone: null, lastMessageAt: row.updatedAt });
+    if (seen.has(item.key)) continue;
+    seen.add(item.key);
+    out.push({ key: item.key, href: conversationHref(item), at: item.lastActivityAt, origin: originLabel(item), status: statusLabel(item) });
+  }
+  return out
+    .filter(c => c.key !== currentKey)
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
+    .slice(0, max);
+}
+
+// ─── Painel do cliente: seções que abrem e fecham ────────────────────────────
+export const PANEL_SECTIONS = [
+  { key: "cliente", title: "Cliente" },
+  { key: "saude", title: "Saúde e financeiro" },
+  { key: "tarefas", title: "Próximas tarefas" },
+  { key: "anteriores", title: "Conversas anteriores" },
+  { key: "notas", title: "Notas do cliente" },
+] as const;
+export type PanelSectionKey = (typeof PANEL_SECTIONS)[number]["key"];
+export const PANEL_SECTIONS_STORAGE_KEY = "conversas.painel.secoes";
+
+/** Seções fechadas (as demais ficam abertas). localStorage pode falhar — nunca quebra a tela. */
+export function readClosedSections(storage: Pick<Storage, "getItem"> | undefined): PanelSectionKey[] {
+  try {
+    const raw = storage?.getItem(PANEL_SECTIONS_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const valid = new Set<string>(PANEL_SECTIONS.map(s => s.key));
+    return Array.isArray(parsed) ? (parsed.filter(k => typeof k === "string" && valid.has(k)) as PanelSectionKey[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeClosedSections(storage: Pick<Storage, "setItem"> | undefined, closed: PanelSectionKey[]): void {
+  try {
+    storage?.setItem(PANEL_SECTIONS_STORAGE_KEY, JSON.stringify(closed));
+  } catch {
+    // sem localStorage: o estado vale só nesta visita
+  }
+}
+
+/** localStorage pode não existir ou lançar (modo privado, bloqueio). */
+export function safeLocalStorage(): Storage | undefined {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : undefined;
+  } catch {
+    return undefined;
+  }
+}

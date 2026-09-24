@@ -21,6 +21,7 @@ import {
   displayName,
   formatTabCount,
   readAssignmentTab,
+  safeLocalStorage,
   saraMatchesAssignment,
   writeAssignmentTab,
   type AssignmentTab,
@@ -51,15 +52,6 @@ type Selection =
   | { source: "legacy"; id: number }
   | { source: "group"; id: number }
   | null;
-
-/** localStorage pode não existir ou lançar (modo privado, bloqueio) — ver readAssignmentTab. */
-function safeLocalStorage(): Storage | undefined {
-  try {
-    return typeof window !== "undefined" ? window.localStorage : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 function positiveInt(value: string): number | null {
   const n = Number(value);

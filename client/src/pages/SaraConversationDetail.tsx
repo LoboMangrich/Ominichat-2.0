@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
+import SaraRegisterCustomer from "@/components/conversations/SaraRegisterCustomer";
 import { statusConfig } from "./Customers";
 import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
 import { SARA_STATUS_LABELS, initials, saraActorLabel } from "./saraShared";
@@ -42,7 +43,15 @@ function formatDateTime(value: string): string {
 // ─── Painel do cliente (Cashmiles) ───────────────────────────────────────────
 // Sara é dona da conversa; o Cashmiles é dono do cliente (CLAUDE.md). A ligação é
 // o telefone, via sara.customerByPhone — leitura local, nada vai para a Sara.
-function SaraCustomerPanel({ phone }: { phone: string | null }) {
+function SaraCustomerPanel({
+  conversationId,
+  phone,
+  userName,
+}: {
+  conversationId: string;
+  phone: string | null;
+  userName: string | null;
+}) {
   const [, setLocation] = useLocation();
   const { data, isLoading } = trpc.sara.customerByPhone.useQuery(
     { phone: phone ?? "" },
@@ -71,6 +80,7 @@ function SaraCustomerPanel({ phone }: { phone: string | null }) {
       <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
         <UserX className="w-6 h-6 opacity-40" />
         Cliente não cadastrado
+        <SaraRegisterCustomer conversationId={conversationId} phone={phone} suggestedName={userName} />
       </div>
     );
   }
@@ -478,7 +488,11 @@ export default function SaraConversationDetail({ id }: { id: string }) {
 
         {/* ── Painel do cliente ── */}
         <div className="w-72 border-l bg-card overflow-y-auto shrink-0">
-          <SaraCustomerPanel phone={conversation.phoneNumber} />
+          <SaraCustomerPanel
+            conversationId={conversation.id}
+            phone={conversation.phoneNumber}
+            userName={conversation.userName}
+          />
         </div>
       </div>
     </div>

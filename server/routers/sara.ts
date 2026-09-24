@@ -11,8 +11,9 @@ import {
 } from "@shared/sara";
 import { customers, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
+import { optionalEmail } from "../_core/validators";
 import { getDb } from "../db";
-import { phoneDigitCandidates, phoneLookupCandidates } from "../phoneMatch";
+import { phoneDigitCandidates, phoneDigits, phoneLookupCandidates } from "../phoneMatch";
 import {
   SaraSupportApiError,
   closeSaraConversation,
@@ -233,48 +234,118 @@ export const saraRouter = router({
   customerByPhone: protectedProcedure
     .input(z.object({ phone: z.string().min(1).max(64) }))
     .query(async ({ input }) => {
-      const exact = phoneLookupCandidates(input.phone);
-      if (exact.length === 0) return null;
       const db = await getDb();
       if (!db) return null;
-
-      const columns = {
-        id: customers.id,
-        name: customers.name,
-        email: customers.email,
-        phone: customers.phone,
-        program: customers.program,
-        status: customers.status,
-        healthScore: customers.healthScore,
-        mrr: customers.mrr,
-        renewalDate: customers.renewalDate,
-      };
-
-      // 1ª tentativa: valor exato (usa idx_customers_phone).
-      let matches = await db
-        .select(columns)
-        .from(customers)
-        .where(inArray(customers.phone, exact))
-        .orderBy(desc(customers.updatedAt))
-        .limit(2);
-
-      // 2ª tentativa: telefone gravado com pontuação, ex. "(48) 98405-3595".
-      if (matches.length === 0) {
-        const digits = phoneDigitCandidates(input.phone);
-        matches = await db
-          .select(columns)
-          .from(customers)
-          .where(
-            sql`REGEXP_REPLACE(${customers.phone}, '[^0-9]', '') IN (${sql.join(
-              digits.map(d => sql`${d}`),
-              sql`, `,
-            )})`,
-          )
-          .orderBy(desc(customers.updatedAt))
-          .limit(2);
-      }
-
+      const matches = await findCustomersByPhone(db, input.phone);
       if (matches.length === 0) return null;
       return { customer: matches[0], ambiguous: matches.length > 1 };
     }),
+
+  /**
+   * Cadastra o cliente a partir de uma conversa da Sara ("Cliente não cadastrado").
+   * O TELEFONE vem do servidor (GET da conversa na Sara, só leitura) — nunca do
+   * client. Gravado como só dígitos com DDI ("5548984053595"), o mesmo formato
+   * dos webhooks de WhatsApp Cloud/Z-API/Evolution, que procuram o cliente por
+   * igualdade exata: assim a próxima mensagem por esses canais acha este cliente
+   * em vez de criar outro.
+   */
+  registerCustomer: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string().min(1),
+        name: z.string().trim().min(1, "Informe o nome").max(255),
+        email: optionalEmail,
+        program: z
+          .string()
+          .trim()
+          .max(128)
+          .optional()
+          .transform(v => (v ? v : null)),
+        status: z.enum(customers.status.enumValues).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const { conversation } = await getSaraConversation(input.conversationId, ctx.user.id);
+        const phone = conversation.phoneNumber ? phoneDigits(conversation.phoneNumber) : "";
+        if (!phone) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Esta conversa não tem telefone para cadastrar." });
+        }
+
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Banco de dados indisponível — não foi possível cadastrar o cliente.",
+          });
+        }
+
+        // Checar e inserir não é atômico (mesma ressalva de findOrCreateOpenConversation);
+        // risco baixo no volume atual.
+        const existing = await findCustomersByPhone(db, phone);
+        if (existing.length > 0) {
+          throw new TRPCError({ code: "CONFLICT", message: "Já existe cliente com este telefone" });
+        }
+
+        const [created] = await db
+          .insert(customers)
+          .values({
+            name: input.name,
+            email: input.email ?? null,
+            phone,
+            program: input.program,
+            status: input.status ?? "New",
+          })
+          .$returningId();
+        return { id: created.id };
+      } catch (error) {
+        throw await wrapSaraError(error, ctx.user.id);
+      }
+    }),
 });
+
+type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+const customerPanelColumns = {
+  id: customers.id,
+  name: customers.name,
+  email: customers.email,
+  phone: customers.phone,
+  program: customers.program,
+  status: customers.status,
+  healthScore: customers.healthScore,
+  mrr: customers.mrr,
+  renewalDate: customers.renewalDate,
+};
+
+/**
+ * Clientes com o mesmo telefone (até 2, o mais recente primeiro), tolerante a
+ * formato: com/sem "+", com/sem 55, com/sem o 9º dígito, e com pontuação.
+ */
+async function findCustomersByPhone(db: Db, rawPhone: string) {
+  const exact = phoneLookupCandidates(rawPhone);
+  if (exact.length === 0) return [];
+
+  // 1ª tentativa: valor exato (usa idx_customers_phone).
+  const matches = await db
+    .select(customerPanelColumns)
+    .from(customers)
+    .where(inArray(customers.phone, exact))
+    .orderBy(desc(customers.updatedAt))
+    .limit(2);
+  if (matches.length > 0) return matches;
+
+  // 2ª tentativa: telefone gravado com pontuação, ex. "(48) 98405-3595".
+  const digits = phoneDigitCandidates(rawPhone);
+  return db
+    .select(customerPanelColumns)
+    .from(customers)
+    .where(
+      sql`REGEXP_REPLACE(${customers.phone}, '[^0-9]', '') IN (${sql.join(
+        digits.map(d => sql`${d}`),
+        sql`, `,
+      )})`,
+    )
+    .orderBy(desc(customers.updatedAt))
+    .limit(2);
+}

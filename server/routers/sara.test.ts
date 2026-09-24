@@ -361,3 +361,96 @@ describe("sara.audioUrl / sara.imageUrl — mídia sob demanda", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sara.registerCustomer — cadastra o cliente com o telefone vindo da Sara", () => {
+  const SARA_PHONE = "+5548984053595";
+
+  function detailWithPhone(phoneNumber: string | null) {
+    const d = conversationDetail(null, "active");
+    return { ...d, conversation: { ...d.conversation, phoneNumber, userName: "Maria" } };
+  }
+
+  /** Banco falso: select devolve `existing`; insert registra os valores. */
+  function fakeDb(existing: Array<Record<string, unknown>>) {
+    const inserted: Array<Record<string, unknown>> = [];
+    const selectChain = {
+      from: () => selectChain,
+      where: () => selectChain,
+      orderBy: () => selectChain,
+      limit: () => Promise.resolve(existing),
+    };
+    const db = {
+      select: () => selectChain,
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          inserted.push(v);
+          return { $returningId: () => Promise.resolve([{ id: 321 }]) };
+        },
+      }),
+    };
+    vi.mocked(getDb).mockResolvedValue(db as never);
+    return inserted;
+  }
+
+  it("telefone vem do GET da conversa (só dígitos com DDI), nunca do client", async () => {
+    const inserted = fakeDb([]);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(SARA_PHONE)));
+
+    const result = await saraRouter.createCaller(createContext()).registerCustomer({
+      conversationId: "conv-1",
+      name: "Maria",
+      email: "",
+      // Campo extra do client é descartado pelo schema — o telefone não entra por aqui.
+      phone: "11999999999",
+    } as never);
+
+    expect(result).toEqual({ id: 321 });
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({ name: "Maria", phone: "5548984053595", email: null, status: "New" });
+    expect(postCalls(fetchMock)).toEqual([]); // só GET na Sara
+  });
+
+  it("duplicado → CONFLICT \"Já existe cliente com este telefone\", sem inserir", async () => {
+    const inserted = fakeDb([{ id: 5, name: "Maria", phone: "5548984053595" }]);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(SARA_PHONE)));
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).registerCustomer({ conversationId: "conv-1", name: "Maria" }),
+    );
+
+    expect(error.code).toBe("CONFLICT");
+    expect(error.message).toBe("Já existe cliente com este telefone");
+    expect(inserted).toEqual([]);
+  });
+
+  it("sem banco → erro claro, sem inserir", async () => {
+    vi.mocked(getDb).mockResolvedValue(null);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(SARA_PHONE)));
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).registerCustomer({ conversationId: "conv-1", name: "Maria" }),
+    );
+
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+    expect(error.message).toMatch(/Banco de dados indisponível/);
+  });
+
+  it("conversa sem telefone → BAD_REQUEST", async () => {
+    fakeDb([]);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, detailWithPhone(null)));
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).registerCustomer({ conversationId: "conv-1", name: "Maria" }),
+    );
+
+    expect(error.code).toBe("BAD_REQUEST");
+  });
+
+  it("valida e-mail, nome e status", async () => {
+    const caller = saraRouter.createCaller(createContext());
+    await expect(caller.registerCustomer({ conversationId: "c", name: "", email: "" })).rejects.toThrow();
+    await expect(caller.registerCustomer({ conversationId: "c", name: "M", email: "nao-e-email" })).rejects.toThrow();
+    await expect(caller.registerCustomer({ conversationId: "c", name: "M", status: "Ativo" as never })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

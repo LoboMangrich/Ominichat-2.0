@@ -1,6 +1,10 @@
 import { TRPCError } from "@trpc/server";
+import { desc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
+import { customers } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
+import { getDb } from "../db";
+import { phoneDigitCandidates, phoneLookupCandidates } from "../phoneMatch";
 import {
   SaraSupportApiError,
   closeSaraConversation,
@@ -94,4 +98,56 @@ export const saraRouter = router({
       throw wrapSaraError(error);
     }
   }),
+  /**
+   * Cliente do Cashmiles ligado a uma conversa da Sara, pelo telefone.
+   * Sara é dona da conversa; Cashmiles é dono do cliente (CLAUDE.md). Nada
+   * daqui vai para a Sara — é só leitura local para o painel lateral.
+   */
+  customerByPhone: protectedProcedure
+    .input(z.object({ phone: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const exact = phoneLookupCandidates(input.phone);
+      if (exact.length === 0) return null;
+      const db = await getDb();
+      if (!db) return null;
+
+      const columns = {
+        id: customers.id,
+        name: customers.name,
+        email: customers.email,
+        phone: customers.phone,
+        program: customers.program,
+        status: customers.status,
+        healthScore: customers.healthScore,
+        mrr: customers.mrr,
+        renewalDate: customers.renewalDate,
+      };
+
+      // 1ª tentativa: valor exato (usa idx_customers_phone).
+      let matches = await db
+        .select(columns)
+        .from(customers)
+        .where(inArray(customers.phone, exact))
+        .orderBy(desc(customers.updatedAt))
+        .limit(2);
+
+      // 2ª tentativa: telefone gravado com pontuação, ex. "(48) 98405-3595".
+      if (matches.length === 0) {
+        const digits = phoneDigitCandidates(input.phone);
+        matches = await db
+          .select(columns)
+          .from(customers)
+          .where(
+            sql`REGEXP_REPLACE(${customers.phone}, '[^0-9]', '') IN (${sql.join(
+              digits.map(d => sql`${d}`),
+              sql`, `,
+            )})`,
+          )
+          .orderBy(desc(customers.updatedAt))
+          .limit(2);
+      }
+
+      if (matches.length === 0) return null;
+      return { customer: matches[0], ambiguous: matches.length > 1 };
+    }),
 });

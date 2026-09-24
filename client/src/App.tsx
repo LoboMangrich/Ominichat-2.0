@@ -66,6 +66,7 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/conversations/:id">{() => <ConversationDetail />}</Route>
         <Route path="/sara" component={Sara} />
+        <Route path="/sara/legado/:id" component={Sara} />
         <Route path="/sara/:id" component={Sara} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/forms" component={Forms} />

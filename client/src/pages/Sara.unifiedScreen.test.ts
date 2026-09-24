@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  ASSIGNMENT_TABS,
+  DEFAULT_ASSIGNMENT_TAB,
   SARA_STATUS_LABELS,
+  formatTabCount,
+  readAssignmentTab,
+  saraMatchesAssignment,
+  writeAssignmentTab,
   conversationHref,
   fromGroup,
   fromLegacy,
@@ -191,7 +197,10 @@ describe("Rotas — /sara, /sara/:id, /sara/legado/:id e /sara/grupo/:id renderi
 describe("Sara.tsx — lista unificada consome as duas fontes", () => {
   it("consulta sara.listConversations e tags.listUnified (input montado por legacyQueryInput)", () => {
     expect(list).toContain("trpc.sara.listConversations.useQuery(");
-    expect(list).toContain("trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit)");
+    // Uma consulta por aba de atribuição (para os contadores), todas via legacyQueryInput.
+    for (const tab of ["mine", "unassigned", "all"]) {
+      expect(list).toContain(`trpc.tags.listUnified.useQuery(legacyQueryInput(filter, search, limit, "${tab}")`);
+    }
   });
 
   it("grupo abre o GroupConversationPanel", () => {
@@ -464,5 +473,69 @@ describe("Painel do cliente (Sara) — mesmo conteúdo do ConversationDetail, se
   it("NPS/CSAT não entram (saem pelo canal próprio, outro número)", () => {
     expect(detail).not.toMatch(/trpc\.(surveys|satisfaction)\./);
     expect(detail).not.toMatch(/type: "(NPS|CSAT)"/);
+  });
+});
+
+describe("Abas de atribuição — Minhas / Não atribuídas / Todas", () => {
+  const OPEN = tabFilterFor({ id: 11, slug: "open" });
+  const WAITING = tabFilterFor({ id: 12, slug: "waiting" });
+  const GROUPS = tabFilterFor({ id: 13, slug: "group" });
+
+  it("ordem das abas e default Todas", () => {
+    expect(ASSIGNMENT_TABS.map(t => t.label)).toEqual(["Minhas", "Não atribuídas", "Todas"]);
+    expect(DEFAULT_ASSIGNMENT_TAB).toBe("all");
+  });
+
+  it("Sara: Minhas = assumida por mim; Não atribuídas = active ou awaiting_response", () => {
+    expect(saraMatchesAssignment({ status: "human_takeover", assignedToMe: true }, "mine")).toBe(true);
+    expect(saraMatchesAssignment({ status: "human_takeover", assignedToMe: false }, "mine")).toBe(false);
+    expect(saraMatchesAssignment({ status: "active" }, "unassigned")).toBe(true);
+    expect(saraMatchesAssignment({ status: "awaiting_response" }, "unassigned")).toBe(true);
+    expect(saraMatchesAssignment({ status: "human_takeover" }, "unassigned")).toBe(false);
+    expect(saraMatchesAssignment({ status: "error" }, "all")).toBe(true);
+  });
+
+  it("canal próprio: assignee no servidor, combinado com a etiqueta (Minhas + Aguardando)", () => {
+    expect(legacyQueryInput(WAITING, "", 20, "mine")).toEqual({
+      search: undefined, limit: 20, excludeGroups: true, status: "Waiting", assignee: "me",
+    });
+    expect(legacyQueryInput(OPEN, "", 20, "unassigned")).toMatchObject({ status: "Open", assignee: "unassigned" });
+    // Todas = sem assignee (mesmo input de antes).
+    expect(legacyQueryInput(OPEN, "", 20, "all")).not.toHaveProperty("assignee");
+  });
+
+  it("Grupos não têm atribuição: a aba não se aplica", () => {
+    expect(legacyQueryInput(GROUPS, "", 20, "mine")).toEqual({ search: undefined, limit: 20, tagId: 13 });
+    expect(list).toContain('const appliesAssignment = filter.kind !== "groups";');
+  });
+
+  it("contador é da página carregada: \"20+\" quando pode haver mais", () => {
+    expect(formatTabCount(3, false)).toBe("3");
+    expect(formatTabCount(20, true)).toBe("20+");
+    expect(list).toContain("Contagem do que está carregado nesta página");
+  });
+
+  it("última escolha lembrada por usuário no localStorage, com try/catch", () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    writeAssignmentTab(storage, 7, "mine");
+    expect(store.get("conversas.atribuicao.7")).toBe("mine");
+    expect(readAssignmentTab(storage, 7)).toBe("mine");
+    expect(readAssignmentTab(storage, 8)).toBe("all"); // outro usuário → default
+    store.set("conversas.atribuicao.7", "lixo");
+    expect(readAssignmentTab(storage, 7)).toBe("all"); // valor inválido → default
+
+    const broken = {
+      getItem: () => { throw new Error("bloqueado"); },
+      setItem: () => { throw new Error("bloqueado"); },
+    };
+    expect(readAssignmentTab(broken, 7)).toBe("all");
+    expect(() => writeAssignmentTab(broken, 7, "mine")).not.toThrow();
+    expect(readAssignmentTab(undefined, 7)).toBe("all");
+  });
+
+  it("linha de atribuição fica ACIMA das etiquetas, que continuam como estão", () => {
+    expect(list.indexOf('aria-label="Atribuição"')).toBeGreaterThan(-1);
+    expect(list.indexOf('aria-label="Atribuição"')).toBeLessThan(list.indexOf("Chips — mesmo visual de Atendimentos.tsx"));
   });
 });

@@ -123,17 +123,25 @@ export function saraMatchesFilter(status: string, filter: TabFilter): boolean {
 }
 
 /** Input de tags.listUnified para a aba. Fora de Grupos, sempre excludeGroups: true. */
-export function legacyQueryInput(filter: TabFilter, search: string, limit: number) {
+export function legacyQueryInput(
+  filter: TabFilter,
+  search: string,
+  limit: number,
+  assignment: AssignmentTab = DEFAULT_ASSIGNMENT_TAB,
+) {
   const base = { search: search.trim() || undefined, limit };
+  // Grupos não têm atribuição — a aba de atribuição não se aplica a eles.
+  const assignee = legacyAssignee(assignment);
+  const withAssignee = assignee ? { ...base, assignee } : base;
   switch (filter.kind) {
     case "all":
-      return { ...base, excludeGroups: true };
+      return { ...withAssignee, excludeGroups: true };
     case "status":
-      return { ...base, excludeGroups: true, status: filter.legacyStatus };
+      return { ...withAssignee, excludeGroups: true, status: filter.legacyStatus };
     case "groups":
       return { ...base, tagId: filter.tagId };
     case "tag":
-      return { ...base, excludeGroups: true, tagId: filter.tagId };
+      return { ...withAssignee, excludeGroups: true, tagId: filter.tagId };
   }
 }
 
@@ -444,4 +452,65 @@ export function saraComposerBanner(conv: {
 /** Status em que "Assumir" aparece (faixa e barra do topo). */
 export function saraCanTakeover(status: string): boolean {
   return status === "active" || status === "awaiting_response";
+}
+
+// ─── Abas de atribuição (Minhas / Não atribuídas / Todas) ────────────────────
+// Linha acima das etiquetas; combinam com elas (ex.: Minhas + Aguardando).
+// - Sara: Minhas = assumida por mim (actorId === meu id → assignedToMe, calculado no
+//   servidor); Não atribuídas = status active ou awaiting_response. Filtro no client —
+//   a API da Sara não filtra por actorId.
+// - Canal próprio: conversations.assignedUserId (quem clicou "Assumir"), filtrado no
+//   servidor via tags.listUnified({ assignee }).
+// - Grupos não têm atribuição: na aba Grupos, a atribuição não se aplica.
+export const ASSIGNMENT_TABS = [
+  { key: "mine", label: "Minhas" },
+  { key: "unassigned", label: "Não atribuídas" },
+  { key: "all", label: "Todas" },
+] as const;
+export type AssignmentTab = (typeof ASSIGNMENT_TABS)[number]["key"];
+export const DEFAULT_ASSIGNMENT_TAB: AssignmentTab = "all";
+
+export function saraMatchesAssignment(conv: { status: string; assignedToMe?: boolean }, tab: AssignmentTab): boolean {
+  if (tab === "mine") return conv.assignedToMe === true;
+  if (tab === "unassigned") return conv.status === "active" || conv.status === "awaiting_response";
+  return true;
+}
+
+export function legacyAssignee(tab: AssignmentTab): "me" | "unassigned" | undefined {
+  return tab === "mine" ? "me" : tab === "unassigned" ? "unassigned" : undefined;
+}
+
+/** Contagem da PÁGINA carregada, não total: "20+" quando pode haver mais. */
+export function formatTabCount(count: number, hasMore: boolean): string {
+  return hasMore ? `${count}+` : String(count);
+}
+
+export function assignmentStorageKey(userId: number): string {
+  return `conversas.atribuicao.${userId}`;
+}
+
+function isAssignmentTab(value: unknown): value is AssignmentTab {
+  return ASSIGNMENT_TABS.some(t => t.key === value);
+}
+
+/** Última aba escolhida por este usuário. localStorage pode falhar (modo privado etc.). */
+export function readAssignmentTab(storage: Pick<Storage, "getItem"> | undefined, userId: number): AssignmentTab {
+  try {
+    const value = storage?.getItem(assignmentStorageKey(userId));
+    return isAssignmentTab(value) ? value : DEFAULT_ASSIGNMENT_TAB;
+  } catch {
+    return DEFAULT_ASSIGNMENT_TAB;
+  }
+}
+
+export function writeAssignmentTab(
+  storage: Pick<Storage, "setItem"> | undefined,
+  userId: number,
+  tab: AssignmentTab,
+): void {
+  try {
+    storage?.setItem(assignmentStorageKey(userId), tab);
+  } catch {
+    // sem localStorage: a escolha vale só nesta visita
+  }
 }

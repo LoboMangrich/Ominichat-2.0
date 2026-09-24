@@ -12,7 +12,6 @@ import Customers from "./pages/Customers";
 import Conversations from "./pages/Conversations";
 import ConversationDetail from "./pages/ConversationDetail";
 import Sara from "./pages/Sara";
-import SaraConversationDetail from "./pages/SaraConversationDetail";
 import Tasks from "./pages/Tasks";
 import Forms from "./pages/Forms";
 import PublicForm from "./pages/PublicForm";
@@ -67,7 +66,7 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/conversations/:id">{() => <ConversationDetail />}</Route>
         <Route path="/sara" component={Sara} />
-        <Route path="/sara/:id" component={SaraConversationDetail} />
+        <Route path="/sara/:id" component={Sara} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/forms" component={Forms} />
         <Route path="/campaigns" component={Campaigns} />

@@ -69,7 +69,7 @@ server/*.ts           Motores de domínio: automation, playbook, healthScore,
                       conversationRouter, channelSender, channelHealth,
                       communicationIntelligence, csvImport, conversationBackup
 shared/               Tipos e constantes compartilhados client/server
-drizzle/schema.ts     ~1.130 linhas, 55 tabelas, 33 migrations
+drizzle/schema.ts     ~1.200 linhas, 57 tabelas, 37 migrations (0000–0036)
 client/src/pages/     Telas (algumas com 1.000–1.700 linhas)
 client/src/lib/       Helpers compartilhados (publicUrl.ts)
 ```
@@ -338,7 +338,7 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   CS quiser esse filtro de volta, a implementação mais provável é
   `conversations.handledByAi = true`, com tratamento especial no servidor
   (`tags.listUnified` em `routers.ts`), igual ao que já existe para `group`.
-- Chaves estrangeiras: as 55 tabelas não têm nenhuma. Decisão separada dos
+- Chaves estrangeiras: as 57 tabelas não têm nenhuma. Decisão separada dos
   índices, com mais risco (cascade, registros órfãos).
 
 ### 4. Identificação de cliente via Guru (projeto novo)
@@ -522,17 +522,65 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
   `staleTime`/`gcTime` bem abaixo de 900s, e nova busca se o `<audio>`/`<img>`
   der erro (`client/src/components/conversations/SaraMedia.tsx`). **Nunca
   logar a URL assinada.**
-- **Pergunta em aberto para o time de TI:** um `/takeover` sobre conversa em
-  `human_takeover` com `actorId` `null` é aceito, ou devolve 409? Se for
-  aceito, "assuma de novo" funciona direto, sem devolver para a IA (e sem a
-  janela em que a IA pode responder o cliente).
+- **Perguntas em aberto para o time de TI:**
+  - Um `/takeover` sobre conversa em `human_takeover` com `actorId` `null` é
+    aceito, ou devolve 409? Se for aceito, "assuma de novo" funciona direto,
+    sem devolver para a IA (e sem a janela em que a IA pode responder o
+    cliente).
+  - `POST .../audio` e `POST .../image`: **nome do campo multipart** e
+    **formatos aceitos** (a doc só diz "multipart/form-data").
+  - `/templates`: **formato da resposta** (o `GET` tem 200 sem corpo descrito;
+    o `POST` não tem 200 nenhum).
 - **Pendências — fora do escopo até agora:**
-  - Envio de áudio e imagem (`POST .../audio` e `.../image`, multipart).
+  - Envio de áudio e imagem (depende da resposta acima sobre o multipart). O
+    composer não mostra botão de anexo/áudio/imagem — nem desabilitado.
   - Opt-out (`GET /contacts/{phone}/opt-out`), números bloqueados
     (`/blocked-numbers`) e templates (`/templates`, `/templates/sync`) —
     **a doc não tem schema de resposta para eles** (só os 4XX/5XX, ou um 200
     sem corpo descrito). Pedir exemplo de resposta ao time de TI antes de
     implementar.
+  - **Pesquisas via Sara (NPS/CSAT).** Hoje as pesquisas saem pelo canal
+    próprio (outro número de WhatsApp); por isso não entram no painel da
+    conversa da Sara. Mandar pela Sara depende de templates (acima).
+  - Agendar e encaminhar mensagem não existem para conversas da Sara.
+
+### Conversa da Sara — o que é só do Cashmiles
+
+A conversa é da Sara; estes dados sobre ela ficam **só no Cashmiles** e nunca
+vão para a Sara (tabelas da migration `0036`, id da Sara como `varchar(64)`):
+
+- **Nota interna** (`saraInternalNotes`, `sara.addNote`/`listNotes`): aba
+  "Nota Interna" no composer, qualquer atendente escreve (não depende de ter
+  assumido), aparece intercalada com as mensagens por horário, estilo âmbar.
+  Nunca logar o texto da nota.
+- **Etiqueta personalizada** (`saraConversationTags`, reaproveita
+  `conversationTags`): só etiquetas sem `slug` são atribuíveis — as de status
+  vêm do status real. A aba da etiqueta na tela única traz também conversas
+  da Sara via `sara.listTaggedConversations`: a API da Sara não filtra por
+  etiqueta, então buscamos cada conversa por id — **até 50 ids, no máximo 5
+  GETs em paralelo** (`server/concurrency.ts`), **sem polling**, `staleTime`
+  60s. Numa etiqueta personalizada, a conversa aparece qualquer que seja o
+  status (inclusive `error`).
+  - **Id etiquetado que a Sara responde 404 some da lista sem erro, mas a
+    linha em `saraConversationTags` NÃO é apagada automaticamente.** Se
+    acumular, limpar manualmente (ou decidir uma rotina de limpeza).
+- **Cadastrar cliente pela conversa** (`sara.registerCustomer`): o telefone
+  vem do `GET` da conversa na Sara, **nunca do client**, e é gravado como só
+  dígitos com DDI (`5548984053595`) — o formato dos webhooks de WhatsApp
+  Cloud/Z-API/Evolution, que procuram o cliente por igualdade exata
+  (`eq(customers.phone, from)`); outro formato criaria cliente duplicado na
+  próxima mensagem por esses canais. Duplicado → `CONFLICT` "Já existe
+  cliente com este telefone".
+- **"Digitando..."** (`sara.sendTyping`): chamada real ao cliente. Só o dono
+  (`saraCanSend`, checado no servidor), no máximo 1 a cada 5s enquanto digita.
+
+**Etiqueta no canal próprio é outra coisa — não mexido.** O botão "Etiqueta"
+do `ConversationDetail` grava **texto livre** em `conversationLabels`
+(`conversations.addLabel`), não em `conversationTags`. E nenhuma tela chama
+`tags.assign`, então `conversationTagAssignments` nunca é populada: a aba de
+etiqueta personalizada, para conversas do canal próprio, continua sempre vazia.
+Unificar isso (o botão do canal próprio passar a usar `conversationTags`) é
+decisão separada.
 
 ### Tela única de Conversas (`/sara`)
 

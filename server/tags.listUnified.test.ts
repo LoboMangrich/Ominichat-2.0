@@ -1,19 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
+import type { SQL } from "drizzle-orm";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { appRouter } from "./routers";
 
-// tags.listUnified ganhou excludeGroups para a tela única de Conversas (/sara): sem ele, até
+// tags.listUnified ganhou excludeGroups e status para a tela única de Conversas (/sara): sem ele, até
 // 50 grupos entram junto com as conversas e ocupam vagas do limit — e a tela deixa de saber
 // se "tem mais". O padrão (false) precisa manter /atendimentos exatamente como era.
 //
 // Banco falso: cada select(...) registra o limit pedido e devolve as linhas já cortadas por
 // ele, como o MySQL faria. A 1ª consulta é a de conversas; a 2ª, a de grupos.
 const limits: number[] = [];
+// where de cada consulta, na ordem (conversas, grupos) — para inspecionar o SQL gerado.
+const wheres: unknown[] = [];
 let tables: Array<Array<Record<string, unknown>>> = [];
 
 function fakeQuery(rows: Array<Record<string, unknown>>) {
   const chain: Record<string, unknown> = {};
-  for (const method of ["from", "leftJoin", "where", "orderBy"]) chain[method] = () => chain;
+  for (const method of ["from", "leftJoin", "orderBy"]) chain[method] = () => chain;
+  chain.where = (condition: unknown) => {
+    wheres.push(condition);
+    return chain;
+  };
   chain.limit = (n: number) => {
     limits.push(n);
     return Promise.resolve(rows.slice(0, n));
@@ -97,5 +105,43 @@ describe("tags.listUnified — excludeGroups", () => {
     const [first] = await caller.tags.listUnified({ limit: 3, excludeGroups: true });
 
     expect(first).toMatchObject({ handledByAi: true, channel: "whatsapp" });
+  });
+});
+
+describe("tags.listUnified — status (filtro por status real, não por conversationTagAssignments)", () => {
+  const dialect = new MySqlDialect();
+  const conversationsWhereSql = () => {
+    const where = wheres[0];
+    return where ? dialect.sqlToQuery(where as SQL) : null;
+  };
+
+  beforeEach(() => {
+    limits.length = 0;
+    wheres.length = 0;
+    tables = [[], []];
+  });
+
+  it("sem status: consulta de conversas sem filtro nenhum (/atendimentos intacto)", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await caller.tags.listUnified({ limit: 3, excludeGroups: true });
+
+    expect(conversationsWhereSql()).toBeNull();
+  });
+
+  it.each(["Open", "Waiting", "Closed"] as const)("status %s filtra conversations.status, sem subselect de tags", async status => {
+    const caller = appRouter.createCaller(createContext());
+    await caller.tags.listUnified({ limit: 3, excludeGroups: true, status });
+
+    const query = conversationsWhereSql();
+    expect(query?.sql).toMatch(/`conversations`\.`status` = \?/);
+    expect(query?.sql).not.toMatch(/conversationTagAssignments/);
+    expect(query?.params).toEqual([status]);
+  });
+
+  it("rejeita status fora do enum (rótulo em português)", async () => {
+    const caller = appRouter.createCaller(createContext());
+    await expect(
+      caller.tags.listUnified({ limit: 3, status: "Aberto" as never }),
+    ).rejects.toThrow();
   });
 });

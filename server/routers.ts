@@ -4907,6 +4907,10 @@ const tagsRouter = router({
       // ocupariam vagas do limit — aí "resposta cheia = tem mais" deixaria de valer.
       // Padrão false mantém /atendimentos exatamente como era.
       excludeGroups: z.boolean().optional().default(false),
+      // Filtro por status REAL da conversa (tela única de Conversas: abas "Em Aberto" e
+      // "Aguardando"). Diferente de tagId open/waiting, que depende de
+      // conversationTagAssignments — que nada popula. Sem status, nada muda.
+      status: z.enum(conversations.status.enumValues).optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
@@ -4954,6 +4958,7 @@ const tagsRouter = router({
           input.tagId && !isGroupFilter
             ? sql`${conversations.id} IN (SELECT conversationId FROM conversationTagAssignments WHERE tagId = ${input.tagId})`
             : undefined,
+          input.status ? eq(conversations.status, input.status) : undefined,
         ))
         .orderBy(desc(conversations.updatedAt))
         .limit(isGroupFilter ? 0 : input.limit); // "Grupos" não traz conversas

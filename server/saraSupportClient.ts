@@ -1,3 +1,4 @@
+import type { SaraConversationSort, SaraConversationStatus } from "@shared/sara";
 import { ENV } from "./_core/env";
 
 /**
@@ -11,6 +12,12 @@ export class SaraSupportApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    /**
+     * Corpo do erro já parseado (JSON), ou null. Só para o NOSSO servidor decidir
+     * a resposta (ex.: conversation.actorId no 409 do /takeover) — nunca repassar
+     * ao navegador.
+     */
+    public readonly body: unknown = null,
   ) {
     super(message);
     this.name = "SaraSupportApiError";
@@ -27,7 +34,28 @@ export interface SaraConversationSummary {
   lastMessageAt: string | null;
   createdAt: string;
   takeoverAdminId: string | null;
+  takeoverAt: string | null;
+  /**
+   * Quem assumiu, como enviado no header x-sara-actor-id — o nosso users.id em
+   * string. null quando a conversa foi assumida sem o header (ex.: pelo painel
+   * da própria Sara) ou depois de /release.
+   */
+  actorId: string | null;
   channelId: string | null;
+}
+
+export interface SaraMessageAudio {
+  audioMessageId: string;
+  mimeType: string | null;
+  duration: number | null;
+}
+
+export interface SaraMessageImage {
+  imageMessageId: string;
+  mimeType: string | null;
+  width: number | null;
+  height: number | null;
+  visionSummary: string | null;
 }
 
 export interface SaraMessage {
@@ -37,13 +65,16 @@ export interface SaraMessage {
   messageType: string;
   status: string;
   createdAt: string;
+  audio: SaraMessageAudio | null;
+  image: SaraMessageImage | null;
 }
 
 export interface SaraListConversationsParams {
-  status?: string;
+  status?: SaraConversationStatus;
   phone?: string;
   limit?: number;
   offset?: number;
+  sort?: SaraConversationSort;
 }
 
 export interface SaraListConversationsResult {
@@ -76,6 +107,14 @@ function assertConfigured(): void {
 
 function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
+function parseJsonOrNull(text: string): unknown {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit): Promise<T> {
@@ -117,6 +156,7 @@ async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit
     throw new SaraSupportApiError(
       `Sara Support API retornou erro (status ${response.status}).`,
       response.status,
+      parseJsonOrNull(body),
     );
   }
 
@@ -132,6 +172,7 @@ export async function listSaraConversations(
   if (params.phone) query.set("phone", params.phone);
   if (params.limit != null) query.set("limit", String(params.limit));
   if (params.offset != null) query.set("offset", String(params.offset));
+  if (params.sort) query.set("sort", params.sort);
   const queryString = query.toString();
 
   return request<SaraListConversationsResult>(
@@ -196,4 +237,23 @@ export async function sendSaraTypingIndicator(
     method: "POST",
     body: "{}",
   });
+}
+
+/**
+ * URL assinada temporária (expiresIn = 900s na doc) para tocar um áudio ou exibir
+ * uma imagem recebida. Buscada sob demanda pela tela. NUNCA logar `url` — é
+ * credencial temporária de acesso à mídia do cliente.
+ */
+export interface SaraMediaUrl {
+  url: string;
+  expiresIn: number;
+  mimeType: string;
+}
+
+export async function getSaraAudioUrl(audioMessageId: string, actorId: SaraActorId): Promise<SaraMediaUrl> {
+  return request<SaraMediaUrl>(`/api/v1/support/audio/${encodeURIComponent(audioMessageId)}/url`, actorId);
+}
+
+export async function getSaraImageUrl(imageMessageId: string, actorId: SaraActorId): Promise<SaraMediaUrl> {
+  return request<SaraMediaUrl>(`/api/v1/support/images/${encodeURIComponent(imageMessageId)}/url`, actorId);
 }

@@ -2,6 +2,7 @@
 // numa lista só. Compartilhado entre Sara.tsx e SaraConversationDetail.tsx.
 
 import { phoneDigits, toE164Phone } from "@shared/phone";
+import type { SaraConversationStatus } from "@shared/sara";
 import type { conversations } from "../../../drizzle/schema";
 
 // ─── Status da Sara ───────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ export const SARA_STATUS_LABELS: Record<string, string> = {
   human_takeover: "Atendimento humano",
   awaiting_response: "Aguardando resposta",
   error: "Erro",
-};
+} satisfies Record<SaraConversationStatus, string>; // todo status do enum tem rótulo
 
 // ─── Buckets ─────────────────────────────────────────────────────────────────
 // Agrupamento de exibição (rótulo à direita de cada item), independente da origem. Um
@@ -36,10 +37,25 @@ export const SARA_STATUS_BUCKET: Record<string, ConversationBucket> = {
   human_takeover: "human",
   awaiting_response: "waiting",
   error: "error",
-};
+} satisfies Record<SaraConversationStatus, ConversationBucket>;
 
 export function saraBucket(status: string): ConversationBucket {
   return SARA_STATUS_BUCKET[status] ?? "unknown";
+}
+
+/**
+ * Quem assumiu a conversa da Sara, para "Assumido por …". null quando não há actorId
+ * (assumida sem identificação, ou não assumida). Id sem usuário conhecido no
+ * Cashmiles → "outro atendente".
+ */
+export function saraActorLabel(conv: {
+  actorId?: string | null;
+  actorName?: string | null;
+  assignedToMe?: boolean;
+}): string | null {
+  if (!conv.actorId) return null;
+  if (conv.assignedToMe) return "você";
+  return conv.actorName ?? "outro atendente";
 }
 
 /** Canal próprio: Closed → closed; senão handledByAi decide entre IA e humano. */
@@ -58,13 +74,13 @@ type LegacyConversationStatus = (typeof conversations.status.enumValues)[number]
 export const STATUS_TAG_FILTERS = {
   open: { saraStatuses: ["active", "human_takeover"], legacyStatus: "Open" },
   waiting: { saraStatuses: ["awaiting_response"], legacyStatus: "Waiting" },
-} as const satisfies Record<string, { saraStatuses: readonly string[]; legacyStatus: LegacyConversationStatus }>;
+} as const satisfies Record<string, { saraStatuses: readonly SaraConversationStatus[]; legacyStatus: LegacyConversationStatus }>;
 
 export const GROUP_TAG_SLUG = "group";
 
 export type TabFilter =
   | { kind: "all" }
-  | { kind: "status"; saraStatuses: readonly string[]; legacyStatus: LegacyConversationStatus }
+  | { kind: "status"; saraStatuses: readonly SaraConversationStatus[]; legacyStatus: LegacyConversationStatus }
   | { kind: "groups"; tagId: number }
   // Etiqueta personalizada: só existe no canal próprio (a Sara não tem etiquetas).
   | { kind: "tag"; tagId: number };
@@ -88,13 +104,13 @@ export function includesSara(filter: TabFilter): boolean {
  * status só (Aguardando); "Em Aberto" tem dois — busca sem filtro e separa no client
  * (limitação conhecida: a página pode vir com menos abertas que o limit).
  */
-export function saraStatusParam(filter: TabFilter): string | undefined {
+export function saraStatusParam(filter: TabFilter): SaraConversationStatus | undefined {
   return filter.kind === "status" && filter.saraStatuses.length === 1 ? filter.saraStatuses[0] : undefined;
 }
 
 export function saraMatchesFilter(status: string, filter: TabFilter): boolean {
   if (filter.kind === "all") return true;
-  if (filter.kind === "status") return filter.saraStatuses.includes(status);
+  if (filter.kind === "status") return (filter.saraStatuses as readonly string[]).includes(status);
   return false;
 }
 
@@ -127,7 +143,7 @@ type UnifiedBase = {
 };
 
 export type UnifiedConversation =
-  | (UnifiedBase & { source: "sara"; id: string })
+  | (UnifiedBase & { source: "sara"; id: string; /** "Assumido por …" — ver saraActorLabel. */ actorLabel: string | null })
   | (UnifiedBase & { source: "legacy"; id: number; channel: string | null })
   // Grupo do WhatsApp (whatsappGroups.id) — só na aba Grupos.
   | (UnifiedBase & { source: "group"; id: number });
@@ -139,6 +155,10 @@ export type SaraListItem = {
   phoneNumber: string | null;
   lastMessageAt: string | null;
   createdAt: string;
+  // Enriquecidos pelo nosso router (sara.listConversations) — ausentes em dado cru.
+  actorId?: string | null;
+  actorName?: string | null;
+  assignedToMe?: boolean;
 };
 
 export type LegacyListItem = {
@@ -169,6 +189,7 @@ export function fromSara(conv: SaraListItem): UnifiedConversation {
     lastActivityAt: toEpoch(conv.lastMessageAt ?? conv.createdAt),
     bucket: saraBucket(conv.status),
     rawStatus: conv.status,
+    actorLabel: saraActorLabel(conv),
   };
 }
 
@@ -239,6 +260,7 @@ export function originLabel(item: UnifiedConversation): string {
 /** Rótulo à direita do item. Grupo não tem status de atendimento. */
 export function statusLabel(item: UnifiedConversation): string {
   if (item.source === "group") return "";
+  if (item.source === "sara" && item.bucket === "human" && item.actorLabel) return `Assumido por ${item.actorLabel}`;
   return BUCKET_LABELS[item.bucket] ?? item.rawStatus;
 }
 

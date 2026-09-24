@@ -13,6 +13,7 @@ import {
   mergeConversations,
   originLabel,
   parseDeepLink,
+  saraActorLabel,
   saraMatchesFilter,
   saraSearch,
   saraStatusParam,
@@ -312,5 +313,40 @@ describe("Links diretos — ?conversationId= e ?customerId=", () => {
     expect(list).toMatch(/trpc\.useQueries\(t =>\s*phoneForms\.map\(phone => t\.sara\.listConversations\(/);
     // Nenhuma ação que altera conversa real da Sara na tela de lista.
     expect(list).not.toMatch(/sara\.(sendMessage|takeover|release|close|sendTyping)/);
+  });
+});
+
+describe("Quem assumiu (actorId) — lista e painel", () => {
+  const base = { id: "c", userName: null, phoneNumber: null, lastMessageAt: null, createdAt: "" };
+
+  it("lista: human_takeover mostra \"Assumido por <nome>\", \"você\" ou \"outro atendente\"", () => {
+    expect(statusLabel(fromSara({ ...base, status: "human_takeover", actorId: "9", actorName: "Beatriz" }))).toBe(
+      "Assumido por Beatriz",
+    );
+    expect(statusLabel(fromSara({ ...base, status: "human_takeover", actorId: "7", assignedToMe: true }))).toBe(
+      "Assumido por você",
+    );
+    expect(statusLabel(fromSara({ ...base, status: "human_takeover", actorId: "123", actorName: null }))).toBe(
+      "Assumido por outro atendente",
+    );
+    // Sem actorId: rótulo normal de humano.
+    expect(statusLabel(fromSara({ ...base, status: "human_takeover", actorId: null }))).toBe("Atendimento humano");
+  });
+
+  it("saraActorLabel: null sem actorId", () => {
+    expect(saraActorLabel({ actorId: null })).toBeNull();
+    expect(saraActorLabel({})).toBeNull();
+  });
+
+  it("painel: campo de resposta só com canSend; Devolver/Encerrar desabilitados sem canReleaseOrClose", () => {
+    expect(detail).toContain("const canSend = isHuman && conversation.canSend;");
+    expect(detail).toMatch(/\{canSend \? \(\s*<div className="flex items-end gap-2">/);
+    expect(detail).toMatch(/releaseMutation\.isPending \|\| !canReleaseOrClose/);
+    expect(detail).toMatch(/closeMutation\.isPending \|\| !canReleaseOrClose/);
+  });
+
+  it("painel: aviso de actorId null usa o texto combinado", () => {
+    expect(detail).toContain("SARA_UNIDENTIFIED_ACTOR_NOTICE");
+    expect(detail).toMatch(/Assumido por \$\{actorLabel\}/);
   });
 });

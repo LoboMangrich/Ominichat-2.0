@@ -19,8 +19,10 @@ import { AlertTriangle, Bot, Mail, Phone, Send, Tag, TrendingUp, User, UserX, X,
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
 import { statusConfig } from "./Customers";
-import { SARA_STATUS_LABELS, initials } from "./saraShared";
+import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
+import { SARA_STATUS_LABELS, initials, saraActorLabel } from "./saraShared";
 
 // Mesmo padrão de fundo da área de mensagens de ConversationDetail.tsx — só tokens.
 const CHAT_BACKGROUND = {
@@ -260,10 +262,20 @@ export default function SaraConversationDetail({ id }: { id: string }) {
   const isActive = conversation.status === "active";
   const isHuman = conversation.status === "human_takeover";
   const displayName = conversation.userName ?? conversation.phoneNumber ?? "Desconhecido";
+  // Regras de dono calculadas no servidor (saraCanSend/saraCanReleaseOrClose) — a tela
+  // só reflete; o servidor recusa de novo se alguém contornar.
+  const canSend = isHuman && conversation.canSend;
+  const canReleaseOrClose = conversation.canReleaseOrClose;
+  const actorLabel = saraActorLabel(conversation);
+  const ownershipNotice = !isHuman || canSend
+    ? null
+    : conversation.actorId === null
+      ? SARA_UNIDENTIFIED_ACTOR_NOTICE
+      : `Conversa assumida por ${actorLabel}. Só quem assumiu pode responder.`;
 
   function handleSend() {
     const text = draft.trim();
-    if (!text || !isHuman) return;
+    if (!text || !canSend) return;
     sendMutation.mutate({ id, text });
   }
 
@@ -307,7 +319,8 @@ export default function SaraConversationDetail({ id }: { id: string }) {
                 size="sm"
                 className="h-8 text-xs"
                 onClick={() => releaseMutation.mutate({ id })}
-                disabled={releaseMutation.isPending}
+                disabled={releaseMutation.isPending || !canReleaseOrClose}
+                title={canReleaseOrClose ? undefined : SARA_FORBIDDEN_OTHER_ACTOR}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5" />
                 {releaseMutation.isPending ? "Devolvendo..." : "Devolver para IA"}
@@ -320,7 +333,8 @@ export default function SaraConversationDetail({ id }: { id: string }) {
                     variant="destructive"
                     size="sm"
                     className="h-8 text-xs"
-                    disabled={closeMutation.isPending}
+                    disabled={closeMutation.isPending || !canReleaseOrClose}
+                    title={canReleaseOrClose ? undefined : SARA_FORBIDDEN_OTHER_ACTOR}
                   >
                     <X className="w-3.5 h-3.5 mr-1.5" />
                     {closeMutation.isPending ? "Encerrando..." : "Encerrar"}
@@ -363,7 +377,14 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 shrink-0">
               <User className="w-3.5 h-3.5" />
               <span className="font-medium">Humano no controle</span>
-              <span className="text-emerald-700 dark:text-emerald-400">— a Sara não responde enquanto isso</span>
+              <span className="text-emerald-700 dark:text-emerald-400">
+                {actorLabel ? `— Assumido por ${actorLabel}` : "— a Sara não responde enquanto isso"}
+              </span>
+            </div>
+          )}
+          {isHuman && !canReleaseOrClose && (
+            <div className="px-4 py-1.5 border-b bg-muted/40 text-xs text-muted-foreground shrink-0">
+              {SARA_FORBIDDEN_OTHER_ACTOR}: só quem assumiu ou um Admin pode devolver ou encerrar.
             </div>
           )}
 
@@ -403,7 +424,13 @@ export default function SaraConversationDetail({ id }: { id: string }) {
                     {isUnknown && (
                       <p className="mb-0.5 text-xs font-medium text-muted-foreground">{message.senderType}</p>
                     )}
-                    <p className="whitespace-pre-wrap break-words">{message.text || "(sem texto)"}</p>
+                    {message.audio && <SaraAudio audio={message.audio} />}
+                    {message.image && <SaraImage image={message.image} />}
+                    {message.text ? (
+                      <p className="whitespace-pre-wrap break-words">{message.text}</p>
+                    ) : (
+                      !message.audio && !message.image && <p className="whitespace-pre-wrap break-words">(sem texto)</p>
+                    )}
                     <p className="mt-1 text-right text-[10px] opacity-70">{formatDateTime(message.createdAt)}</p>
                   </div>
                 </div>
@@ -413,7 +440,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
           </div>
 
           <div className="border-t bg-card p-3 shrink-0">
-            {isHuman ? (
+            {canSend ? (
               <div className="flex items-end gap-2">
                 <Textarea
                   value={draft}
@@ -440,9 +467,10 @@ export default function SaraConversationDetail({ id }: { id: string }) {
               </div>
             ) : (
               <p className="text-center text-sm text-muted-foreground">
-                {isActive
-                  ? "Assuma o atendimento para responder diretamente ao cliente."
-                  : "Esta conversa não aceita resposta."}
+                {ownershipNotice ??
+                  (isActive
+                    ? "Assuma o atendimento para responder diretamente ao cliente."
+                    : "Esta conversa não aceita resposta.")}
               </p>
             )}
           </div>

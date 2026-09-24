@@ -35,7 +35,7 @@ import { recalculateAndSave, recalculateAllHealthScores } from "./healthScoreEng
 import { analyzeConversations, saveAnalysis } from "./communicationIntelligence";
 import { archiveConversationsByNumber, getCustomerChannelHistory } from "./conversationBackup";
 import { generateWhatsAppQRCode, simulateWhatsAppConnect, simulateWhatsAppDisconnect, getChannelHealthStatus } from "./channelHealth";
-import { eq, and, desc, asc, like, or, sql, gte, lte, lt, count } from "drizzle-orm";
+import { eq, and, desc, asc, like, or, sql, gte, lte, lt, count, isNull, ne } from "drizzle-orm";
 import { invokeLLM } from "./_core/llm";
 import { notifyOwner } from "./_core/notification";
 import { sendMessageByConversation, fetchMetaTemplates, sendWhatsAppTemplate, createMetaTemplate, deleteMetaTemplate } from "./channelSender";
@@ -4911,8 +4911,13 @@ const tagsRouter = router({
       // "Aguardando"). Diferente de tagId open/waiting, que depende de
       // conversationTagAssignments — que nada popula. Sem status, nada muda.
       status: z.enum(conversations.status.enumValues).optional(),
+      // Abas de atribuição da tela única (Minhas / Não atribuídas). "Quem assumiu" no
+      // canal próprio é conversations.assignedUserId — gravado por takeOver e limpo por
+      // returnToAI (ver CLAUDE.md sobre a dessincronia com assignedAgentId). Sem
+      // assignee, nada muda. Com assignee, grupos ficam de fora (não têm atribuição).
+      assignee: z.enum(["me", "unassigned"]).optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
 
       // Resolve o slug da tag selecionada (se houver) — nunca decidir por número de id aqui.
@@ -4936,7 +4941,9 @@ const tagsRouter = router({
         lastMessageAt: conversations.updatedAt,
         unreadCount: sql<number>`0`,
         status: conversations.status,
-        assignedTo: sql<string | null>`NULL`,
+        // Quem assumiu (assignedUserId) e o nome dele — só leitura, para o card da lista.
+        assignedTo: conversations.assignedUserId,
+        assignedName: users.name,
         customerId: conversations.customerId,
         groupId: sql<number | null>`NULL`,
         // Só leitura, para a tela única de Conversas: IA x humano e selo de canal.
@@ -4945,6 +4952,7 @@ const tagsRouter = router({
       })
         .from(conversations)
         .leftJoin(customers, eq(conversations.customerId, customers.id))
+        .leftJoin(users, eq(conversations.assignedUserId, users.id))
         .where(and(
           input.search ? or(like(customers.name, `%${input.search}%`), like(customers.phone, `%${input.search}%`)) : undefined,
           // "Em Aberto"/"Aguardando" (slugs "open"/"waiting") caem aqui também: filtram por
@@ -4959,6 +4967,10 @@ const tagsRouter = router({
             ? sql`${conversations.id} IN (SELECT conversationId FROM conversationTagAssignments WHERE tagId = ${input.tagId})`
             : undefined,
           input.status ? eq(conversations.status, input.status) : undefined,
+          input.assignee === "me" ? eq(conversations.assignedUserId, ctx.user.id) : undefined,
+          input.assignee === "unassigned"
+            ? and(isNull(conversations.assignedUserId), ne(conversations.status, "Closed"))
+            : undefined,
         ))
         .orderBy(desc(conversations.updatedAt))
         .limit(isGroupFilter ? 0 : input.limit); // "Grupos" não traz conversas
@@ -4974,7 +4986,8 @@ const tagsRouter = router({
         lastMessageAt: whatsappGroups.updatedAt,
         unreadCount: sql<number>`0`,
         status: sql<string>`'active'`,
-        assignedTo: sql<string | null>`NULL`,
+        assignedTo: sql<number | null>`NULL`,
+        assignedName: sql<string | null>`NULL`,
         customerId: whatsappGroups.linkedCustomerId,
         groupId: whatsappGroups.id,
         // Mesmo formato das conversas (MySQL devolve o literal como 0).
@@ -4984,7 +4997,7 @@ const tagsRouter = router({
         .from(whatsappGroups)
         .where(input.search ? like(whatsappGroups.groupName, `%${input.search}%`) : undefined)
         .orderBy(desc(whatsappGroups.updatedAt))
-        .limit(input.excludeGroups ? 0 : input.tagId === undefined || isGroupFilter ? 50 : 0);
+        .limit(input.excludeGroups || input.assignee ? 0 : input.tagId === undefined || isGroupFilter ? 50 : 0);
 
       const all = [...convs, ...groups].sort((a, b) =>
         new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime()

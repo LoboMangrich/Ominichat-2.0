@@ -14,8 +14,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { Bot, Lock, User, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { CUSTOMER_PANEL_TOGGLE_CLASSES, customerPanelClasses } from "@/lib/customerPanelLayout";
+import { Bot, Lock, PanelRight, User, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
 import SaraComposer from "@/components/conversations/SaraComposer";
@@ -49,6 +50,7 @@ function formatDateTime(value: string | Date): string {
 // ─── Painel da conversa (embutido em Sara.tsx) ───────────────────────────────
 export default function SaraConversationDetail({ id }: { id: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
   const utils = trpc.useUtils();
 
   const { data, isLoading } = trpc.sara.getConversation.useQuery(
@@ -164,6 +166,16 @@ export default function SaraConversationDetail({ id }: { id: string }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {/* Painel do cliente: abaixo de 1280px começa recolhido — este botão abre/fecha. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("h-8 text-xs", CUSTOMER_PANEL_TOGGLE_CLASSES)}
+            onClick={() => setPanelOpen(v => !v)}
+            aria-expanded={panelOpen}
+          >
+            <PanelRight className="w-3.5 h-3.5 mr-1.5" /> Cliente
+          </Button>
           {canTakeover && (
             <Button
               size="sm"
@@ -226,7 +238,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {/* ── Coluna do chat ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {isActive && (
@@ -364,7 +376,7 @@ export default function SaraConversationDetail({ id }: { id: string }) {
         </div>
 
         {/* ── Painel do cliente ── */}
-        <div className="w-72 border-l bg-card overflow-y-auto shrink-0">
+        <div className={customerPanelClasses(panelOpen)}>
           <SaraCustomerPanel
             conversationId={conversation.id}
             phone={conversation.phoneNumber}

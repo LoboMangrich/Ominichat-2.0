@@ -15,6 +15,7 @@ import { optionalEmail } from "../_core/validators";
 import { mapWithConcurrency } from "../concurrency";
 import { getDb } from "../db";
 import { phoneDigitCandidates, phoneDigits, phoneLookupCandidates } from "../phoneMatch";
+import { pendingSaraNotifications } from "../saraNotifications";
 import {
   SaraSupportApiError,
   closeSaraConversation,
@@ -153,6 +154,12 @@ export const saraRouter = router({
         throw await wrapSaraError(error, ctx.user.id);
       }
     }),
+
+  // Notificações do webhook da Sara para o usuário logado (id do contexto, nunca do client),
+  // lidas pelo useNewConversationNotification no mesmo polling de 15s. Ver saraNotifications.ts.
+  pendingNotifications: protectedProcedure
+    .input(z.object({ afterId: z.number().int().min(0).nullable() }))
+    .query(({ ctx, input }) => pendingSaraNotifications(ctx.user.id, input.afterId)),
 
   getConversation: protectedProcedure.input(conversationIdInput).query(async ({ ctx, input }) => {
     try {

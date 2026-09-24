@@ -25,10 +25,32 @@ import {
   type SaraConversationSummary,
 } from "../saraSupportClient";
 
-function wrapSaraError(error: unknown): TRPCError {
+/** conversation.actorId do corpo do 409 do /takeover (schema da doc), se vier. */
+function conflictActor(body: unknown): { present: boolean; actorId: string | null } {
+  const conversation = (body as { conversation?: { actorId?: unknown } } | null)?.conversation;
+  if (!conversation || typeof conversation !== "object") return { present: false, actorId: null };
+  return { present: true, actorId: typeof conversation.actorId === "string" ? conversation.actorId : null };
+}
+
+async function wrapSaraError(error: unknown, userId?: number): Promise<TRPCError> {
   // Recusa nossa (ex.: FORBIDDEN de dono) já vem pronta — não rebaixar para 500.
   if (error instanceof TRPCError) return error;
   if (error instanceof SaraSupportApiError) {
+    if (error.status === 409) {
+      // 409 do /takeover traz quem já assumiu; outros 409 (ex.: "not claimed" no envio)
+      // não têm conversation e ficam com a mensagem genérica.
+      const conflict = conflictActor(error.body);
+      if (conflict.present) {
+        let who = "outro atendente";
+        if (conflict.actorId !== null && conflict.actorId === String(userId)) {
+          who = "você";
+        } else if (conflict.actorId !== null) {
+          who = (await resolveActorNames([conflict.actorId])).get(conflict.actorId) ?? who;
+        }
+        return new TRPCError({ code: "CONFLICT", message: `Já assumida por ${who}` });
+      }
+      return new TRPCError({ code: "CONFLICT", message: error.message });
+    }
     return new TRPCError({
       code: error.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
       message: error.message,
@@ -119,7 +141,7 @@ export const saraRouter = router({
         const names = await resolveActorNames(result.data.map(c => c.actorId));
         return { ...result, data: result.data.map(c => withActor(c, names, ctx.user)) };
       } catch (error) {
-        throw wrapSaraError(error);
+        throw await wrapSaraError(error, ctx.user.id);
       }
     }),
 
@@ -129,7 +151,7 @@ export const saraRouter = router({
       const names = await resolveActorNames([detail.conversation.actorId]);
       return { ...detail, conversation: withActor(detail.conversation, names, ctx.user) };
     } catch (error) {
-      throw wrapSaraError(error);
+      throw await wrapSaraError(error, ctx.user.id);
     }
   }),
 
@@ -141,7 +163,7 @@ export const saraRouter = router({
         await assertAllowed(input.id, ctx.user, (actorId, user) => saraCanSend(actorId, user.id));
         return await sendSaraMessage(input.id, input.text, ctx.user.id);
       } catch (error) {
-        throw wrapSaraError(error);
+        throw await wrapSaraError(error, ctx.user.id);
       }
     }),
 
@@ -149,7 +171,7 @@ export const saraRouter = router({
     try {
       return await takeoverSaraConversation(input.id, ctx.user.id);
     } catch (error) {
-      throw wrapSaraError(error);
+      throw await wrapSaraError(error, ctx.user.id);
     }
   }),
 
@@ -159,7 +181,7 @@ export const saraRouter = router({
       await assertAllowed(input.id, ctx.user, (actorId, user) => saraCanReleaseOrClose(actorId, user.id, user.role));
       return await releaseSaraConversation(input.id, ctx.user.id);
     } catch (error) {
-      throw wrapSaraError(error);
+      throw await wrapSaraError(error, ctx.user.id);
     }
   }),
 
@@ -168,7 +190,7 @@ export const saraRouter = router({
       await assertAllowed(input.id, ctx.user, (actorId, user) => saraCanReleaseOrClose(actorId, user.id, user.role));
       return await closeSaraConversation(input.id, ctx.user.id);
     } catch (error) {
-      throw wrapSaraError(error);
+      throw await wrapSaraError(error, ctx.user.id);
     }
   }),
 
@@ -176,7 +198,7 @@ export const saraRouter = router({
     try {
       return await sendSaraTypingIndicator(input.id, ctx.user.id);
     } catch (error) {
-      throw wrapSaraError(error);
+      throw await wrapSaraError(error, ctx.user.id);
     }
   }),
   /**

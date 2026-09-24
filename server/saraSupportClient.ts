@@ -12,6 +12,12 @@ export class SaraSupportApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    /**
+     * Corpo do erro já parseado (JSON), ou null. Só para o NOSSO servidor decidir
+     * a resposta (ex.: conversation.actorId no 409 do /takeover) — nunca repassar
+     * ao navegador.
+     */
+    public readonly body: unknown = null,
   ) {
     super(message);
     this.name = "SaraSupportApiError";
@@ -103,6 +109,14 @@ function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
+function parseJsonOrNull(text: string): unknown {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit): Promise<T> {
   assertConfigured();
 
@@ -142,6 +156,7 @@ async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit
     throw new SaraSupportApiError(
       `Sara Support API retornou erro (status ${response.status}).`,
       response.status,
+      parseJsonOrNull(body),
     );
   }
 

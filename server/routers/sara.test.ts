@@ -267,3 +267,73 @@ describe("sara.listConversations — status e sort são enums da doc", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sara.takeover — 409 vira CONFLICT \"Já assumida por <nome>\"", () => {
+  function conflict409(actorId: string | null): Response {
+    return errorResponse(
+      409,
+      JSON.stringify({
+        error: { code: "CONFLICT", message: "Conversation already in human takeover" },
+        conversation: { id: "conv-1", status: "human_takeover", actorId },
+      }),
+    );
+  }
+
+  it("usa conversation.actorId do corpo do 409 e resolve o nome", async () => {
+    const chain = { from: () => chain, where: () => Promise.resolve([{ id: OTHER_ID, name: "Beatriz" }]) };
+    vi.mocked(getDb).mockResolvedValue({ select: () => chain } as never);
+    fetchMock.mockResolvedValueOnce(conflict409(String(OTHER_ID)));
+
+    const error = await catchError(saraRouter.createCaller(createContext()).takeover({ id: "conv-1" }));
+
+    expect(error.code).toBe("CONFLICT");
+    expect(error.message).toBe("Já assumida por Beatriz");
+  });
+
+  it("actorId desconhecido ou null → \"outro atendente\"; o próprio usuário → \"você\"", async () => {
+    fetchMock.mockResolvedValueOnce(conflict409("12345"));
+    expect((await catchError(saraRouter.createCaller(createContext()).takeover({ id: "conv-1" }))).message).toBe(
+      "Já assumida por outro atendente",
+    );
+
+    fetchMock.mockResolvedValueOnce(conflict409(null));
+    expect((await catchError(saraRouter.createCaller(createContext()).takeover({ id: "conv-1" }))).message).toBe(
+      "Já assumida por outro atendente",
+    );
+
+    fetchMock.mockResolvedValueOnce(conflict409(String(USER_ID)));
+    expect((await catchError(saraRouter.createCaller(createContext()).takeover({ id: "conv-1" }))).message).toBe(
+      "Já assumida por você",
+    );
+  });
+
+  it("não vaza a mensagem crua da Sara", async () => {
+    fetchMock.mockResolvedValueOnce(conflict409(String(OTHER_ID)));
+    const error = await catchError(saraRouter.createCaller(createContext()).takeover({ id: "conv-1" }));
+    expect(error.message).not.toContain("already in human takeover");
+  });
+
+  it("409 sem conversation no corpo (ex.: \"not claimed\" no envio) → CONFLICT genérico", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID))))
+      .mockResolvedValueOnce(
+        errorResponse(409, JSON.stringify({ error: { code: "CONFLICT", message: "Conversation not claimed yet" } })),
+      );
+
+    const error = await catchError(
+      saraRouter.createCaller(createContext()).sendMessage({ id: "conv-1", text: "olá" }),
+    );
+
+    expect(error.code).toBe("CONFLICT");
+    expect(error.message).toContain("409");
+  });
+
+  it("outros erros continuam: 404 → NOT_FOUND, 500 → INTERNAL_SERVER_ERROR", async () => {
+    fetchMock.mockResolvedValueOnce(errorResponse(404, "{}"));
+    expect((await catchError(saraRouter.createCaller(createContext()).takeover({ id: "x" }))).code).toBe("NOT_FOUND");
+    fetchMock.mockResolvedValueOnce(errorResponse(500, "{}"));
+    expect((await catchError(saraRouter.createCaller(createContext()).takeover({ id: "x" }))).code).toBe(
+      "INTERNAL_SERVER_ERROR",
+    );
+  });
+});

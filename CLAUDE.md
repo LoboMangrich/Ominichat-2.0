@@ -64,7 +64,7 @@ server/_core/         Infraestrutura: env, trpc, contexto, auth, guards, LLM
 server/routers.ts     ~5.500 linhas, ~402 procedures tRPC. Precisa modularização.
 server/routers/       Routers já extraídos (sara.ts)
 server/webhooks.ts    ~1.400 linhas, 15 endpoints HTTP fora do tRPC
-server/saraSupportClient.ts  Cliente HTTP da Sara Support API
+server/saraSupportClient.ts  Cliente HTTP da Sara Support API (doc: docs/sara-support-openapi.json)
 server/*.ts           Motores de domínio: automation, playbook, healthScore,
                       conversationRouter, channelSender, channelHealth,
                       communicationIntelligence, csvImport, conversationBackup
@@ -491,12 +491,48 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
 - Chave de API única: o `takeoverAdminId` registrado na Sara é sempre o mesmo.
   Existe o header opcional `x-sara-actor-id` para identificar qual atendente do
   Cashmiles executou a ação — **usar em todas as chamadas**.
-- Suporta áudio e imagem (multipart) e URLs assinadas de 900s para reproduzir
-  mídia recebida. A tela atual só trata texto.
-- Só `active` e `human_takeover` são status confirmados — status ou
-  `senderType` fora disso aparecem com o valor cru, nunca com rótulo
-  inventado. "Encerrar" pede confirmação: não há "reabrir" do lado do
-  Cashmiles.
+- **Fonte da verdade: `docs/sara-support-openapi.json`** (doc OpenAPI enviada
+  pelo time de TI). Enum de status do `GET /conversations`:
+  `awaiting_response`, `active`, `error`, `human_takeover` (`shared/sara.ts`,
+  validado com `z.enum` no router). Status ou `senderType` fora do documentado
+  aparecem com o valor cru, nunca com rótulo inventado. "Encerrar" pede
+  confirmação: não há "reabrir" do lado do Cashmiles.
+- **`actorId` — quem assumiu.** É o que mandamos em `x-sara-actor-id` (o nosso
+  `users.id` em string); a Sara só registra, para auditoria. `null` quando a
+  conversa foi assumida sem o header (ex.: pelo painel da própria Sara) ou
+  depois de `/release`. O router resolve para o nome do usuário do Cashmiles
+  ("Assumido por …"; id desconhecido → "outro atendente"). **Regras, checadas
+  NO SERVIDOR com um GET antes de qualquer POST** (`saraCanSend`/
+  `saraCanReleaseOrClose`, `shared/sara.ts`) — recusa é `FORBIDDEN` sem chamar
+  a Sara:
+  - **Enviar mensagem:** só quem assumiu. Admin **não** é exceção. `actorId`
+    `null` bloqueia, com o aviso "Assumida sem identificação de atendente. Se
+    ninguém da equipe está nela, devolva para a IA e assuma de novo." (não
+    empurra a devolução: pode ter sido assumida pelo painel da Sara).
+  - **Devolver para a IA / Encerrar:** quem assumiu, Admin, ou qualquer
+    atendente quando `actorId` é `null`. Nos outros casos, "Conversa assumida
+    por outro atendente".
+- **409 do `/takeover`** → `CONFLICT` "Já assumida por <nome>", a partir de
+  `conversation.actorId` do corpo do 409. 409 sem `conversation` (ex.: "not
+  claimed" no envio) → `CONFLICT` genérico. O corpo do erro fica só no
+  servidor (`SaraSupportApiError.body`), nunca vai ao navegador.
+- **Mídia recebida** (áudio e imagem): `sara.audioUrl`/`sara.imageUrl` →
+  `GET /audio/{id}/url` e `/images/{id}/url`, URL assinada que **expira em
+  900s**. Buscada sob demanda (áudio ao clicar, imagem ao renderizar),
+  `staleTime`/`gcTime` bem abaixo de 900s, e nova busca se o `<audio>`/`<img>`
+  der erro (`client/src/components/conversations/SaraMedia.tsx`). **Nunca
+  logar a URL assinada.**
+- **Pergunta em aberto para o time de TI:** um `/takeover` sobre conversa em
+  `human_takeover` com `actorId` `null` é aceito, ou devolve 409? Se for
+  aceito, "assuma de novo" funciona direto, sem devolver para a IA (e sem a
+  janela em que a IA pode responder o cliente).
+- **Pendências — fora do escopo até agora:**
+  - Envio de áudio e imagem (`POST .../audio` e `.../image`, multipart).
+  - Opt-out (`GET /contacts/{phone}/opt-out`), números bloqueados
+    (`/blocked-numbers`) e templates (`/templates`, `/templates/sync`) —
+    **a doc não tem schema de resposta para eles** (só os 4XX/5XX, ou um 200
+    sem corpo descrito). Pedir exemplo de resposta ao time de TI antes de
+    implementar.
 
 ### Tela única de Conversas (`/sara`)
 

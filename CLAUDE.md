@@ -279,9 +279,11 @@ Depende do item 1 (precisa de URL pública). Especificação já recebida — ve
   era antes) ou automaticamente (ex: quando o atendente responde e fica
   esperando o cliente)? A resposta muda a implementação e a aba volta junto.
 - **Histórico de conversas finalizadas com opção de reabrir.** Uma conversa
-  `Closed` **não some** da lista de `/atendimentos` (a tela do menu):
-  `tags.listUnified` não filtra por status, então ela continua lá, misturada
-  com as abertas e sem nenhum indicador visual de status na linha. O
+  `Closed` **não some** da lista de `/atendimentos` (hoje fora do menu — ver
+  "Tela única de Conversas"): `tags.listUnified` não filtra por status, então
+  ela continua lá, misturada com as abertas e sem nenhum indicador visual de
+  status na linha. Na tela única (`/sara`) ela já aparece só em "Todos", com
+  selo "Encerrada", mas continua sem ação de reabrir. O
   problema real é que não dá pra distinguir nem separar as finalizadas, e não
   há ação de reabrir — o botão "Finalizar conversa" fica desabilitado em
   "Conversa encerrada". (`/conversations` tem uma aba "Finalizados"
@@ -491,11 +493,45 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
   Cashmiles executou a ação — **usar em todas as chamadas**.
 - Suporta áudio e imagem (multipart) e URLs assinadas de 900s para reproduzir
   mídia recebida. A tela atual só trata texto.
-- Tela `/sara` (`Sara.tsx` + `SaraConversationDetail.tsx` embutido) segue o
-  formato de `/atendimentos`; `/sara/:id` seleciona a conversa. Só `active` e
-  `human_takeover` são status confirmados — status ou `senderType` fora disso
-  aparecem com o valor cru, nunca com rótulo inventado. "Encerrar" pede
-  confirmação: não há "reabrir" do lado do Cashmiles.
+- Só `active` e `human_takeover` são status confirmados — status ou
+  `senderType` fora disso aparecem com o valor cru, nunca com rótulo
+  inventado. "Encerrar" pede confirmação: não há "reabrir" do lado do
+  Cashmiles.
+
+### Tela única de Conversas (`/sara`)
+
+Decisão de produto: "Conversas" é **uma tela só**, com as conversas da Sara e
+as do canal próprio juntas. É o único item de conversa no menu de
+Atendimento (ao lado de Disparos em Massa e Grupos).
+
+- `Sara.tsx` junta `sara.listConversations` + `tags.listUnified`
+  (`excludeGroups: true` — grupos têm menu próprio). Tipo único, helpers e
+  mapeamentos em `client/src/pages/saraShared.ts`.
+- **Buckets** (`ai`/`human`/`closed`/`unknown`) agrupam o status das duas
+  origens. Sara: `active` → `ai`, `human_takeover` → `human`, outros →
+  `unknown` (valor cru no selo). Canal próprio: `Closed` → `closed`; senão
+  `handledByAi` decide. Status novo da Sara (a doc nova traz
+  `awaiting_response` e `error`) entra em `SARA_STATUS_BUCKET`, sem
+  reescrever o tipo. Abas: Todos, Com a IA, Atendimento humano — `closed` e
+  `unknown` só aparecem em Todos.
+- **URL:** `/sara/:id` (Sara — links antigos continuam funcionando) e
+  `/sara/legado/:id` (canal próprio, abre `ConversationDetail` embutido).
+- **Busca:** o filtro `phone` da Sara é E.164; só vai para a API quando o
+  termo é telefone completo (`toE164Phone`, `shared/phone.ts`). Nome ou
+  número parcial filtram no client as conversas da Sara já carregadas. O
+  canal próprio sempre recebe o termo.
+- Falha de uma fonte não esvazia a tela: mostra a outra + aviso.
+- Cliente com conversa nas duas origens aparece duas vezes, uma com cada
+  selo — são conversas diferentes, não há deduplicação.
+- **As etiquetas "Em Aberto"/"Aguardando" saíram da tela principal**, mas
+  continuam em `/atendimentos`, que segue existindo como rota (fora do menu;
+  `Customers.tsx` e `Home.tsx` ainda apontam pra lá). A decisão pendente
+  sobre elas (ver Backlog, item 3) continua valendo lá.
+- **Limitações conhecidas:** a Sara aceita `limit` até 100, então "Carregar
+  mais" para de crescer do lado da Sara nesse ponto (paginação por `offset`
+  não implementada). O badge "live" de conversas abertas, que ficava no item
+  de `/atendimentos`, saiu junto com ele — contava só o canal próprio e
+  ficaria enganoso na tela única.
 
 ### Decisão de arquitetura — Sara como canal único de WhatsApp
 

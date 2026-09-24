@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { timeAgo } from "@/lib/timeAgo";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, MessageSquare, Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -26,21 +27,6 @@ const PAGE_SIZE = 20;
 // sara.listConversations aceita no máximo 100 (server/routers/sara.ts).
 const SARA_MAX_LIMIT = 100;
 const LIST_REFETCH_MS = 15000;
-
-// ─── Helper (mesmo formato de Atendimentos.tsx) ─────────────────────────────
-function timeAgo(epoch: number | null): string {
-  if (!epoch) return "";
-  const d = new Date(epoch);
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "agora";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
 
 type Selection = { source: "sara"; id: string } | { source: "legacy"; id: number } | null;
 

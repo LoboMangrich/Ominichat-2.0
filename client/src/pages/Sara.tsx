@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import GroupConversationPanel from "@/components/conversations/GroupConversationPanel";
 import TagManagerModal, { type Tag } from "@/components/conversations/TagManagerModal";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -17,6 +18,7 @@ import SaraConversationDetail from "./SaraConversationDetail";
 import {
   ASSIGNMENT_TABS,
   DEFAULT_ASSIGNMENT_TAB,
+  assigneeTooltip,
   conversationHref,
   displayName,
   formatTabCount,
@@ -371,7 +373,23 @@ export default function Sara() {
                     >
                       {originLabel(item)}
                     </Badge>
-                    {label && <span className="text-[10px] text-muted-foreground truncate">{label}</span>}
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {label && <span className="text-[10px] text-muted-foreground truncate">{label}</span>}
+                      {/* Quem assumiu: iniciais no canto do card, nome no tooltip. */}
+                      {item.assignee && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="w-5 h-5 rounded-full bg-muted text-foreground border text-[9px] font-semibold flex items-center justify-center shrink-0"
+                              aria-label={assigneeTooltip(item.assignee)}
+                            >
+                              {initials(item.assignee.name)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">{assigneeTooltip(item.assignee)}</TooltipContent>
+                        </Tooltip>
+                      )}
+                    </span>
                   </div>
                 </div>
               </button>

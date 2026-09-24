@@ -4,6 +4,8 @@ import {
   ASSIGNMENT_TABS,
   DEFAULT_ASSIGNMENT_TAB,
   PANEL_SECTIONS,
+  assigneeTooltip,
+  initials,
   previousConversations,
   readClosedSections,
   writeClosedSections,
@@ -621,5 +623,34 @@ describe("Abas de atribuição — Minhas / Não atribuídas / Todas", () => {
   it("linha de atribuição fica ACIMA das etiquetas, que continuam como estão", () => {
     expect(list.indexOf('aria-label="Atribuição"')).toBeGreaterThan(-1);
     expect(list.indexOf('aria-label="Atribuição"')).toBeLessThan(list.indexOf("Chips — mesmo visual de Atendimentos.tsx"));
+  });
+});
+
+describe("Card da lista — iniciais de quem assumiu, nome no tooltip", () => {
+  const sara = { id: "c", status: "human_takeover", userName: null, phoneNumber: null, lastMessageAt: null, createdAt: "" };
+  const legacyBase = {
+    id: 1, type: "conversation", name: null, phone: null, lastMessageAt: null, status: "Open", handledByAi: false, channel: "whatsapp",
+  };
+
+  it("Sara: vem de actorId/actorName; sem actorId, sem iniciais", () => {
+    expect(fromSara({ ...sara, actorId: "9", actorName: "Beatriz Lima" }).assignee).toEqual({ name: "Beatriz Lima" });
+    expect(fromSara({ ...sara, actorId: "123", actorName: null }).assignee).toEqual({ name: null });
+    expect(fromSara({ ...sara, actorId: null }).assignee).toBeNull();
+  });
+
+  it("canal próprio: vem de assignedUserId (assignedTo) e assignedName do listUnified", () => {
+    expect(fromLegacy({ ...legacyBase, assignedTo: 4, assignedName: "Carlos" }).assignee).toEqual({ name: "Carlos" });
+    expect(fromLegacy({ ...legacyBase, assignedTo: null }).assignee).toBeNull();
+  });
+
+  it("tooltip: nome, ou \"outro atendente\" sem nome conhecido; iniciais pelo nome", () => {
+    expect(assigneeTooltip({ name: "Beatriz Lima" })).toBe("Assumida por Beatriz Lima");
+    expect(assigneeTooltip({ name: null })).toBe("Assumida por outro atendente");
+    expect(initials("Beatriz Lima")).toBe("BL");
+  });
+
+  it("card mostra as iniciais com Tooltip; sem não lidas nem prévia da última mensagem", () => {
+    expect(list).toMatch(/\{item\.assignee && \([\s\S]*?<TooltipContent[^>]*>\{assigneeTooltip\(item\.assignee\)\}<\/TooltipContent>/);
+    expect(list).not.toMatch(/unreadCount|lastMessage\b/);
   });
 });

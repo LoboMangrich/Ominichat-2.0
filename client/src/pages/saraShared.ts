@@ -156,6 +156,12 @@ type UnifiedBase = {
   bucket: ConversationBucket;
   /** Status como veio da origem, para o selo quando o bucket é unknown. */
   rawStatus: string;
+  /**
+   * Quem assumiu, para as iniciais no canto do card (nome no tooltip). Sara: actorId
+   * (nome resolvido no servidor); canal próprio: assignedUserId. null = ninguém.
+   * name null = assumida por alguém sem nome conhecido ("outro atendente").
+   */
+  assignee: { name: string | null } | null;
 };
 
 export type UnifiedConversation =
@@ -187,6 +193,9 @@ export type LegacyListItem = {
   handledByAi: boolean | number | null;
   channel: string | null;
   groupId?: number | null;
+  // Quem assumiu (assignedUserId) e o nome — vindos de tags.listUnified.
+  assignedTo?: number | null;
+  assignedName?: string | null;
 };
 
 function toEpoch(value: string | Date | null | undefined): number | null {
@@ -206,6 +215,7 @@ export function fromSara(conv: SaraListItem): UnifiedConversation {
     bucket: saraBucket(conv.status),
     rawStatus: conv.status,
     actorLabel: saraActorLabel(conv),
+    assignee: conv.actorId ? { name: conv.actorName ?? null } : null,
   };
 }
 
@@ -219,6 +229,7 @@ export function fromLegacy(item: LegacyListItem): UnifiedConversation {
     lastActivityAt: toEpoch(item.lastMessageAt),
     bucket: legacyBucket(item.status, item.handledByAi),
     rawStatus: item.status ?? "",
+    assignee: item.assignedTo != null ? { name: item.assignedName ?? null } : null,
     channel: item.channel,
   };
 }
@@ -235,6 +246,7 @@ export function fromGroup(item: LegacyListItem): UnifiedConversation | null {
     lastActivityAt: toEpoch(item.lastMessageAt),
     bucket: "unknown",
     rawStatus: "",
+    assignee: null, // grupo não tem atribuição
   };
 }
 
@@ -595,4 +607,9 @@ export function safeLocalStorage(): Storage | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Tooltip das iniciais de quem assumiu. */
+export function assigneeTooltip(assignee: { name: string | null }): string {
+  return `Assumida por ${assignee.name ?? "outro atendente"}`;
 }

@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE } from "@shared/sara";
+import { SARA_FORBIDDEN_OTHER_ACTOR, SARA_UNIDENTIFIED_ACTOR_NOTICE, SARA_WINDOW_CLOSED_MESSAGE } from "@shared/sara";
 import type { TrpcContext } from "../_core/context";
 import { ENV } from "../_core/env";
 import { getDb } from "../db";
@@ -40,14 +40,22 @@ function errorResponse(status: number, rawBody: string): Response {
   return { ok: false, status, text: async () => rawBody } as unknown as Response;
 }
 
-function conversationDetail(actorId: string | null, status = "human_takeover") {
+/** Mensagem do cliente há 1 min: janela de 24h aberta (padrão dos testes). */
+function userMessage(agoMs = 60_000) {
+  return {
+    id: "u1", senderType: "user", text: "", messageType: "text", status: "received",
+    createdAt: new Date(Date.now() - agoMs).toISOString(), audio: null, image: null,
+  };
+}
+
+function conversationDetail(actorId: string | null, status = "human_takeover", messages: unknown[] = [userMessage()]) {
   return {
     conversation: {
       id: "conv-1", status, outcome: null, phoneNumber: null, userName: null, messageCount: 1,
       lastMessageAt: null, createdAt: "2026-09-24T10:00:00Z", takeoverAdminId: "adm",
       takeoverAt: actorId ? "2026-09-24T10:05:00Z" : null, actorId, channelId: null,
     },
-    messages: [],
+    messages,
   };
 }
 
@@ -711,5 +719,48 @@ describe("sara.optOutStatus — opt-out do WhatsApp (só leitura; telefone nunca
     await expect(saraRouter.createCaller(createContext()).optOutStatus({ phone: "48 9840-53595" })).rejects.toThrow();
     await expect(saraRouter.createCaller(createContext()).optOutStatus({ phone: "../conversations" })).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sara.sendMessage — janela de 24h do WhatsApp, checada no servidor antes do POST", () => {
+  const HOUR = 60 * 60 * 1000;
+
+  it("última mensagem do cliente há mais de 24h → PRECONDITION_FAILED, sem POST", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, conversationDetail(String(USER_ID), "human_takeover", [userMessage(24 * HOUR + 60_000)])),
+    );
+
+    const error = await catchError(saraRouter.createCaller(createContext()).sendMessage({ id: "conv-1", text: "oi" }));
+
+    expect(error.code).toBe("PRECONDITION_FAILED");
+    expect(error.message).toBe(SARA_WINDOW_CLOSED_MESSAGE);
+    expect(postCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("nenhuma mensagem do cliente (só nossas) → fora da janela, sem POST", async () => {
+    const onlyOurs = [{ ...userMessage(), senderType: "admin" }, { ...userMessage(), senderType: "sara" }];
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID), "human_takeover", onlyOurs)));
+
+    const error = await catchError(saraRouter.createCaller(createContext()).sendMessage({ id: "conv-1", text: "oi" }));
+
+    expect(error.code).toBe("PRECONDITION_FAILED");
+    expect(postCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("vale a ÚLTIMA mensagem do cliente, não a nossa: cliente há 23h + nossa agora → envia", async () => {
+    const messages = [userMessage(30 * HOUR), userMessage(23 * HOUR), { ...userMessage(0), senderType: "admin" }];
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID), "human_takeover", messages)))
+      .mockResolvedValueOnce(jsonResponse(200, { message: { id: "m1" } }));
+
+    await saraRouter.createCaller(createContext()).sendMessage({ id: "conv-1", text: "oi" });
+
+    expect(postCalls(fetchMock)).toHaveLength(1);
+  });
+
+  it("dono checado antes da janela: outro atendente recebe FORBIDDEN, não a mensagem da janela", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(OTHER_ID), "human_takeover", [])));
+    const error = await catchError(saraRouter.createCaller(createContext()).sendMessage({ id: "conv-1", text: "oi" }));
+    expect(error.code).toBe("FORBIDDEN");
   });
 });

@@ -6,8 +6,10 @@ import {
   SARA_CONVERSATION_STATUSES,
   SARA_FORBIDDEN_OTHER_ACTOR,
   SARA_UNIDENTIFIED_ACTOR_NOTICE,
+  SARA_WINDOW_CLOSED_MESSAGE,
   saraCanReleaseOrClose,
   saraCanSend,
+  saraWindowState,
 } from "@shared/sara";
 import { conversationTags, customers, saraConversationTags, saraInternalNotes, users } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -28,6 +30,7 @@ import {
   sendSaraMessage,
   sendSaraTypingIndicator,
   takeoverSaraConversation,
+  type SaraConversationDetail,
   type SaraConversationSummary,
 } from "../saraSupportClient";
 
@@ -130,9 +133,21 @@ async function assertAllowed(
   conversationId: string,
   user: SaraUser,
   allowed: (actorId: string | null, user: SaraUser) => boolean,
-): Promise<void> {
-  const { conversation } = await getSaraConversation(conversationId, user.id);
-  if (!allowed(conversation.actorId, user)) throw forbiddenFor(conversation.actorId);
+): Promise<SaraConversationDetail> {
+  const detail = await getSaraConversation(conversationId, user.id);
+  if (!allowed(detail.conversation.actorId, user)) throw forbiddenFor(detail.conversation.actorId);
+  return detail;
+}
+
+/**
+ * Janela de 24h do WhatsApp, checada NO SERVIDOR antes de mensagem livre (texto/mídia),
+ * com as mensagens do mesmo GET da checagem de dono. Fora da janela, recusa sem chamar
+ * a Sara — a Meta só aceitaria template.
+ */
+export function assertWindowOpen(messages: SaraConversationDetail["messages"], now = Date.now()): void {
+  if (!saraWindowState(messages, now).open) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: SARA_WINDOW_CLOSED_MESSAGE });
+  }
 }
 
 export const saraRouter = router({
@@ -177,7 +192,8 @@ export const saraRouter = router({
     .input(z.object({ id: z.string().min(1), text: z.string().min(1).max(4096) }))
     .mutation(async ({ ctx, input }) => {
       try {
-        await assertAllowed(input.id, ctx.user, (actorId, user) => saraCanSend(actorId, user.id));
+        const detail = await assertAllowed(input.id, ctx.user, (actorId, user) => saraCanSend(actorId, user.id));
+        assertWindowOpen(detail.messages);
         return await sendSaraMessage(input.id, input.text, ctx.user.id);
       } catch (error) {
         throw await wrapSaraError(error, ctx.user.id);

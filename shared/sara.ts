@@ -97,3 +97,48 @@ export function saraOptOutMessage(optedOutAt: string | null): string {
   const date = when && !Number.isNaN(when.getTime()) ? ` em ${when.toLocaleDateString("pt-BR")}` : "";
   return `Este contato pediu para não receber mensagens pelo WhatsApp${date}.`;
 }
+
+// ─── Janela de 24h do WhatsApp ───────────────────────────────────────────────
+// Regra da Meta: mensagem livre (texto, foto, áudio) só até 24h depois da ÚLTIMA
+// MENSAGEM DO CLIENTE (senderType "user"). Depois disso, só template. Sem nenhuma
+// mensagem do cliente, a janela está fechada. Calculado a partir das mensagens do
+// GET da conversa — no servidor (antes de enviar) e na tela (faixa e composer).
+
+export const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Abaixo disso, a tela avisa quanto falta. */
+export const WHATSAPP_WINDOW_WARNING_MS = 2 * 60 * 60 * 1000;
+export const SARA_WINDOW_CLOSED_MESSAGE =
+  "Passaram 24h desde a última mensagem do cliente. Envie um template ou aguarde ele responder.";
+
+export interface SaraWindowState {
+  open: boolean;
+  /** Quando fecha (ms epoch); null sem mensagem do cliente. */
+  closesAt: number | null;
+  /** Quanto falta (0 se fechada). */
+  remainingMs: number;
+}
+
+export function saraWindowState(
+  messages: ReadonlyArray<{ senderType: string; createdAt: string }>,
+  now: number,
+): SaraWindowState {
+  let lastUserAt: number | null = null;
+  for (const m of messages) {
+    if (m.senderType !== "user") continue;
+    const at = Date.parse(m.createdAt);
+    if (!Number.isNaN(at) && (lastUserAt === null || at > lastUserAt)) lastUserAt = at;
+  }
+  if (lastUserAt === null) return { open: false, closesAt: null, remainingMs: 0 };
+  const closesAt = lastUserAt + WHATSAPP_WINDOW_MS;
+  const remainingMs = Math.max(0, closesAt - now);
+  return { open: remainingMs > 0, closesAt, remainingMs };
+}
+
+/** "1h20", "2h", "45min" — arredonda para cima (não promete mais tempo do que há). */
+export function formatWindowRemaining(ms: number): string {
+  const totalMin = Math.max(1, Math.ceil(ms / 60_000));
+  const h = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  if (h === 0) return `${min}min`;
+  return min === 0 ? `${h}h` : `${h}h${String(min).padStart(2, "0")}`;
+}

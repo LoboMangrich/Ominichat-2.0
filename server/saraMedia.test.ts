@@ -9,6 +9,7 @@ import {
   SARA_MEDIA_GENERIC_ERROR,
   SARA_MEDIA_MAX_BYTES,
   SARA_UNIDENTIFIED_ACTOR_NOTICE,
+  SARA_WINDOW_CLOSED_MESSAGE,
 } from "@shared/sara";
 import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
@@ -70,14 +71,22 @@ function jsonResponse(status: number, body: unknown): Response {
   } as unknown as Response;
 }
 
-function conversationDetail(actorId: string | null) {
+/** Mensagem do cliente há 1 min: janela de 24h aberta (padrão dos testes). */
+function userMessage(agoMs = 60_000) {
+  return {
+    id: "u1", senderType: "user", text: "", messageType: "text", status: "received",
+    createdAt: new Date(Date.now() - agoMs).toISOString(), audio: null, image: null,
+  };
+}
+
+function conversationDetail(actorId: string | null, messages: unknown[] = [userMessage()]) {
   return {
     conversation: {
       id: "conv-1", status: "human_takeover", outcome: null, phoneNumber: null, userName: null, messageCount: 1,
       lastMessageAt: null, createdAt: "2026-09-24T10:00:00Z", takeoverAdminId: "adm",
       takeoverAt: null, actorId, channelId: null,
     },
-    messages: [],
+    messages,
   };
 }
 
@@ -263,5 +272,23 @@ describe("imageBytesMatch", () => {
     expect(imageBytesMatch("image/jpeg", WEBP)).toBe(false);
     expect(imageBytesMatch("image/png", JPEG)).toBe(false);
     expect(imageBytesMatch("image/gif", PNG)).toBe(false);
+  });
+});
+
+describe("janela de 24h do WhatsApp — checada antes de ler o arquivo", () => {
+  it("cliente escreveu há mais de 24h → 422 com a mensagem clara, sem POST", async () => {
+    saraFetch.mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID), [userMessage(25 * 60 * 60 * 1000)])));
+
+    const res = await upload("image", PNG, "image/png");
+
+    expect(res).toEqual({ status: 422, body: { error: SARA_WINDOW_CLOSED_MESSAGE } });
+    expect(postCalls()).toHaveLength(0);
+  });
+
+  it("nenhuma mensagem do cliente → fora da janela, sem POST", async () => {
+    saraFetch.mockResolvedValueOnce(jsonResponse(200, conversationDetail(String(USER_ID), [])));
+    const res = await upload("audio", AUDIO, "audio/webm");
+    expect(res.status).toBe(422);
+    expect(postCalls()).toHaveLength(0);
   });
 });

@@ -6,6 +6,8 @@ import {
   saraCanReleaseOrClose,
   saraCanSend,
   saraOptOutMessage,
+  formatWindowRemaining,
+  saraWindowState,
   validateSaraMedia,
 } from "./sara";
 
@@ -64,5 +66,44 @@ describe("saraOptOutMessage", () => {
   it("sem data (ou inválida) não inventa uma", () => {
     expect(saraOptOutMessage(null)).toBe("Este contato pediu para não receber mensagens pelo WhatsApp.");
     expect(saraOptOutMessage("xx")).toBe("Este contato pediu para não receber mensagens pelo WhatsApp.");
+  });
+});
+
+describe("saraWindowState — janela de 24h a partir da ÚLTIMA mensagem do cliente", () => {
+  const NOW = Date.parse("2026-09-25T18:00:00Z");
+  const at = (iso: string, senderType = "user") => ({ senderType, createdAt: iso });
+
+  it("sem mensagem do cliente → fechada", () => {
+    expect(saraWindowState([], NOW)).toEqual({ open: false, closesAt: null, remainingMs: 0 });
+    expect(saraWindowState([at("2026-09-25T17:00:00Z", "admin"), at("2026-09-25T17:30:00Z", "sara")], NOW).open).toBe(false);
+  });
+
+  it("dentro das 24h → aberta, com quanto falta", () => {
+    const state = saraWindowState([at("2026-09-25T10:00:00Z")], NOW);
+    expect(state.open).toBe(true);
+    expect(state.remainingMs).toBe(16 * 60 * 60 * 1000);
+  });
+
+  it("exatamente 24h depois → fechada", () => {
+    expect(saraWindowState([at("2026-09-24T18:00:00Z")], NOW).open).toBe(false);
+  });
+
+  it("usa a mais recente do cliente, em qualquer ordem, e ignora as nossas", () => {
+    const messages = [at("2026-09-25T09:00:00Z"), at("2026-09-23T09:00:00Z"), at("2026-09-25T17:59:00Z", "admin")];
+    expect(saraWindowState(messages, NOW).closesAt).toBe(Date.parse("2026-09-26T09:00:00Z"));
+  });
+
+  it("createdAt inválido é ignorado", () => {
+    expect(saraWindowState([at("xx")], NOW).open).toBe(false);
+  });
+});
+
+describe("formatWindowRemaining", () => {
+  it("formata e arredonda para cima", () => {
+    expect(formatWindowRemaining(80 * 60_000)).toBe("1h20");
+    expect(formatWindowRemaining(2 * 60 * 60_000)).toBe("2h");
+    expect(formatWindowRemaining(65 * 60_000)).toBe("1h05");
+    expect(formatWindowRemaining(44 * 60_000 + 1)).toBe("45min");
+    expect(formatWindowRemaining(10_000)).toBe("1min");
   });
 });

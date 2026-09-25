@@ -13,7 +13,8 @@
  *   1. requireSession
  *   2. kind válido (query)
  *   3. dono: GET da conversa na Sara + saraCanSend — só quem assumiu envia, Admin não
- *      é exceção. Acontece ANTES de ler o arquivo.
+ *      é exceção — e janela de 24h do WhatsApp (mesmas mensagens do GET). Acontece
+ *      ANTES de ler o arquivo.
  *   4. multer com limite de 16 MB: corta o stream ao passar do limite, sem ler o resto
  *   5. tipo/tamanho (validateSaraMedia) e assinatura dos bytes da imagem
  *   6. repasse para a Sara com x-sara-actor-id
@@ -28,8 +29,10 @@ import {
   SARA_MEDIA_KINDS,
   SARA_MEDIA_MAX_BYTES,
   SARA_UNIDENTIFIED_ACTOR_NOTICE,
+  SARA_WINDOW_CLOSED_MESSAGE,
   baseMimeType,
   saraCanSend,
+  saraWindowState,
   validateSaraMedia,
   type SaraMediaKind,
 } from "@shared/sara";
@@ -77,7 +80,7 @@ function parseKind(req: MediaRequest, res: Response, next: NextFunction) {
 async function requireSaraOwner(req: MediaRequest, res: Response, next: NextFunction) {
   const user = req.user!;
   try {
-    const { conversation } = await getSaraConversation(req.params.id, user.id);
+    const { conversation, messages } = await getSaraConversation(req.params.id, user.id);
     if (!saraCanSend(conversation.actorId, user.id)) {
       return fail(
         res,
@@ -85,6 +88,10 @@ async function requireSaraOwner(req: MediaRequest, res: Response, next: NextFunc
         conversation.actorId === null ? SARA_UNIDENTIFIED_ACTOR_NOTICE : SARA_FORBIDDEN_OTHER_ACTOR,
         req.saraMediaKind,
       );
+    }
+    // Fora da janela de 24h a Meta só aceita template: recusa sem ler o arquivo.
+    if (!saraWindowState(messages, Date.now()).open) {
+      return fail(res, 422, SARA_WINDOW_CLOSED_MESSAGE, req.saraMediaKind);
     }
     next();
   } catch (error) {

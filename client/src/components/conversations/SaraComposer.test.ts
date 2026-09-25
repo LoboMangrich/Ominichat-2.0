@@ -53,11 +53,40 @@ describe("Composer — só o que a API da Sara permite", () => {
     expect(composer).toContain('import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";');
   });
 
-  it("NÃO mostra anexo, imagem, áudio, template, agendar nem encaminhar (nem desabilitados)", () => {
-    for (const icon of ["Paperclip", "Image", "Mic", "LayoutTemplate", "Calendar", "Forward"]) {
+  it("NÃO mostra anexo genérico, template, agendar nem encaminhar (nem desabilitados)", () => {
+    for (const icon of ["Paperclip", "LayoutTemplate", "Calendar", "Forward"]) {
       expect(composer).not.toMatch(new RegExp(`\\b${icon}\\b`));
     }
-    expect(composer).not.toMatch(/type="file"/);
+  });
+
+  it("imagem e áudio: só para o dono e só na aba Responder (nunca na nota interna)", () => {
+    expect(composer).toContain("const mediaEnabled = !isNote && canReply;");
+    // O input de arquivo e os dois botões só existem dentro do bloco mediaEnabled.
+    expect(composer).toMatch(/\{mediaEnabled && \(\s*<>\s*<input[\s\S]*?type="file"[\s\S]*?<ImageIcon[\s\S]*?<Mic /);
+    expect(composer.match(/type="file"/g)).toHaveLength(1);
+    expect(composer).toContain('accept={SARA_IMAGE_MIME_TYPES.join(",")}');
+  });
+
+  it("valida tipo/tamanho no navegador antes da prévia (o servidor valida de novo)", () => {
+    expect(composer).toContain('validateSaraMedia("image", file.type, file.size)');
+    expect(composer).toContain('validateSaraMedia("audio", blob.type, blob.size)');
+  });
+
+  it("\"Enviando…\" e bloqueio de duplo clique", () => {
+    expect(composer).toMatch(/function handleSendMedia\(\) \{\s*if \(isSendingMedia\) return;/);
+    expect(composer).toContain('{isSendingMedia ? "Enviando…" : "Enviar"}');
+    expect(composer).toMatch(/onClick=\{handleSendMedia\} disabled=\{isSendingMedia\}/);
+  });
+
+  it("prévia só some quando a Sara aceitou; falha mantém para tentar de novo", () => {
+    expect(composer).toContain("onSendMedia(media.kind, media.file).then(media.clear, () => {})");
+    expect(detail).toContain("throw error; // composer mantém a prévia para tentar de novo");
+    expect(detail).toMatch(/await uploadSaraMedia\(id, kind, file\);\s*invalidateAll\(\);/);
+  });
+
+  it("URL de objeto da prévia é liberada", () => {
+    expect(composer).toContain("URL.revokeObjectURL(pendingImage.url)");
+    expect(composer).toContain("URL.revokeObjectURL(pendingAudio.url)");
   });
 
   it("rascunho só é limpo quando o envio dá certo", () => {
@@ -85,5 +114,31 @@ describe("Nota interna — aba no composer e na linha do tempo", () => {
   it("notas aparecem intercaladas com as mensagens, no estilo âmbar", () => {
     expect(detail).toContain("mergeTimeline(messages, notes)");
     expect(detail).toMatch(/bg-amber-50 dark:bg-amber-900\/20 border border-amber-200/);
+  });
+});
+
+describe("Opt-out — faixa + confirmação antes de enviar (não bloqueia)", () => {
+  it("texto, imagem e áudio passam pela confirmação; nota interna não", () => {
+    expect(composer).toMatch(/if \(isNote\) send\(\);\s*else withOptOutConfirm\(send\);/);
+    expect(composer).toMatch(/withOptOutConfirm\(\(\) => \{\s*onSendMedia\(/);
+  });
+
+  it("Cancelar é o padrão: foco inicial nele", () => {
+    expect(composer).toMatch(/onOpenAutoFocus=\{e => \{[\s\S]*?e\.preventDefault\(\);\s*cancelConfirmRef\.current\?\.focus\(\);/);
+    expect(composer).toContain("<AlertDialogCancel ref={cancelConfirmRef}>Cancelar</AlertDialogCancel>");
+    expect(composer).toContain("Enviar mesmo assim");
+  });
+
+  it("tela: faixa visível quando optedOut, aviso discreto quando não deu para verificar", () => {
+    expect(detail).toContain("saraOptOutMessage(optOut.data?.optedOutAt ?? null)");
+    expect(detail).toContain("Não foi possível verificar opt-out");
+    expect(detail).toContain("optOutConfirmText={saraOptOutConfirmText(optOut.data)}");
+    expect(detail).toMatch(/staleTime: OPT_OUT_STALE_MS/);
+    expect(detail).toContain("const OPT_OUT_STALE_MS = 5 * 60_000;");
+  });
+
+  it("sem cor hex nova no composer nem na faixa", () => {
+    expect(composer).not.toMatch(/#[0-9a-fA-F]{3,6}\b/);
+    expect(detail).not.toMatch(/#[0-9a-fA-F]{3,6}\b/);
   });
 });

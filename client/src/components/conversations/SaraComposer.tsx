@@ -1,17 +1,36 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { Lock, Send, Smile, X, Zap } from "lucide-react";
+import { Image as ImageIcon, Lock, Mic, Send, Smile, Square, Trash2, X, Zap } from "lucide-react";
 import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { SARA_IMAGE_MIME_TYPES, validateSaraMedia, type SaraMediaKind } from "@shared/sara";
 import { filterQuickReplies, shouldSendTyping, type QuickReply } from "@/pages/saraShared";
 
 // Composer da conversa da Sara: o que o painel do canal próprio tem E a API da Sara
-// permite — emoji, respostas rápidas (botão e "/"), "digitando...", e a aba "Nota
-// Interna" (sussurro que fica só no Cashmiles, nunca vai para a Sara; qualquer
-// atendente escreve). Anexo/áudio/imagem não entram: a doc não traz o campo multipart
-// (ver CLAUDE.md). Não mostrar botão desabilitado para eles.
+// permite — emoji, respostas rápidas (botão e "/"), "digitando...", imagem e áudio, e
+// a aba "Nota Interna" (sussurro que fica só no Cashmiles, nunca vai para a Sara;
+// qualquer atendente escreve). Imagem e áudio só aparecem para o dono (canReply) e só
+// na aba Responder; a validação daqui é feedback rápido — o servidor valida de novo.
+// Contato com opt-out: toda resposta (texto, imagem, áudio) pede confirmação, com foco
+// inicial no Cancelar.
+
+function formatDuration(seconds: number) {
+  return Math.floor(seconds / 60) + ":" + (seconds % 60).toString().padStart(2, "0");
+}
 
 const SLASH_TRIGGER = /(^|\s)\/(\S*)$/;
 
@@ -22,6 +41,9 @@ export default function SaraComposer({
   onTyping,
   isAddingNote,
   onAddNote,
+  isSendingMedia,
+  onSendMedia,
+  optOutConfirmText,
   headerActions,
 }: {
   /** Só o dono responde (canSend do servidor). */
@@ -34,6 +56,11 @@ export default function SaraComposer({
   isAddingNote: boolean;
   /** sara.addNote — só Cashmiles. Resolve quando salvou; só então o rascunho é limpo. */
   onAddNote: (text: string) => Promise<unknown>;
+  isSendingMedia: boolean;
+  /** Rota /api/sara/conversations/:id/media. Resolve quando a Sara aceitou; só então a prévia some. */
+  onSendMedia: (kind: SaraMediaKind, file: Blob) => Promise<unknown>;
+  /** Texto do diálogo quando o contato pediu opt-out (null = envia direto). */
+  optOutConfirmText: string | null;
   /** Ações extras na barra (ex.: botão "Etiqueta"). */
   headerActions?: React.ReactNode;
 }) {
@@ -49,6 +76,24 @@ export default function SaraComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const lastTypingAt = useRef<number | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cancelConfirmRef = useRef<HTMLButtonElement>(null);
+  const recorder = useAudioRecorder();
+  const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
+  const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string } | null>(null);
+  // Envio aguardando o "Enviar mesmo assim" do diálogo de opt-out.
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  // Mídia vai só ao cliente: nunca na nota interna, e só para o dono.
+  const mediaEnabled = !isNote && canReply;
+  // Trocou para Nota Interna ou perdeu a posse no meio da gravação: solta o microfone.
+  const { isRecording, cancel: cancelRecording } = recorder;
+  useEffect(() => {
+    if (!mediaEnabled && isRecording) cancelRecording();
+  }, [mediaEnabled, isRecording, cancelRecording]);
+
+  // Prévia usa URL de objeto: libera ao trocar/cancelar/desmontar.
+  useEffect(() => () => { if (pendingImage) URL.revokeObjectURL(pendingImage.url); }, [pendingImage]);
+  useEffect(() => () => { if (pendingAudio) URL.revokeObjectURL(pendingAudio.url); }, [pendingAudio]);
 
   const { data: quickRepliesList = [] } = trpc.quickReplies.list.useQuery();
   const quickReplies = quickRepliesList as QuickReply[];
@@ -69,13 +114,60 @@ export default function SaraComposer({
     setTimeout(() => textareaRef.current?.focus(), 0);
   }
 
+  /** Opt-out: pede confirmação antes de qualquer resposta ao cliente. Nota interna não passa aqui. */
+  function withOptOutConfirm(action: () => void) {
+    if (optOutConfirmText) setConfirmAction(() => action);
+    else action();
+  }
+
   function handleSend() {
     const text = draft.trim();
     if (!text || !inputEnabled || isBusy) return;
-    (isNote ? onAddNote(text) : onSend(text)).then(
-      () => setDraft(""),
-      () => {}, // erro já aparece em toast no onError da mutation
-    );
+    const send = () =>
+      (isNote ? onAddNote(text) : onSend(text)).then(
+        () => setDraft(""),
+        () => {}, // erro já aparece em toast no onError da mutation
+      );
+    if (isNote) send();
+    else withOptOutConfirm(send);
+  }
+
+  function handleImagePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite escolher o mesmo arquivo de novo
+    if (!file) return;
+    const invalid = validateSaraMedia("image", file.type, file.size);
+    if (invalid) {
+      toast.error(invalid);
+      return;
+    }
+    setPendingAudio(null);
+    setPendingImage({ file, url: URL.createObjectURL(file) });
+  }
+
+  async function handleStopRecording() {
+    const blob = await recorder.stop();
+    if (!blob) return;
+    const invalid = validateSaraMedia("audio", blob.type, blob.size);
+    if (invalid) {
+      toast.error(invalid);
+      return;
+    }
+    setPendingImage(null);
+    setPendingAudio({ blob, url: URL.createObjectURL(blob) });
+  }
+
+  function handleSendMedia() {
+    if (isSendingMedia) return; // duplo clique
+    const media = pendingImage
+      ? { kind: "image" as const, file: pendingImage.file as Blob, clear: () => setPendingImage(null) }
+      : pendingAudio
+        ? { kind: "audio" as const, file: pendingAudio.blob, clear: () => setPendingAudio(null) }
+        : null;
+    if (!media) return;
+    withOptOutConfirm(() => {
+      onSendMedia(media.kind, media.file).then(media.clear, () => {}); // erro já aparece em toast
+    });
   }
 
   function handleChange(value: string) {
@@ -223,7 +315,45 @@ export default function SaraComposer({
         </div>
       )}
 
-      {inputEnabled ? (
+      {mediaEnabled && (pendingImage || pendingAudio) && (
+        <div className="mx-3 mb-2 flex items-center gap-3 rounded-xl border bg-background p-2">
+          {pendingImage ? (
+            <img src={pendingImage.url} alt="Prévia da imagem" className="h-20 w-20 rounded-lg object-cover" />
+          ) : (
+            pendingAudio && <audio src={pendingAudio.url} controls className="h-10 max-w-full flex-1" />
+          )}
+          <div className="flex-1 min-w-0 text-xs text-muted-foreground">
+            {isSendingMedia ? "Enviando…" : pendingImage ? "Imagem pronta para enviar" : "Áudio pronto para enviar"}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => (pendingImage ? setPendingImage(null) : setPendingAudio(null))}
+            disabled={isSendingMedia}
+          >
+            Cancelar
+          </Button>
+          <Button size="sm" className="h-8 text-xs" onClick={handleSendMedia} disabled={isSendingMedia}>
+            <Send className="mr-1.5 h-3.5 w-3.5" />
+            {isSendingMedia ? "Enviando…" : "Enviar"}
+          </Button>
+        </div>
+      )}
+
+      {mediaEnabled && recorder.isRecording ? (
+        <div className="flex items-center gap-3 px-3 pb-3">
+          <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-destructive" aria-hidden />
+          <span className="text-sm font-medium tabular-nums">{formatDuration(recorder.duration)}</span>
+          <span className="flex-1 text-xs text-muted-foreground">Gravando áudio…</span>
+          <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={recorder.cancel}>
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Descartar
+          </Button>
+          <Button size="sm" className="h-9 text-xs" onClick={handleStopRecording}>
+            <Square className="mr-1.5 h-3.5 w-3.5" /> Parar
+          </Button>
+        </div>
+      ) : inputEnabled ? (
         <div className={cn("flex items-end gap-2 px-3 pb-3", isNote && "bg-amber-50/40 dark:bg-amber-900/10")}>
           <div className="relative" ref={emojiRef}>
             <button
@@ -246,6 +376,33 @@ export default function SaraComposer({
               </div>
             )}
           </div>
+          {mediaEnabled && (
+            <>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept={SARA_IMAGE_MIME_TYPES.join(",")}
+                className="hidden"
+                onChange={handleImagePicked}
+              />
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                disabled={isSendingMedia}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
+                title="Enviar imagem (JPEG, PNG ou WebP, até 16 MB)"
+              >
+                <ImageIcon className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => recorder.start()}
+                disabled={isSendingMedia || !!pendingAudio || !!pendingImage}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
+                title="Gravar áudio"
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+            </>
+          )}
           <Textarea
             ref={textareaRef}
             value={draft}
@@ -275,6 +432,33 @@ export default function SaraComposer({
           </Button>
         </div>
       ) : null /* sem canReply: a faixa acima do composer explica e traz a ação */}
+
+      <AlertDialog open={confirmAction !== null} onOpenChange={open => !open && setConfirmAction(null)}>
+        <AlertDialogContent
+          onOpenAutoFocus={e => {
+            // Cancelar é o padrão: Enter logo após abrir não envia.
+            e.preventDefault();
+            cancelConfirmRef.current?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Contato pediu opt-out</AlertDialogTitle>
+            <AlertDialogDescription>{optOutConfirmText}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel ref={cancelConfirmRef}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const action = confirmAction;
+                setConfirmAction(null);
+                action?.();
+              }}
+            >
+              Enviar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

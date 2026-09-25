@@ -15,14 +15,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { CUSTOMER_PANEL_TOGGLE_CLASSES, customerPanelClasses } from "@/lib/customerPanelLayout";
-import { Bot, Lock, PanelRight, User, X } from "lucide-react";
+import { AlertTriangle, Bot, Lock, PanelRight, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
 import SaraComposer from "@/components/conversations/SaraComposer";
 import SaraCustomerPanel from "@/components/conversations/SaraCustomerPanel";
 import { SaraTagPicker, SaraTagStrip } from "@/components/conversations/SaraTags";
-import { SARA_FORBIDDEN_OTHER_ACTOR } from "@shared/sara";
+import { SARA_FORBIDDEN_OTHER_ACTOR, saraOptOutMessage, type SaraMediaKind } from "@shared/sara";
+import { uploadSaraMedia } from "@/lib/saraMediaUpload";
 import {
   SARA_STATUS_LABELS,
   initials,
@@ -30,7 +31,12 @@ import {
   saraActorLabel,
   saraCanTakeover,
   saraComposerBanner,
+  saraOptOutConfirmText,
+  saraOptOutPhone,
 } from "./saraShared";
+
+/** Opt-out muda raramente: 5 min de cache basta (e evita um GET por troca de conversa). */
+const OPT_OUT_STALE_MS = 5 * 60_000;
 
 // Mesmo padrão de fundo da área de mensagens de ConversationDetail.tsx — só tokens.
 const CHAT_BACKGROUND = {
@@ -58,6 +64,18 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     { refetchInterval: 5000 },
   );
 
+  // Opt-out do WhatsApp: só leitura, não bloqueia — a faixa avisa e o composer pede
+  // confirmação antes de enviar. Falha na consulta também não bloqueia (aviso discreto).
+  const rawPhone = data?.conversation.phoneNumber ?? null;
+  const optOutPhone = saraOptOutPhone(rawPhone);
+  const optOut = trpc.sara.optOutStatus.useQuery(
+    { phone: optOutPhone ?? "" },
+    { enabled: optOutPhone !== null, staleTime: OPT_OUT_STALE_MS, gcTime: 2 * OPT_OUT_STALE_MS, retry: 1 },
+  );
+
+  // Envio de imagem/áudio: fora do tRPC (rota Express), então o estado de "enviando" é local.
+  const [isSendingMedia, setIsSendingMedia] = useState(false);
+
   // Notas internas: só no Cashmiles (nunca vão para a Sara). Atualizam junto com a conversa.
   const { data: notes = [] } = trpc.sara.listNotes.useQuery(
     { conversationId: id },
@@ -83,6 +101,19 @@ export default function SaraConversationDetail({ id }: { id: string }) {
 
   // "Digitando..." é best-effort: falha não interrompe quem está digitando.
   const typingMutation = trpc.sara.sendTyping.useMutation();
+
+  async function sendMedia(kind: SaraMediaKind, file: Blob) {
+    setIsSendingMedia(true);
+    try {
+      await uploadSaraMedia(id, kind, file);
+      invalidateAll();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");
+      throw error; // composer mantém a prévia para tentar de novo
+    } finally {
+      setIsSendingMedia(false);
+    }
+  }
 
   const addNoteMutation = trpc.sara.addNote.useMutation({
     onSuccess: () => utils.sara.listNotes.invalidate({ conversationId: id }),
@@ -143,6 +174,9 @@ export default function SaraConversationDetail({ id }: { id: string }) {
   // Faixa acima do composer, no lugar de campo desabilitado: diz por que não dá para
   // responder e traz o botão da ação que resolve.
   const banner = saraComposerBanner(conversation);
+  const optedOut = optOut.data?.optedOut === true;
+  // Tinha telefone e não deu para verificar (formato inesperado ou erro na Sara).
+  const optOutUnverified = rawPhone !== null && (optOutPhone === null || optOut.isError);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
@@ -363,6 +397,21 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             </div>
           )}
 
+          {optedOut && (
+            <div
+              role="alert"
+              className="flex items-center gap-2 border-t border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100 shrink-0"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {saraOptOutMessage(optOut.data?.optedOutAt ?? null)}
+            </div>
+          )}
+          {optOutUnverified && (
+            <p className="border-t px-4 py-1 text-[11px] text-muted-foreground shrink-0">
+              Não foi possível verificar opt-out
+            </p>
+          )}
+
           <SaraComposer
             key={id}
             canReply={canSend}
@@ -371,6 +420,9 @@ export default function SaraConversationDetail({ id }: { id: string }) {
             onTyping={() => typingMutation.mutate({ id })}
             isAddingNote={addNoteMutation.isPending}
             onAddNote={text => addNoteMutation.mutateAsync({ conversationId: id, text })}
+            isSendingMedia={isSendingMedia}
+            onSendMedia={sendMedia}
+            optOutConfirmText={saraOptOutConfirmText(optOut.data)}
             headerActions={<SaraTagPicker conversationId={id} />}
           />
         </div>

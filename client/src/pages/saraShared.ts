@@ -2,7 +2,12 @@
 // numa lista só. Compartilhado entre Sara.tsx e SaraConversationDetail.tsx.
 
 import { phoneDigits, toE164Phone } from "@shared/phone";
-import { SARA_UNIDENTIFIED_ACTOR_NOTICE, type SaraConversationStatus } from "@shared/sara";
+import {
+  SARA_UNIDENTIFIED_ACTOR_NOTICE,
+  saraOptOutMessage,
+  type SaraConversationStatus,
+  type SaraMediaKind,
+} from "@shared/sara";
 import type { conversations } from "../../../drizzle/schema";
 
 // ─── Status da Sara ───────────────────────────────────────────────────────────
@@ -464,6 +469,34 @@ export function saraComposerBanner(conv: {
 /** Status em que "Assumir" aparece (faixa e barra do topo). */
 export function saraCanTakeover(status: string): boolean {
   return status === "active" || status === "awaiting_response";
+}
+
+// ─── Opt-out e envio de mídia ────────────────────────────────────────────────
+
+/**
+ * Telefone da conversa no formato que sara.optOutStatus aceita (+ e 10 a 15 dígitos).
+ * null quando não há telefone utilizável — a tela avisa que não conseguiu verificar.
+ */
+export function saraOptOutPhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = phoneDigits(raw);
+  return digits.length >= 10 && digits.length <= 15 ? `+${digits}` : null;
+}
+
+/**
+ * Texto do diálogo de confirmação antes de enviar (texto, imagem ou áudio) para quem
+ * pediu opt-out. null = não pede confirmação. Não bloqueia: responder a quem voltou a
+ * escrever é o caso comum no suporte. (Template, quando existir, é bloqueado no
+ * servidor — ver CLAUDE.md.)
+ */
+export function saraOptOutConfirmText(
+  status: { optedOut: boolean; optedOutAt: string | null } | null | undefined,
+): string | null {
+  return status?.optedOut ? `${saraOptOutMessage(status.optedOutAt)} Enviar mesmo assim?` : null;
+}
+
+export function saraMediaUploadUrl(conversationId: string, kind: SaraMediaKind): string {
+  return `/api/sara/conversations/${encodeURIComponent(conversationId)}/media?kind=${kind}`;
 }
 
 // ─── Abas de atribuição (Minhas / Não atribuídas / Todas) ────────────────────

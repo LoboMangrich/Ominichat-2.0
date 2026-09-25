@@ -32,3 +32,60 @@ export function saraCanReleaseOrClose(actorId: string | null, userId: number, ro
 export const SARA_FORBIDDEN_OTHER_ACTOR = "Conversa assumida por outro atendente";
 export const SARA_UNIDENTIFIED_ACTOR_NOTICE =
   "Assumida sem identificação de atendente. Se ninguém da equipe está nela, devolva para a IA e assuma de novo.";
+
+// ─── Envio de mídia (POST .../audio e .../image) ─────────────────────────────
+// Contrato confirmado pelo time de TI em 25/09/2026 (a doc só dizia "multipart"):
+// a Sara lê o PRIMEIRO arquivo do multipart (campo "file"); formato ou tamanho
+// inválido → 400 com o motivo. Validado no navegador (feedback rápido) E no servidor
+// (garantia), com as mesmas constantes.
+
+export const SARA_MEDIA_KINDS = ["audio", "image"] as const;
+export type SaraMediaKind = (typeof SARA_MEDIA_KINDS)[number];
+
+/** 16 MB — limite da Sara para áudio e imagem. */
+export const SARA_MEDIA_MAX_BYTES = 16 * 1024 * 1024;
+/** Áudio com menos que isso a Sara recusa. */
+export const SARA_AUDIO_MIN_BYTES = 100;
+export const SARA_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+/** Nome do campo multipart que mandamos para a Sara (e que a nossa rota recebe). */
+export const SARA_MEDIA_FIELD = "file";
+
+export const SARA_MEDIA_CONFLICT_MESSAGE = "Assuma a conversa para enviar";
+export const SARA_MEDIA_GENERIC_ERROR = "Não foi possível enviar o arquivo. Tente novamente.";
+
+/** Mimetype sem parâmetros e em minúsculas: "audio/webm;codecs=opus" → "audio/webm". */
+export function baseMimeType(mimeType: string): string {
+  return mimeType.split(";")[0].trim().toLowerCase();
+}
+
+/** null = ok; string = motivo da recusa (mensagem para o atendente). */
+export function validateSaraMedia(kind: SaraMediaKind, mimeType: string, size: number): string | null {
+  const mime = baseMimeType(mimeType);
+  if (size > SARA_MEDIA_MAX_BYTES) return "Arquivo maior que 16 MB.";
+  if (kind === "audio") {
+    if (!mime.startsWith("audio/")) return "Formato de áudio não aceito.";
+    if (size < SARA_AUDIO_MIN_BYTES) return "Áudio curto demais.";
+    return null;
+  }
+  if (!(SARA_IMAGE_MIME_TYPES as readonly string[]).includes(mime)) {
+    return "Formato de imagem não aceito. Use JPEG, PNG ou WebP.";
+  }
+  if (size === 0) return "Arquivo vazio.";
+  return null;
+}
+
+// ─── Opt-out (GET /contacts/{phone}/opt-out) ─────────────────────────────────
+
+export interface SaraOptOutStatus {
+  optedOut: boolean;
+  optedOutAt: string | null;
+  reason: string | null;
+  /** 404 da Sara: contato não existe na base → sem registro de opt-out. */
+  noRecord: boolean;
+}
+
+export function saraOptOutMessage(optedOutAt: string | null): string {
+  const when = optedOutAt ? new Date(optedOutAt) : null;
+  const date = when && !Number.isNaN(when.getTime()) ? ` em ${when.toLocaleDateString("pt-BR")}` : "";
+  return `Este contato pediu para não receber mensagens pelo WhatsApp${date}.`;
+}

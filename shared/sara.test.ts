@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { saraCanReleaseOrClose, saraCanSend } from "./sara";
+import {
+  SARA_AUDIO_MIN_BYTES,
+  SARA_MEDIA_MAX_BYTES,
+  saraCanReleaseOrClose,
+  saraCanSend,
+  saraOptOutMessage,
+  validateSaraMedia,
+} from "./sara";
 
 describe("saraCanSend — só quem assumiu envia", () => {
   it("dono envia", () => expect(saraCanSend("7", 7)).toBe(true));
@@ -14,5 +21,44 @@ describe("saraCanReleaseOrClose — dono, Admin, ou qualquer um com actorId null
   it("outro atendente (Agent/Manager) não", () => {
     expect(saraCanReleaseOrClose("99", 7, "Agent")).toBe(false);
     expect(saraCanReleaseOrClose("99", 7, "Manager")).toBe(false);
+  });
+});
+
+describe("validateSaraMedia — mesmas regras no navegador e no servidor (contrato do TI, 25/09)", () => {
+  it("áudio: qualquer audio/*, inclusive com parâmetros (webm;codecs=opus)", () => {
+    expect(validateSaraMedia("audio", "audio/webm;codecs=opus", 500)).toBeNull();
+    expect(validateSaraMedia("audio", "audio/ogg", 500)).toBeNull();
+    expect(validateSaraMedia("audio", "AUDIO/MPEG", 500)).toBeNull();
+  });
+  it("áudio: mínimo de 100 bytes", () => {
+    expect(validateSaraMedia("audio", "audio/ogg", SARA_AUDIO_MIN_BYTES)).toBeNull();
+    expect(validateSaraMedia("audio", "audio/ogg", SARA_AUDIO_MIN_BYTES - 1)).not.toBeNull();
+  });
+  it("áudio: mimetype que não é audio/* é recusado", () => {
+    expect(validateSaraMedia("audio", "video/webm", 500)).not.toBeNull();
+  });
+  it("imagem: só JPEG, PNG e WebP", () => {
+    expect(validateSaraMedia("image", "image/jpeg", 500)).toBeNull();
+    expect(validateSaraMedia("image", "image/png", 500)).toBeNull();
+    expect(validateSaraMedia("image", "image/webp", 500)).toBeNull();
+    expect(validateSaraMedia("image", "image/gif", 500)).not.toBeNull();
+    expect(validateSaraMedia("image", "image/heic", 500)).not.toBeNull();
+  });
+  it("16 MB é o limite exato, para os dois tipos", () => {
+    expect(validateSaraMedia("image", "image/png", SARA_MEDIA_MAX_BYTES)).toBeNull();
+    expect(validateSaraMedia("image", "image/png", SARA_MEDIA_MAX_BYTES + 1)).toBe("Arquivo maior que 16 MB.");
+    expect(validateSaraMedia("audio", "audio/ogg", SARA_MEDIA_MAX_BYTES + 1)).toBe("Arquivo maior que 16 MB.");
+  });
+});
+
+describe("saraOptOutMessage", () => {
+  it("com data", () => {
+    expect(saraOptOutMessage("2026-09-20T15:00:00Z")).toBe(
+      "Este contato pediu para não receber mensagens pelo WhatsApp em 20/09/2026.",
+    );
+  });
+  it("sem data (ou inválida) não inventa uma", () => {
+    expect(saraOptOutMessage(null)).toBe("Este contato pediu para não receber mensagens pelo WhatsApp.");
+    expect(saraOptOutMessage("xx")).toBe("Este contato pediu para não receber mensagens pelo WhatsApp.");
   });
 });

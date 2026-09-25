@@ -1,4 +1,11 @@
-import type { SaraConversationSort, SaraConversationStatus } from "@shared/sara";
+import {
+  SARA_MEDIA_FIELD,
+  baseMimeType,
+  type SaraConversationSort,
+  type SaraConversationStatus,
+  type SaraMediaKind,
+  type SaraOptOutStatus,
+} from "@shared/sara";
 import { ENV } from "./_core/env";
 
 /**
@@ -88,6 +95,18 @@ export interface SaraConversationDetail {
 }
 
 const REQUEST_TIMEOUT_MS = 10_000;
+/** Upload de até 16 MB para a Sara: 10s não basta numa conexão comum. */
+const MEDIA_REQUEST_TIMEOUT_MS = 60_000;
+
+interface RequestOptions {
+  timeoutMs?: number;
+  /**
+   * Path para os logs no lugar do real, quando o real carrega dado pessoal (ex.: o
+   * telefone em /contacts/{phone}/opt-out). Com ele, o corpo do erro também não é
+   * logado — pode ecoar o mesmo dado.
+   */
+  logPath?: string;
+}
 
 /**
  * Id do usuário do Cashmiles que executa a ação. Vai no header
@@ -117,8 +136,13 @@ function parseJsonOrNull(text: string): unknown {
   }
 }
 
-async function request<T>(path: string, actorId: SaraActorId, init?: RequestInit): Promise<T> {
-  return rawRequest<T>(path, { "x-sara-actor-id": String(actorId) }, init);
+async function request<T>(
+  path: string,
+  actorId: SaraActorId,
+  init?: RequestInit,
+  options?: RequestOptions,
+): Promise<T> {
+  return rawRequest<T>(path, { "x-sara-actor-id": String(actorId) }, init, options);
 }
 
 /**
@@ -129,30 +153,35 @@ async function rawRequest<T>(
   path: string,
   actorHeaders: Record<string, string>,
   init?: RequestInit,
+  options: RequestOptions = {},
 ): Promise<T> {
   assertConfigured();
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const logPath = options.logPath ?? path;
+  // Multipart: o fetch monta o content-type com o boundary — não sobrescrever.
+  const isMultipart = typeof FormData !== "undefined" && init?.body instanceof FormData;
 
   let response: Response;
   try {
     response = await fetch(`${ENV.saraSupportApiUrl}${path}`, {
       ...init,
-      signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: init?.signal ?? AbortSignal.timeout(timeoutMs),
       headers: {
         "x-api-key": ENV.saraSupportApiKey,
-        "content-type": "application/json",
+        ...(isMultipart ? {} : { "content-type": "application/json" }),
         ...actorHeaders,
         ...init?.headers,
       },
     });
   } catch (error) {
     if (isTimeoutError(error)) {
-      console.error(`[saraSupportClient] timeout (${REQUEST_TIMEOUT_MS}ms) ao chamar ${path}`);
+      console.error(`[saraSupportClient] timeout (${timeoutMs}ms) ao chamar ${logPath}`);
       throw new SaraSupportApiError(
         "Sara Support API não respondeu a tempo. Tente novamente.",
         0,
       );
     }
-    console.error(`[saraSupportClient] falha de rede ao chamar ${path}:`, error);
+    console.error(`[saraSupportClient] falha de rede ao chamar ${logPath}:`, error);
     throw new SaraSupportApiError(
       "Falha de rede ao chamar a Sara Support API.",
       0,
@@ -164,7 +193,11 @@ async function rawRequest<T>(
     // Corpo bruto só vai pro log do servidor — nunca pro cliente, para não
     // vazar detalhe da API externa (e potencialmente dado de conversa) pelo
     // TRPCError que chega ao navegador.
-    console.error(`[saraSupportClient] ${response.status} em ${path}: ${body}`);
+    console.error(
+      options.logPath
+        ? `[saraSupportClient] ${response.status} em ${logPath}`
+        : `[saraSupportClient] ${response.status} em ${path}: ${body}`,
+    );
     throw new SaraSupportApiError(
       `Sara Support API retornou erro (status ${response.status}).`,
       response.status,
@@ -249,6 +282,76 @@ export async function sendSaraTypingIndicator(
     method: "POST",
     body: "{}",
   });
+}
+
+/** Extensão pelo mimetype — não repassamos o nome original do arquivo à Sara. */
+function mediaFilename(kind: SaraMediaKind, mimeType: string): string {
+  const subtype = baseMimeType(mimeType).split("/")[1]?.replace(/[^a-z0-9.+-]/g, "") || "bin";
+  return `${kind}.${subtype === "jpeg" ? "jpg" : subtype}`;
+}
+
+/**
+ * Envia áudio ou imagem (POST .../audio ou .../image, multipart, campo "file"). O
+ * buffer vem da memória (rota /api/sara/conversations/:id/media) e nunca é gravado
+ * em disco nem logado. Exige a conversa em human_takeover (senão 409).
+ */
+export async function sendSaraMedia(
+  id: string,
+  kind: SaraMediaKind,
+  file: { buffer: Buffer; mimeType: string },
+  actorId: SaraActorId,
+): Promise<{ message: { id: string; senderType: string; messageType: string; status: string; whatsappMessageId: string | null; createdAt: string } }> {
+  const form = new FormData();
+  form.append(
+    SARA_MEDIA_FIELD,
+    new Blob([new Uint8Array(file.buffer)], { type: file.mimeType }),
+    mediaFilename(kind, file.mimeType),
+  );
+  return request(
+    `/api/v1/support/conversations/${encodeURIComponent(id)}/${kind}`,
+    actorId,
+    { method: "POST", body: form },
+    { timeoutMs: MEDIA_REQUEST_TIMEOUT_MS },
+  );
+}
+
+/**
+ * Motivo legível de um erro 4XX da Sara ({ error: { code, message } } na doc), cortado
+ * em 200 caracteres. Só esse campo pode ir ao navegador — nunca o corpo inteiro.
+ */
+export function saraErrorReason(body: unknown): string | null {
+  const message = (body as { error?: { message?: unknown } } | null)?.error?.message;
+  if (typeof message !== "string" || !message.trim()) return null;
+  return message.trim().slice(0, 200);
+}
+
+/**
+ * Opt-out do WhatsApp (GET /contacts/{phone}/opt-out). 404 = contato não existe na
+ * base da Sara → "sem registro", não erro. O telefone vai só no path da chamada:
+ * nunca em log (logPath genérico).
+ */
+export async function getSaraOptOut(phone: string, actorId: SaraActorId): Promise<SaraOptOutStatus> {
+  try {
+    const result = await request<{
+      phoneNumber?: string;
+      optedOut?: boolean;
+      optedOutAt?: string | null;
+      optedOutReason?: string | null;
+    }>(`/api/v1/support/contacts/${encodeURIComponent(phone)}/opt-out`, actorId, undefined, {
+      logPath: "/api/v1/support/contacts/{phone}/opt-out",
+    });
+    return {
+      optedOut: result.optedOut === true,
+      optedOutAt: result.optedOutAt ?? null,
+      reason: result.optedOutReason ?? null,
+      noRecord: false,
+    };
+  } catch (error) {
+    if (error instanceof SaraSupportApiError && error.status === 404) {
+      return { optedOut: false, optedOutAt: null, reason: null, noRecord: true };
+    }
+    throw error;
+  }
 }
 
 /**

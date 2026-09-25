@@ -25,6 +25,7 @@ import {
   BarChart3,
   Bell,
   BellOff,
+  Bot,
   Brain,
   Briefcase,
   CheckSquare,
@@ -80,6 +81,7 @@ type NavLeaf = {
   path: string;
   badge?: "live";
   sectionHeader?: string; // optional section divider label above this item
+  adminOnly?: boolean;    // só aparece para Admin (a rota também é protegida no servidor)
 };
 
 type NavModule = {
@@ -142,6 +144,8 @@ const SETTINGS_ITEMS: NavLeaf[] = [
   // código continuam intactos — remover este comentário para reexibir.
   // { icon: Bot,          label: "IA",                path: "/ia-automation" },
   { icon: Settings,     label: "Preferências",      path: "/settings" },
+  // Prompt da IA que fala com clientes reais: só Admin.
+  { icon: Bot,          label: "Sara (IA)",         path: "/settings/sara", adminOnly: true },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -155,8 +159,14 @@ function matchActive(path: string, location: string): boolean {
     );
   }
   if (base === "/indicators/health") return location.startsWith("/indicators");
-  if (base === "/settings") return location === "/settings" || location.startsWith("/settings/");
+  // /settings/sara é outro item do menu — não acender Preferências junto.
+  if (base === "/settings") return location === "/settings";
   return location === base || location.startsWith(base + "/");
+}
+
+/** Itens de Configurações visíveis para o papel (adminOnly só para Admin). */
+export function visibleSettingsItems(role: string): NavLeaf[] {
+  return SETTINGS_ITEMS.filter(item => !item.adminOnly || role === "Admin");
 }
 
 function moduleHasActive(mod: NavModule, location: string): boolean {
@@ -295,7 +305,8 @@ function NavModuleSection({ mod, ctx }: { mod: NavModule; ctx: SidebarCtx }) {
 
 function SettingsSection({ ctx }: { ctx: SidebarCtx }) {
   const isExpanded = ctx.openModules["settings"];
-  const hasActive = SETTINGS_ITEMS.some(item => matchActive(item.path, ctx.location));
+  const items = visibleSettingsItems(ctx.userRole);
+  const hasActive = items.some(item => matchActive(item.path, ctx.location));
 
   if (!ctx.isOpen) {
     return (
@@ -326,7 +337,7 @@ function SettingsSection({ ctx }: { ctx: SidebarCtx }) {
       </button>
       <div className={`nav-module-children${isExpanded ? " nav-module-children--open" : ""}`}>
         <div className="nav-module-children-inner">
-          {SETTINGS_ITEMS.map(item => (
+          {items.map(item => (
             <NavLeafBtn key={item.path + item.label} item={item} ctx={ctx} />
           ))}
         </div>

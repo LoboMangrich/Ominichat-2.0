@@ -45,6 +45,7 @@ import { useParams, useLocation } from "wouter";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import MicrophonePicker from "@/components/MicrophonePicker";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -222,7 +223,16 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
   const [isUploading, setIsUploading] = useState(false);
 
   // Audio
-  const { isRecording, duration, start: startRec, stop: stopRec, cancel: cancelRec } = useAudioRecorder();
+  const {
+    isRecording,
+    duration,
+    start: startRec,
+    stop: stopRec,
+    cancel: cancelRec,
+    devices: micDevices,
+    deviceId: micDeviceId,
+    setDeviceId: setMicDeviceId,
+  } = useAudioRecorder();
   const [transcribeMode, setTranscribeMode] = useState(false); // true = transcribe to text, false = send as audio
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -964,14 +974,22 @@ export default function ConversationDetail({ embeddedConvId, onBack }: Conversat
                 </button>
               ) : (
                 <div className="flex flex-col items-center gap-0.5">
-                  <button
-                    onClick={startRec}
-                    disabled={isUploading}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-600 transition-colors text-white shadow-md disabled:opacity-50"
-                    title={transcribeMode ? "Gravar e transcrever para texto" : "Gravar áudio"}
-                  >
-                    {transcribeMode ? <FileText className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                  </button>
+                  <div className="flex items-center">
+                    <button
+                      onClick={startRec}
+                      disabled={isUploading}
+                      className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-600 transition-colors text-white shadow-md disabled:opacity-50"
+                      title={transcribeMode ? "Gravar e transcrever para texto" : "Gravar áudio"}
+                    >
+                      {transcribeMode ? <FileText className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+                    <MicrophonePicker
+                      devices={micDevices}
+                      deviceId={micDeviceId}
+                      onChange={setMicDeviceId}
+                      disabled={isUploading}
+                    />
+                  </div>
                   <button
                     onClick={() => setTranscribeMode(v => !v)}
                     className="text-[9px] font-medium px-1.5 py-0.5 rounded-full transition-colors"

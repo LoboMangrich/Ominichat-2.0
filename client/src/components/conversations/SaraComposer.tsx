@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import MicrophonePicker from "@/components/MicrophonePicker";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { Image as ImageIcon, Loader2, Lock, Mic, Send, Smile, Square, Trash2, X, Zap } from "lucide-react";
@@ -418,6 +419,12 @@ export default function SaraComposer({
               >
                 <Mic className="w-5 h-5" />
               </button>
+              <MicrophonePicker
+                devices={recorder.devices}
+                deviceId={recorder.deviceId}
+                onChange={recorder.setDeviceId}
+                disabled={isSendingMedia}
+              />
             </>
           )}
           <Textarea

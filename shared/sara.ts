@@ -142,3 +142,23 @@ export function formatWindowRemaining(ms: number): string {
   if (h === 0) return `${min}min`;
   return min === 0 ? `${h}h` : `${h}h${String(min).padStart(2, "0")}`;
 }
+
+// ── Prompt da Sara (tela "Sara (IA)", só Admin) ──────────────────────────────
+// O prompt é a instrução da IA que fala com clientes reais: ativar uma versão muda
+// na hora como a Sara responde a todos. Não há prévia nem teste do lado da Sara.
+
+/** Teto nosso (o TI não informou limite). Versão ativa em 25/09: v1, ~2.400 caracteres. */
+export const SARA_PROMPT_CONTENT_MAX = 50_000;
+/** "O que mudou" é obrigatório (a Sara também exige notes). */
+export const SARA_PROMPT_NOTES_MIN = 5;
+export const SARA_PROMPT_NOTES_MAX = 2_000;
+/** Texto exato que o Admin digita para liberar a ativação. */
+export const SARA_PROMPT_ACTIVATE_CONFIRMATION = "ATIVAR";
+export const SARA_PROMPT_NOT_FOUND_MESSAGE = "Versão não encontrada (pode ter sido removida)";
+export const SARA_ADMIN_ONLY_MESSAGE = "Acesso restrito ao Admin";
+
+/** Compara ignorando só diferença de quebra de linha (\r\n) e espaço nas pontas. */
+export function samePromptContent(a: string, b: string): boolean {
+  const normalize = (s: string) => s.replace(/\r\n/g, "\n").trim();
+  return normalize(a) === normalize(b);
+}

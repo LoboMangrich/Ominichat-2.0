@@ -373,6 +373,58 @@ export async function getSaraImageUrl(imageMessageId: string, actorId: SaraActor
   return request<SaraMediaUrl>(`/api/v1/support/images/${encodeURIComponent(imageMessageId)}/url`, actorId);
 }
 
+// ── Prompt da Sara ───────────────────────────────────────────────────────────
+// Contrato confirmado pelo TI em 25/09/2026. Ativar muda na hora como a Sara
+// responde a TODOS os clientes — não existe ambiente de teste nem prévia.
+// logPath em todas: o corpo de um erro pode ecoar o prompt, e prompt/notes
+// nunca vão para log.
+
+export interface SaraPromptVersion {
+  id: string;
+  version: number;
+  isActive: boolean;
+  content: string;
+  notes: string | null;
+  activatedAt: string | null;
+  createdAt: string;
+  /** x-sara-actor-id de quem criou (o nosso users.id em string), ou null. */
+  createdByActorId: string | null;
+  activatedByActorId: string | null;
+}
+
+export async function listSaraPrompts(actorId: SaraActorId): Promise<SaraPromptVersion[]> {
+  const result = await request<{ data?: SaraPromptVersion[] }>("/api/v1/support/prompts", actorId, undefined, {
+    logPath: "/api/v1/support/prompts",
+  });
+  return Array.isArray(result?.data) ? result.data : [];
+}
+
+/** Cria versão INATIVA (201). content e notes obrigatórios (400 sem eles). */
+export async function createSaraPrompt(
+  input: { content: string; notes: string },
+  actorId: SaraActorId,
+): Promise<Pick<SaraPromptVersion, "id" | "version" | "isActive" | "content" | "notes" | "createdAt">> {
+  return request(
+    "/api/v1/support/prompts",
+    actorId,
+    { method: "POST", body: JSON.stringify({ content: input.content, notes: input.notes }) },
+    { logPath: "/api/v1/support/prompts" },
+  );
+}
+
+/** Ativa a versão e desativa a anterior. 404 se não existe. */
+export async function activateSaraPrompt(
+  id: string,
+  actorId: SaraActorId,
+): Promise<Pick<SaraPromptVersion, "id" | "version" | "isActive" | "activatedAt">> {
+  return request(
+    `/api/v1/support/prompts/${encodeURIComponent(id)}/activate`,
+    actorId,
+    { method: "POST", body: "{}" },
+    { logPath: "/api/v1/support/prompts/{id}/activate" },
+  );
+}
+
 /**
  * LEITURA INTERNA, SÓ GET — sem x-sara-actor-id, porque não há atendente agindo: é o
  * processamento em segundo plano do webhook da Sara (server/saraWebhook.ts) e o nome

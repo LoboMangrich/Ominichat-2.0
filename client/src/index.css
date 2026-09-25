@@ -65,6 +65,11 @@
   --accent:            oklch(0.95 0.03 250);
   --accent-foreground: oklch(0.25 0.10 250);
   --destructive:       oklch(0.55 0.22 25);      /* vermelho — semântico, não de marca, não muda */
+  /* verde — semântico (sucesso/adicionado), não de marca. 6,2:1 contra branco e
+     5,8:1 contra --background: AA como texto e como fundo de texto branco.
+     Os emerald-* já existentes NÃO foram migrados (pendência no CLAUDE.md). */
+  --success:           oklch(0.48 0.12 150);
+  --success-foreground:oklch(0.98 0.01 150);
   --border:            oklch(0.90 0.03 250);
   --input:             oklch(0.95 0.02 250);
   --ring:              oklch(0.45 0.19 250);
@@ -509,6 +514,8 @@
     --color-accent:             var(--accent);
     --color-accent-foreground:  var(--accent-foreground);
     --color-destructive:        var(--destructive);
+    --color-success:            var(--success);
+    --color-success-foreground: var(--success-foreground);
     --color-border:             var(--border);
     --color-input:              var(--input);
     --color-ring:               var(--ring);

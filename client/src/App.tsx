@@ -34,6 +34,7 @@ import Surveys from "./pages/Surveys";
 import Referrals from "./pages/Referrals";
 import Productivity from "./pages/Productivity";
 import UserManagement from "./pages/UserManagement";
+import SaraAdmin from "./pages/SaraAdmin";
 import AIAgents from "./pages/AIAgents";
 import NewClients from "./pages/NewClients";
 import Broadcasts from "./pages/Broadcasts";
@@ -85,6 +86,8 @@ function Router() {
         <Route path="/indicators/health" component={Indicators} />
         <Route path="/indicators/nps" component={Indicators} />      {/* ── Config ─────────────────────────────────────────── */}
         <Route path="/integrations" component={Integrations} />
+        {/* Configurações → Sara (IA): só Admin (checado na página e no servidor) */}
+        <Route path="/settings/sara" component={SaraAdmin} />
         <Route path="/settings" component={Settings} />
         <Route path="/users" component={UserManagement} />
 

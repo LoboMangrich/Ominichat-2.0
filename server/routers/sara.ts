@@ -5,6 +5,10 @@ import {
   SARA_CONVERSATION_SORTS,
   SARA_CONVERSATION_STATUSES,
   SARA_FORBIDDEN_OTHER_ACTOR,
+  SARA_PROMPT_CONTENT_MAX,
+  SARA_PROMPT_NOTES_MAX,
+  SARA_PROMPT_NOTES_MIN,
+  SARA_PROMPT_NOT_FOUND_MESSAGE,
   SARA_UNIDENTIFIED_ACTOR_NOTICE,
   SARA_WINDOW_CLOSED_MESSAGE,
   saraCanReleaseOrClose,
@@ -12,7 +16,7 @@ import {
   saraWindowState,
 } from "@shared/sara";
 import { conversationTags, customers, saraConversationTags, saraInternalNotes, users } from "../../drizzle/schema";
-import { protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { optionalEmail } from "../_core/validators";
 import { mapWithConcurrency } from "../concurrency";
 import { getDb } from "../db";
@@ -20,13 +24,17 @@ import { phoneDigitCandidates, phoneDigits, phoneLookupCandidates } from "../pho
 import { pendingSaraNotifications } from "../saraNotifications";
 import {
   SaraSupportApiError,
+  activateSaraPrompt,
   closeSaraConversation,
+  createSaraPrompt,
   getSaraAudioUrl,
   getSaraConversation,
   getSaraImageUrl,
   getSaraOptOut,
   listSaraConversations,
+  listSaraPrompts,
   releaseSaraConversation,
+  saraErrorReason,
   sendSaraMessage,
   sendSaraTypingIndicator,
   takeoverSaraConversation,
@@ -150,7 +158,90 @@ export function assertWindowOpen(messages: SaraConversationDetail["messages"], n
   }
 }
 
+/**
+ * Erros das chamadas de prompt. Separado de wrapSaraError para não mudar o que as
+ * procedures de conversa já devolvem: aqui o 400 da Sara vira BAD_REQUEST com o
+ * motivo dela (só error.message, máx. 200 caracteres) e o 404 tem mensagem própria.
+ */
+function wrapPromptError(error: unknown): TRPCError {
+  if (error instanceof TRPCError) return error;
+  if (error instanceof SaraSupportApiError) {
+    if (error.status === 400) {
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: saraErrorReason(error.body) ?? "A Sara recusou os dados enviados.",
+      });
+    }
+    if (error.status === 404) return new TRPCError({ code: "NOT_FOUND", message: SARA_PROMPT_NOT_FOUND_MESSAGE });
+    if (error.status === 0) return new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+  }
+  return new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Não foi possível falar com a Sara agora. Tente novamente.",
+  });
+}
+
+/** Nome do usuário do Cashmiles: id desconhecido → "outro usuário"; null → "—". */
+export function promptActorLabel(actorId: string | null, names: Map<string, string>): string {
+  if (actorId === null) return "—";
+  return names.get(actorId) ?? "outro usuário";
+}
+
 export const saraRouter = router({
+  // ── Prompt da Sara — SÓ Admin (adminProcedure: Manager/Agent recebem FORBIDDEN
+  // antes de qualquer chamada à Sara). Ativar muda na hora como a Sara responde a
+  // todos os clientes. Conteúdo e notes nunca são logados.
+  listPrompts: adminProcedure.query(async ({ ctx }) => {
+    try {
+      const prompts = await listSaraPrompts(ctx.user.id);
+      const names = await resolveActorNames(prompts.flatMap(p => [p.createdByActorId, p.activatedByActorId]));
+      return prompts
+        .map(p => ({
+          ...p,
+          createdByName: promptActorLabel(p.createdByActorId ?? null, names),
+          activatedByName: promptActorLabel(p.activatedByActorId ?? null, names),
+        }))
+        .sort((a, b) => b.version - a.version);
+    } catch (error) {
+      throw wrapPromptError(error);
+    }
+  }),
+
+  // Cria versão INATIVA. Ativar é outra ação (activatePrompt).
+  createPrompt: adminProcedure
+    .input(
+      z.object({
+        content: z
+          .string()
+          .refine(v => v.trim().length > 0, "O prompt não pode ficar vazio")
+          .refine(v => v.length <= SARA_PROMPT_CONTENT_MAX, `O prompt passa de ${SARA_PROMPT_CONTENT_MAX} caracteres`),
+        notes: z
+          .string()
+          .trim()
+          .min(SARA_PROMPT_NOTES_MIN, `Descreva o que mudou (mínimo ${SARA_PROMPT_NOTES_MIN} caracteres)`)
+          .max(SARA_PROMPT_NOTES_MAX),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const created = await createSaraPrompt(input, ctx.user.id);
+        return { id: created.id, version: created.version, isActive: created.isActive };
+      } catch (error) {
+        throw wrapPromptError(error);
+      }
+    }),
+
+  // Ativa (e desativa a anterior). Reverter = ativar uma versão antiga.
+  activatePrompt: adminProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await activateSaraPrompt(input.id, ctx.user.id);
+      } catch (error) {
+        throw wrapPromptError(error);
+      }
+    }),
+
   listConversations: protectedProcedure
     .input(
       z.object({

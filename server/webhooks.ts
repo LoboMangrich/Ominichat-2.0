@@ -12,6 +12,7 @@ import { startJourneyForCustomer } from "./playbookEngine";
 import { routeConversationToAgent } from "./conversationRouter";
 import { findOrCreateOpenConversation } from "./conversationLookup";
 import { registerSaraWebhook } from "./saraWebhook";
+import { registerSaraMediaRoute } from "./saraMedia";
 
 /**
  * Trigger AI auto-reply for a conversation if it is handled by AI.
@@ -247,6 +248,8 @@ async function pollTitanInbox(): Promise<{ ok: boolean; processed: number; error
 export function registerWebhooks(app: Express) {
   // Webhook de saída da Sara (Epic 72) — módulo próprio, com assinatura e dedup.
   registerSaraWebhook(app);
+  // Envio de áudio/imagem na conversa da Sara: requireSession + dono, arquivo só em memória.
+  registerSaraMediaRoute(app);
 
   // ─── CSV Import ────────────────────────────────────────────────────────────
   registerCsvImport(app);

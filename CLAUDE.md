@@ -67,6 +67,7 @@ server/routers/       Routers já extraídos (sara.ts)
 server/webhooks.ts    ~1.400 linhas, 15 endpoints HTTP fora do tRPC
 server/saraSupportClient.ts  Cliente HTTP da Sara Support API (doc: docs/sara-support-openapi.json)
 server/saraWebhook.ts        Receptor do webhook de saída da Sara (+ saraNotifications.ts)
+server/saraMedia.ts          Envio de imagem/áudio para a Sara (rota Express, arquivo só em memória)
 server/*.ts           Motores de domínio: automation, playbook, healthScore,
                       conversationRouter, channelSender, channelHealth,
                       communicationIntelligence, csvImport, conversationBackup
@@ -526,13 +527,49 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
   `staleTime`/`gcTime` bem abaixo de 900s, e nova busca se o `<audio>`/`<img>`
   der erro (`client/src/components/conversations/SaraMedia.tsx`). **Nunca
   logar a URL assinada.**
+- **Envio de imagem e áudio** — contrato confirmado pelo time de TI em
+  **25/09/2026** (a doc só dizia "multipart/form-data"):
+  - `POST /api/v1/support/conversations/{id}/audio` e `.../image`,
+    multipart; a Sara lê o **primeiro** arquivo, campo `"file"`.
+  - Áudio: qualquer `audio/*`, mínimo 100 bytes, máximo 16 MB. Imagem:
+    **somente** `image/jpeg`, `image/png`, `image/webp`, máximo 16 MB.
+  - Formato/tamanho inválido → 400 com o motivo. Conversa fora de
+    `human_takeover` → 409. Aceita `x-sara-actor-id`.
+  - **Nossa rota:** `POST /api/sara/conversations/:id/media?kind=audio|image`
+    (`server/saraMedia.ts`), fora do tRPC por causa do tamanho. Ordem:
+    `requireSession` → `kind` → dono (`saraCanSend`, GET **antes** de ler
+    o arquivo; Admin não é exceção) → multer em memória com limite de 16 MB
+    (corta o stream, não lê o resto) → `validateSaraMedia` (`shared/sara.ts`,
+    as mesmas regras no navegador) + assinatura dos bytes da imagem → repasse.
+  - **O arquivo nunca vai para disco, banco ou storage** (LGPD) — nem para
+    `/api/upload-media`, que grava no S3 via Forge. O nome original não vai
+    para a Sara (vira `image.png`/`audio.webm`). Log só com status e `kind`.
+  - Erros: 400 da Sara → só o `error.message` dela (máx. 200 caracteres);
+    409 → "Assuma a conversa para enviar"; outros → mensagem genérica.
+  - **A confirmar no primeiro teste real:** o áudio gravado no navegador sai
+    como `audio/webm` (opus) (`client/src/hooks/useAudioRecorder.ts`). A
+    Sara aceita `audio/*`, mas não se sabe se o WhatsApp do cliente toca
+    webm. Se não tocar, a conversão (ex.: para ogg/opus) fica para outro PR.
+- **Opt-out** (`GET /api/v1/support/contacts/{phone}/opt-out`, confirmado
+  pelo TI em 25/09/2026): 200 → `{ phoneNumber, optedOut, optedOutAt,
+  optedOutReason }`; **404 = contato não existe na base → "sem registro de
+  opt-out"**, não erro. `sara.optOutStatus({ phone })`, cache de 5 min no
+  client. O path tem o telefone: o `saraSupportClient` loga um path genérico
+  (`logPath`) e não loga o corpo do erro dessa chamada.
+  - **Resposta a contato com opt-out: faixa + confirmação, não bloqueia.**
+    Faixa acima do composer ("Este contato pediu para não receber mensagens
+    pelo WhatsApp em <data>.") e diálogo "Enviar mesmo assim?" antes de texto,
+    imagem ou áudio, com **foco inicial no Cancelar**. Consulta que falha não
+    bloqueia: aviso discreto "Não foi possível verificar opt-out". Decisão de
+    produto: responder a quem voltou a escrever é o caso comum no suporte.
+  - **Regra já decidida para quando existir envio de TEMPLATE** (mensagem
+    iniciada por nós, não resposta): contato com `optedOut = true` deve ser
+    **BLOQUEADO NO SERVIDOR**, não só confirmado na tela.
 - **Perguntas em aberto para o time de TI:**
   - Um `/takeover` sobre conversa em `human_takeover` com `actorId` `null` é
     aceito, ou devolve 409? Se for aceito, "assuma de novo" funciona direto,
     sem devolver para a IA (e sem a janela em que a IA pode responder o
     cliente).
-  - `POST .../audio` e `POST .../image`: **nome do campo multipart** e
-    **formatos aceitos** (a doc só diz "multipart/form-data").
   - `/templates`: **formato da resposta** (o `GET` tem 200 sem corpo descrito;
     o `POST` não tem 200 nenhum).
   - **Prévia da última mensagem e contador de não lidas:** o `GET
@@ -558,10 +595,8 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
     - confirmação digitando "ATIVAR";
     - reverter = ativar a versão anterior (não existe "desfazer" próprio).
 - **Pendências — fora do escopo até agora:**
-  - Envio de áudio e imagem (depende da resposta acima sobre o multipart). O
-    composer não mostra botão de anexo/áudio/imagem — nem desabilitado.
-  - Opt-out (`GET /contacts/{phone}/opt-out`), números bloqueados
-    (`/blocked-numbers`) e templates (`/templates`, `/templates/sync`) —
+  - Números bloqueados (`/blocked-numbers`) e templates (`/templates`,
+    `/templates/sync`) —
     **a doc não tem schema de resposta para eles** (só os 4XX/5XX, ou um 200
     sem corpo descrito). Pedir exemplo de resposta ao time de TI antes de
     implementar.

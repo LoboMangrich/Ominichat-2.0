@@ -40,10 +40,11 @@ import { cn } from "@/lib/utils";
 import { CUSTOMER_PANEL_TOGGLE_CLASSES, customerPanelClasses } from "@/lib/customerPanelLayout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,60 +96,6 @@ async function uploadMedia(file: File | Blob, mimeType: string, filename?: strin
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-// ─── Audio Recorder Hook ──────────────────────────────────────────────────────
-
-function useAudioRecorder() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const start = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.start(100);
-      mediaRecorderRef.current = mr;
-      setIsRecording(true);
-      setDuration(0);
-      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
-    } catch {
-      toast.error("Permissão de microfone negada");
-    }
-  }, []);
-
-  const stop = useCallback((): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-      const mr = mediaRecorderRef.current;
-      if (!mr) { resolve(null); return; }
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        mr.stream.getTracks().forEach(t => t.stop());
-        resolve(blob);
-      };
-      mr.stop();
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-    });
-  }, []);
-
-  const cancel = useCallback(() => {
-    const mr = mediaRecorderRef.current;
-    if (mr && mr.state !== "inactive") {
-      mr.stream.getTracks().forEach(t => t.stop());
-      mr.stop();
-    }
-    setIsRecording(false);
-    setDuration(0);
-    if (timerRef.current) clearInterval(timerRef.current);
-  }, []);
-
-  return { isRecording, duration, start, stop, cancel };
 }
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────

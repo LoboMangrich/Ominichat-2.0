@@ -373,8 +373,9 @@ describe("Quem assumiu (actorId) — lista e painel", () => {
 
   it("painel: campo de resposta só com canSend; Devolver/Encerrar desabilitados sem canReleaseOrClose", () => {
     expect(detail).toContain("const canSend = isHuman && conversation.canSend;");
-    // Campo de resposta vive no SaraComposer, que só mostra o campo com canReply.
-    expect(detail).toContain("canReply={canSend}");
+    // Campo de resposta vive no SaraComposer, que só mostra o campo com canReply — dono E
+    // dentro da janela de 24h do WhatsApp.
+    expect(detail).toContain("canReply={canSend && whatsappWindow.open}");
     expect(detail).toMatch(/releaseMutation\.isPending \|\| !canReleaseOrClose/);
     expect(detail).toMatch(/closeMutation\.isPending \|\| !canReleaseOrClose/);
   });

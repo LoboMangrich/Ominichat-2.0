@@ -46,6 +46,7 @@ export default function SaraComposer({
   isSendingMedia,
   onSendMedia,
   optOutConfirmText,
+  replyUnavailableNotice,
   headerActions,
 }: {
   /** Só o dono responde (canSend do servidor). */
@@ -63,6 +64,8 @@ export default function SaraComposer({
   onSendMedia: (kind: SaraMediaKind, file: Blob) => Promise<unknown>;
   /** Texto do diálogo quando o contato pediu opt-out (null = envia direto). */
   optOutConfirmText: string | null;
+  /** Por que não dá para responder, quando a faixa acima do composer não explica (ex.: janela de 24h). */
+  replyUnavailableNotice?: string | null;
   /** Ações extras na barra (ex.: botão "Etiqueta"). */
   headerActions?: React.ReactNode;
 }) {
@@ -455,6 +458,8 @@ export default function SaraComposer({
             <Send className="h-4 w-4" />
           </Button>
         </div>
+      ) : replyUnavailableNotice ? (
+        <p className="px-3 pb-3 text-xs text-muted-foreground">{replyUnavailableNotice}</p>
       ) : null /* sem canReply: a faixa acima do composer explica e traz a ação */}
 
       <AlertDialog open={confirmAction !== null} onOpenChange={open => !open && setConfirmAction(null)}>

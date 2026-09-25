@@ -143,3 +143,27 @@ describe("Opt-out — faixa + confirmação antes de enviar (não bloqueia)", ()
     expect(detail).not.toMatch(/#[0-9a-fA-F]{3,6}\b/);
   });
 });
+
+describe("Janela de 24h do WhatsApp na tela", () => {
+  it("recalcula a cada minuto a partir das mensagens (regra compartilhada com o servidor)", () => {
+    expect(detail).toContain("const now = useNow(60_000);");
+    expect(detail).toContain("const whatsappWindow = saraWindowState(messages, now);");
+  });
+
+  it("fora da janela: faixa vermelha com token destructive, sem hex", () => {
+    expect(detail).toMatch(/\{!whatsappWindow\.open && \([\s\S]*?bg-destructive\/10[\s\S]*?text-destructive[\s\S]*?\{SARA_WINDOW_CLOSED_MESSAGE\}/);
+  });
+
+  it("menos de 2h: \"Janela do WhatsApp fecha em …\"", () => {
+    expect(detail).toContain("whatsappWindow.remainingMs < WHATSAPP_WINDOW_WARNING_MS");
+    expect(detail).toContain("Janela do WhatsApp fecha em {formatWindowRemaining(whatsappWindow.remainingMs)}");
+  });
+
+  it("fora da janela o composer esconde texto, foto e áudio (canReply falso); nota interna segue", () => {
+    expect(detail).toContain("canReply={canSend && whatsappWindow.open}");
+    // Sem canReply: nada de campo nem botões de mídia, só o aviso; a nota interna não depende de canReply.
+    expect(composer).toContain("const inputEnabled = isNote || canReply;");
+    expect(composer).toContain("const mediaEnabled = !isNote && canReply;");
+    expect(composer).toMatch(/\) : replyUnavailableNotice \? \(\s*<p/);
+  });
+});

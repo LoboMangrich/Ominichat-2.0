@@ -15,14 +15,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { CUSTOMER_PANEL_TOGGLE_CLASSES, customerPanelClasses } from "@/lib/customerPanelLayout";
-import { AlertTriangle, Bot, Lock, PanelRight, User, X } from "lucide-react";
+import { AlertTriangle, Bot, Clock, Lock, PanelRight, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SaraAudio, SaraImage } from "@/components/conversations/SaraMedia";
 import SaraComposer from "@/components/conversations/SaraComposer";
 import SaraCustomerPanel from "@/components/conversations/SaraCustomerPanel";
 import { SaraTagPicker, SaraTagStrip } from "@/components/conversations/SaraTags";
-import { SARA_FORBIDDEN_OTHER_ACTOR, saraOptOutMessage, type SaraMediaKind } from "@shared/sara";
+import {
+  SARA_FORBIDDEN_OTHER_ACTOR,
+  SARA_WINDOW_CLOSED_MESSAGE,
+  WHATSAPP_WINDOW_WARNING_MS,
+  formatWindowRemaining,
+  saraOptOutMessage,
+  saraWindowState,
+  type SaraMediaKind,
+} from "@shared/sara";
+import { useNow } from "@/hooks/useNow";
 import { uploadSaraMedia } from "@/lib/saraMediaUpload";
 import {
   SARA_STATUS_LABELS,
@@ -57,6 +66,8 @@ function formatDateTime(value: string | Date): string {
 export default function SaraConversationDetail({ id }: { id: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Janela de 24h do WhatsApp pode fechar com a tela aberta: recalcula a cada minuto.
+  const now = useNow(60_000);
   const utils = trpc.useUtils();
 
   const { data, isLoading } = trpc.sara.getConversation.useQuery(
@@ -176,6 +187,10 @@ export default function SaraConversationDetail({ id }: { id: string }) {
   // Faixa acima do composer, no lugar de campo desabilitado: diz por que não dá para
   // responder e traz o botão da ação que resolve.
   const banner = saraComposerBanner(conversation);
+  // Janela de 24h (regra da Meta): fora dela, só template — o composer esconde texto,
+  // foto e áudio (o servidor recusa de novo). Nota interna continua liberada.
+  const whatsappWindow = saraWindowState(messages, now);
+  const windowClosingSoon = whatsappWindow.open && whatsappWindow.remainingMs < WHATSAPP_WINDOW_WARNING_MS;
   const optedOut = optOut.data?.optedOut === true;
   // Tinha telefone e não deu para verificar (formato inesperado ou erro na Sara).
   const optOutUnverified = rawPhone !== null && (optOutPhone === null || optOut.isError);
@@ -277,6 +292,21 @@ export default function SaraConversationDetail({ id }: { id: string }) {
       <div className="relative flex flex-1 overflow-hidden">
         {/* ── Coluna do chat ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {!whatsappWindow.open && (
+            <div
+              role="alert"
+              className="flex items-center gap-2 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive shrink-0"
+            >
+              <Clock className="h-4 w-4 shrink-0" />
+              {SARA_WINDOW_CLOSED_MESSAGE}
+            </div>
+          )}
+          {windowClosingSoon && (
+            <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground shrink-0">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              Janela do WhatsApp fecha em {formatWindowRemaining(whatsappWindow.remainingMs)}
+            </div>
+          )}
           {isActive && (
             <div className="flex items-center gap-2 px-4 py-1.5 bg-brand-50 dark:bg-brand-900/20 border-b border-brand-200 dark:border-brand-800 text-xs text-brand-700 dark:text-brand-300 shrink-0">
               <Bot className="w-3.5 h-3.5" />
@@ -416,7 +446,12 @@ export default function SaraConversationDetail({ id }: { id: string }) {
 
           <SaraComposer
             key={id}
-            canReply={canSend}
+            canReply={canSend && whatsappWindow.open}
+            replyUnavailableNotice={
+              canSend && !whatsappWindow.open
+                ? "Fora da janela de 24h do WhatsApp — só a Nota Interna está disponível."
+                : null
+            }
             isSending={sendMutation.isPending}
             onSend={text => sendMutation.mutateAsync({ id, text })}
             onTyping={() => typingMutation.mutate({ id })}

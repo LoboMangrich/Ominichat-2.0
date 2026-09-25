@@ -531,8 +531,16 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
   **25/09/2026** (a doc só dizia "multipart/form-data"):
   - `POST /api/v1/support/conversations/{id}/audio` e `.../image`,
     multipart; a Sara lê o **primeiro** arquivo, campo `"file"`.
-  - Áudio: qualquer `audio/*`, mínimo 100 bytes, máximo 16 MB. Imagem:
-    **somente** `image/jpeg`, `image/png`, `image/webp`, máximo 16 MB.
+  - Áudio: qualquer `audio/*`, mínimo 100 bytes, máximo 16 MB. Imagem (segundo
+    a Sara): `image/jpeg`, `image/png`, `image/webp`, máximo 16 MB.
+  - **Imagem, na prática: só JPEG e PNG até 5 MB** (limite da Meta).
+    Evidência: no teste real de 25/09 uma foto `image/webp` foi aceita pela
+    Sara (mensagem `admin image sent`) e **nunca chegou** ao celular — a Meta
+    só entrega WebP como figurinha. Por isso o Cashmiles é mais restrito que a
+    Sara: o navegador converte WebP/GIF/BMP ou JPEG/PNG > 5 MB para JPEG
+    (canvas, `client/src/lib/saraImagePrepare.ts`) antes da prévia, e o
+    servidor recusa WebP (inclusive disfarçado, pela assinatura dos bytes) e
+    imagem > 5 MB.
   - Formato/tamanho inválido → 400 com o motivo. Conversa fora de
     `human_takeover` → 409. Aceita `x-sara-actor-id`.
   - **Nossa rota:** `POST /api/sara/conversations/:id/media?kind=audio|image`
@@ -545,11 +553,32 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
     `/api/upload-media`, que grava no S3 via Forge. O nome original não vai
     para a Sara (vira `image.png`/`audio.webm`). Log só com status e `kind`.
   - Erros: 400 da Sara → só o `error.message` dela (máx. 200 caracteres);
-    409 → "Assuma a conversa para enviar"; outros → mensagem genérica.
-  - **A confirmar no primeiro teste real:** o áudio gravado no navegador sai
-    como `audio/webm` (opus) (`client/src/hooks/useAudioRecorder.ts`). A
-    Sara aceita `audio/*`, mas não se sabe se o WhatsApp do cliente toca
-    webm. Se não tocar, a conversão (ex.: para ogg/opus) fica para outro PR.
+    409 → "Assuma a conversa para enviar"; fora da janela de 24h → 422;
+    outros → mensagem genérica. Sucesso → toast "Enviado" (= a Sara aceitou;
+    não quer dizer entregue — ver perguntas ao TI).
+  - **Áudio `audio/webm` (opus) funciona:** no teste real de 25/09 o áudio
+    gravado no navegador (`client/src/hooks/useAudioRecorder.ts`) chegou e
+    tocou no WhatsApp do cliente. A Meta não lista webm como formato aceito,
+    então **a Sara provavelmente converte o áudio** — não confirmado (ver
+    perguntas ao TI). Não converter do nosso lado.
+  - **Microfone** (`useAudioRecorder`, vale também para o canal próprio): erro
+    do `getUserMedia` com mensagem própria (permissão negada → instrução do
+    cadeado; nenhum microfone; em uso por outro programa) e seletor de
+    dispositivo (`MicrophonePicker`), escolha em `localStorage`
+    (`microfone.deviceId`); dispositivo salvo que sumiu cai no padrão.
+- **Janela de 24h do WhatsApp** (regra da Meta): mensagem livre (texto, foto,
+  áudio) só até 24h depois da **última mensagem do cliente**
+  (`senderType: "user"`); depois disso, só template. Sem nenhuma mensagem do
+  cliente, a janela está fechada. `saraWindowState` (`shared/sara.ts`).
+  - **Servidor:** `sara.sendMessage` (`PRECONDITION_FAILED`) e a rota de mídia
+    (422) recusam fora da janela sem chamar a Sara, com as mensagens do mesmo
+    GET da checagem de dono.
+  - **Tela:** faixa vermelha (token `destructive`) no topo da conversa quando
+    fechada; "Janela do WhatsApp fecha em 1h20" abaixo de 2h; recalcula a cada
+    minuto. Fora da janela o composer esconde texto/foto/áudio (sem botão
+    desabilitado); Nota Interna continua. Envio de template: outro PR.
+  - **Card da lista: não implementado.** O `GET /conversations` só traz
+    `lastMessageAt` de qualquer remetente (ver perguntas ao TI).
 - **Opt-out** (`GET /api/v1/support/contacts/{phone}/opt-out`, confirmado
   pelo TI em 25/09/2026): 200 → `{ phoneNumber, optedOut, optedOutAt,
   optedOutReason }`; **404 = contato não existe na base → "sem registro de
@@ -566,6 +595,17 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
     iniciada por nós, não resposta): contato com `optedOut = true` deve ser
     **BLOQUEADO NO SERVIDOR**, não só confirmado na tela.
 - **Perguntas em aberto para o time de TI:**
+  - **A Sara converte formatos de mídia ou repassa como está?** No teste de
+    25/09 o áudio `webm` chegou (sinal de conversão) e a imagem `webp` não
+    chegou (sinal de repasse como está). Se a Sara converte áudio, por que
+    aceita `webp` como imagem se a Meta não entrega?
+  - **Status de entrega:** `sent` é só "aceito pela Sara"? Existe status de
+    ENTREGUE/FALHOU vindo da Meta (webhook, evento ou campo na mensagem)? Sem
+    isso, falha de entrega é invisível para nós — foi assim que a foto WebP
+    "sumiu" com status `sent`.
+  - **Janela de 24h na lista:** incluir `lastUserMessageAt` (ou
+    `windowExpiresAt`) no `GET /conversations`, para mostrar no card da lista
+    quais conversas já saíram da janela sem abrir uma por uma.
   - Um `/takeover` sobre conversa em `human_takeover` com `actorId` `null` é
     aceito, ou devolve 409? Se for aceito, "assuma de novo" funciona direto,
     sem devolver para a IA (e sem a janela em que a IA pode responder o

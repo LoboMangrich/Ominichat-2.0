@@ -123,7 +123,6 @@ describe("POST /api/sara/conversations/:id/media — repasse para a Sara", () =>
 
   it.each([
     ["JPEG", JPEG, "image/jpeg"],
-    ["WebP", WEBP, "image/webp"],
   ])("aceita imagem %s", async (_label, bytes, mime) => {
     saraReplies(String(USER_ID), jsonResponse(200, { message: { id: "m2" } }));
     expect((await upload("image", bytes, mime)).status).toBe(200);
@@ -146,6 +145,9 @@ describe("tipo/tamanho inválidos — recusados no servidor sem POST para a Sara
     ["áudio com mimetype de imagem", "audio", AUDIO, "image/png", 400],
     ["áudio de 99 bytes", "audio", Buffer.alloc(99, 1), "audio/ogg", 400],
     ["imagem vazia", "image", Buffer.alloc(0), "image/png", 400],
+    ["imagem WebP (a Meta não entrega como imagem)", "image", WEBP, "image/webp", 400],
+    ["WebP disfarçado de JPEG", "image", WEBP, "image/jpeg", 400],
+    ["imagem de 5 MB + 1 byte", "image", Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024 + 1 - PNG.length)]), "image/png", 400],
   ])("%s → %i", async (_label, kind, bytes, mime, status) => {
     saraReplies(String(USER_ID));
     const res = await upload(kind, bytes, mime);
@@ -254,10 +256,11 @@ describe("LGPD — o arquivo não é gravado em disco", () => {
 });
 
 describe("imageBytesMatch", () => {
-  it("reconhece as três assinaturas e recusa o resto", () => {
+  it("reconhece JPEG e PNG e recusa o resto (inclusive WebP)", () => {
     expect(imageBytesMatch("image/png", PNG)).toBe(true);
     expect(imageBytesMatch("image/jpeg", JPEG)).toBe(true);
-    expect(imageBytesMatch("image/webp", WEBP)).toBe(true);
+    expect(imageBytesMatch("image/webp", WEBP)).toBe(false);
+    expect(imageBytesMatch("image/jpeg", WEBP)).toBe(false);
     expect(imageBytesMatch("image/png", JPEG)).toBe(false);
     expect(imageBytesMatch("image/gif", PNG)).toBe(false);
   });

@@ -64,7 +64,8 @@ describe("Composer — só o que a API da Sara permite", () => {
     // O input de arquivo e os dois botões só existem dentro do bloco mediaEnabled.
     expect(composer).toMatch(/\{mediaEnabled && \(\s*<>\s*<input[\s\S]*?type="file"[\s\S]*?<ImageIcon[\s\S]*?<Mic /);
     expect(composer.match(/type="file"/g)).toHaveLength(1);
-    expect(composer).toContain('accept={SARA_IMAGE_MIME_TYPES.join(",")}');
+    expect(composer).toContain('accept="image/*"'); // qualquer imagem: o que não for JPEG/PNG ≤ 5 MB é convertido
+    expect(composer).toContain("file = await prepareSaraImage(picked);");
   });
 
   it("valida tipo/tamanho no navegador antes da prévia (o servidor valida de novo)", () => {
@@ -81,7 +82,7 @@ describe("Composer — só o que a API da Sara permite", () => {
   it("prévia só some quando a Sara aceitou; falha mantém para tentar de novo", () => {
     expect(composer).toContain("onSendMedia(media.kind, media.file).then(media.clear, () => {})");
     expect(detail).toContain("throw error; // composer mantém a prévia para tentar de novo");
-    expect(detail).toMatch(/await uploadSaraMedia\(id, kind, file\);\s*invalidateAll\(\);/);
+    expect(detail).toMatch(/await uploadSaraMedia\(id, kind, file\);[\s\S]*?toast\.success\("Enviado"\);\s*invalidateAll\(\);/);
   });
 
   it("URL de objeto da prévia é liberada", () => {

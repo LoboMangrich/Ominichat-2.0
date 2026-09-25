@@ -13,11 +13,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { Image as ImageIcon, Lock, Mic, Send, Smile, Square, Trash2, X, Zap } from "lucide-react";
+import { Image as ImageIcon, Loader2, Lock, Mic, Send, Smile, Square, Trash2, X, Zap } from "lucide-react";
 import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { SARA_IMAGE_MIME_TYPES, validateSaraMedia, type SaraMediaKind } from "@shared/sara";
+import { validateSaraMedia, type SaraMediaKind } from "@shared/sara";
+import { IMAGE_NOT_SUPPORTED_MESSAGE, prepareSaraImage } from "@/lib/saraImagePrepare";
 import { filterQuickReplies, shouldSendTyping, type QuickReply } from "@/pages/saraShared";
 
 // Composer da conversa da Sara: o que o painel do canal próprio tem E a API da Sara
@@ -80,6 +81,7 @@ export default function SaraComposer({
   const cancelConfirmRef = useRef<HTMLButtonElement>(null);
   const recorder = useAudioRecorder();
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
   const [pendingAudio, setPendingAudio] = useState<{ blob: Blob; url: string } | null>(null);
   // Envio aguardando o "Enviar mesmo assim" do diálogo de opt-out.
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
@@ -132,10 +134,21 @@ export default function SaraComposer({
     else withOptOutConfirm(send);
   }
 
-  function handleImagePicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function handleImagePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
     e.target.value = ""; // permite escolher o mesmo arquivo de novo
-    if (!file) return;
+    if (!picked) return;
+    // WebP ou > 5 MB vira JPEG aqui, antes da prévia — a prévia mostra o que vai sair.
+    setIsPreparingImage(true);
+    let file: File;
+    try {
+      file = await prepareSaraImage(picked);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : IMAGE_NOT_SUPPORTED_MESSAGE);
+      return;
+    } finally {
+      setIsPreparingImage(false);
+    }
     const invalid = validateSaraMedia("image", file.type, file.size);
     if (invalid) {
       toast.error(invalid);
@@ -381,17 +394,21 @@ export default function SaraComposer({
               <input
                 ref={imageInputRef}
                 type="file"
-                accept={SARA_IMAGE_MIME_TYPES.join(",")}
+                accept="image/*"
                 className="hidden"
                 onChange={handleImagePicked}
               />
               <button
                 onClick={() => imageInputRef.current?.click()}
-                disabled={isSendingMedia}
+                disabled={isSendingMedia || isPreparingImage}
                 className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50"
-                title="Enviar imagem (JPEG, PNG ou WebP, até 16 MB)"
+                title={
+                  isPreparingImage
+                    ? "Preparando imagem…"
+                    : "Enviar imagem (JPEG ou PNG até 5 MB; outros formatos são convertidos)"
+                }
               >
-                <ImageIcon className="w-5 h-5" />
+                {isPreparingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
               </button>
               <button
                 onClick={() => recorder.start()}

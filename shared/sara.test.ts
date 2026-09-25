@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   SARA_AUDIO_MIN_BYTES,
+  SARA_IMAGE_MAX_BYTES,
   SARA_MEDIA_MAX_BYTES,
   saraCanReleaseOrClose,
   saraCanSend,
@@ -37,16 +38,19 @@ describe("validateSaraMedia — mesmas regras no navegador e no servidor (contra
   it("áudio: mimetype que não é audio/* é recusado", () => {
     expect(validateSaraMedia("audio", "video/webm", 500)).not.toBeNull();
   });
-  it("imagem: só JPEG, PNG e WebP", () => {
+  it("imagem: só JPEG e PNG — WebP não (a Meta só entrega WebP como figurinha)", () => {
     expect(validateSaraMedia("image", "image/jpeg", 500)).toBeNull();
     expect(validateSaraMedia("image", "image/png", 500)).toBeNull();
-    expect(validateSaraMedia("image", "image/webp", 500)).toBeNull();
+    expect(validateSaraMedia("image", "image/webp", 500)).toBe("Formato de imagem não aceito. Use JPEG ou PNG.");
     expect(validateSaraMedia("image", "image/gif", 500)).not.toBeNull();
     expect(validateSaraMedia("image", "image/heic", 500)).not.toBeNull();
   });
-  it("16 MB é o limite exato, para os dois tipos", () => {
-    expect(validateSaraMedia("image", "image/png", SARA_MEDIA_MAX_BYTES)).toBeNull();
-    expect(validateSaraMedia("image", "image/png", SARA_MEDIA_MAX_BYTES + 1)).toBe("Arquivo maior que 16 MB.");
+  it("imagem: 5 MB é o limite exato (limite da Meta)", () => {
+    expect(validateSaraMedia("image", "image/png", SARA_IMAGE_MAX_BYTES)).toBeNull();
+    expect(validateSaraMedia("image", "image/png", SARA_IMAGE_MAX_BYTES + 1)).toBe("Imagem maior que 5 MB.");
+  });
+  it("áudio: 16 MB é o limite exato", () => {
+    expect(validateSaraMedia("audio", "audio/ogg", SARA_MEDIA_MAX_BYTES)).toBeNull();
     expect(validateSaraMedia("audio", "audio/ogg", SARA_MEDIA_MAX_BYTES + 1)).toBe("Arquivo maior que 16 MB.");
   });
 });

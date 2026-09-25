@@ -106,6 +106,8 @@ export default function SaraConversationDetail({ id }: { id: string }) {
     setIsSendingMedia(true);
     try {
       await uploadSaraMedia(id, kind, file);
+      // "Enviado" = a Sara aceitou. Entrega no WhatsApp não é visível para nós (ver CLAUDE.md).
+      toast.success("Enviado");
       invalidateAll();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");

@@ -52,16 +52,14 @@ function fail(res: Response, status: number, error: string, kind?: string) {
 
 /**
  * Assinatura dos primeiros bytes: o mimetype vem do navegador e pode mentir. Só para
- * imagem (três formatos fixos); áudio é "qualquer audio/*" e a Sara valida o resto.
+ * imagem (JPEG/PNG, os que a Meta entrega); áudio é "qualquer audio/*" e a Sara
+ * valida o resto. Um WebP renomeado para .jpg cai aqui.
  */
 export function imageBytesMatch(mimeType: string, buffer: Buffer): boolean {
   const mime = baseMimeType(mimeType);
   if (mime === "image/jpeg") return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
   if (mime === "image/png") {
     return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  }
-  if (mime === "image/webp") {
-    return buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
   }
   return false;
 }

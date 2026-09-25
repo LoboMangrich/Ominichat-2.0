@@ -42,11 +42,18 @@ export const SARA_UNIDENTIFIED_ACTOR_NOTICE =
 export const SARA_MEDIA_KINDS = ["audio", "image"] as const;
 export type SaraMediaKind = (typeof SARA_MEDIA_KINDS)[number];
 
-/** 16 MB — limite da Sara para áudio e imagem. */
+/** 16 MB — limite da Sara (e da Meta para áudio). Teto do upload na nossa rota. */
 export const SARA_MEDIA_MAX_BYTES = 16 * 1024 * 1024;
 /** Áudio com menos que isso a Sara recusa. */
 export const SARA_AUDIO_MIN_BYTES = 100;
-export const SARA_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+/**
+ * Imagem: só o que a Meta entrega como IMAGEM no WhatsApp — JPEG e PNG até 5 MB. A
+ * Sara aceita WebP e até 16 MB, mas no teste real (25/09) uma foto WebP foi aceita
+ * pela Sara ("sent") e nunca chegou ao cliente: a Meta só aceita WebP como figurinha.
+ * WebP ou > 5 MB é convertido para JPEG no navegador antes da prévia.
+ */
+export const SARA_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"] as const;
+export const SARA_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 /** Nome do campo multipart que mandamos para a Sara (e que a nossa rota recebe). */
 export const SARA_MEDIA_FIELD = "file";
 
@@ -68,8 +75,9 @@ export function validateSaraMedia(kind: SaraMediaKind, mimeType: string, size: n
     return null;
   }
   if (!(SARA_IMAGE_MIME_TYPES as readonly string[]).includes(mime)) {
-    return "Formato de imagem não aceito. Use JPEG, PNG ou WebP.";
+    return "Formato de imagem não aceito. Use JPEG ou PNG.";
   }
+  if (size > SARA_IMAGE_MAX_BYTES) return "Imagem maior que 5 MB.";
   if (size === 0) return "Arquivo vazio.";
   return null;
 }

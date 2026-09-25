@@ -1985,9 +1985,60 @@
         ],
         "responses": {
           "200": {
-            "description": "Default Response"
+            "description": "Todas as versões do prompt de suporte",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer"
+                          },
+                          "isActive": {
+                            "type": "boolean"
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "activatedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "createdByActorId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "activatedByActorId": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
-        }
+        },
+        "description": "Contrato confirmado pelo time de TI em 25/09/2026 (não estava na doc original)."
       },
       "post": {
         "summary": "Cria uma nova versão do prompt de suporte (fica inativa até ativar via /:id/activate)",
@@ -1995,6 +2046,38 @@
           "support"
         ],
         "responses": {
+          "201": {
+            "description": "Versão criada, INATIVA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "4XX": {
             "description": "Default Response",
             "content": {
@@ -2051,6 +2134,42 @@
                   "required": [
                     "error"
                   ]
+                }
+              }
+            }
+          }
+        },
+        "description": "Contrato confirmado pelo time de TI em 25/09/2026 (não estava na doc original). content e notes são obrigatórios (400 sem eles); notes faz o papel de descrição. Só existe o prompt de suporte.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-sara-actor-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Id do usuário do Cashmiles que executa a ação. A Sara grava quem criou/ativou (aceito desde 25/09/2026)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content",
+                  "notes"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "Texto do prompt"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "O que mudou"
+                  }
                 }
               }
             }
@@ -2072,9 +2191,44 @@
             "in": "path",
             "name": "id",
             "required": true
+          },
+          {
+            "in": "header",
+            "name": "x-sara-actor-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Id do usuário do Cashmiles que executa a ação. A Sara grava quem criou/ativou (aceito desde 25/09/2026)."
           }
         ],
         "responses": {
+          "200": {
+            "description": "Versão ativada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "activatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
           "4XX": {
             "description": "Default Response",
             "content": {
@@ -2135,7 +2289,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Contrato confirmado pelo time de TI em 25/09/2026 (não estava na doc original). Sem corpo. Desativa a versão ativa anterior. 404 se a versão não existe."
       }
     }
   },

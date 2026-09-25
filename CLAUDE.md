@@ -63,7 +63,7 @@ pnpm format           # prettier
 ```
 server/_core/         Infraestrutura: env, trpc, contexto, auth, guards, LLM
 server/routers.ts     ~5.500 linhas, ~402 procedures tRPC. Precisa modularização.
-server/routers/       Routers já extraídos (sara.ts)
+server/routers/       Routers já extraídos (sara.ts — inclui prompt da Sara, só Admin)
 server/webhooks.ts    ~1.400 linhas, 15 endpoints HTTP fora do tRPC
 server/saraSupportClient.ts  Cliente HTTP da Sara Support API (doc: docs/sara-support-openapi.json)
 server/saraWebhook.ts        Receptor do webhook de saída da Sara (+ saraNotifications.ts)
@@ -191,14 +191,15 @@ Na dúvida entre a solução simples e a "escalável", escolha a simples.
 
 ### Pendências de cor
 
-- **Falta um token semântico de sucesso/verde.** `client/src/index.css` só tem
-  `--brand-*` (azul), `--primary`, `--muted`, `--accent` e `--destructive` —
-  nenhum verde. Todo uso de "verde = humano/ativo/conectado" hoje cai na
-  paleta crua do Tailwind (`emerald-*`). Na tela `/sara`
-  (`SaraConversationDetail.tsx`), a bolha do atendente usa `bg-emerald-700
-  text-white` — não `emerald-600`, que com texto branco fica ~3,8:1, abaixo do
-  AA (4,5:1). Ao criar o token (`--success` ou similar), migrar esses usos
-  junto e manter o contraste AA com texto branco.
+- **Token de sucesso existe desde a tela "Sara (IA)":** `--success`
+  (`oklch(0.48 0.12 150)`, 6,2:1 contra branco) e `--success-foreground`, com
+  `bg-success`/`text-success` no Tailwind. **Os usos antigos NÃO foram
+  migrados** — todo "verde = humano/ativo/conectado" continua na paleta crua
+  (`emerald-*`). Na tela `/sara` (`SaraConversationDetail.tsx`), a bolha do
+  atendente usa `bg-emerald-700 text-white` — não `emerald-600`, que com
+  texto branco fica ~3,8:1, abaixo do AA (4,5:1). Ao migrar, trocar por
+  `bg-success text-success-foreground` e conferir o contraste. Código novo já
+  usa o token.
 
 ## Backlog — em ordem
 
@@ -616,24 +617,47 @@ opera em produção, com clientes reais** no WhatsApp — não é ambiente de te
     /conversations` não traz nenhum dos dois (só `messageCount` e
     `lastMessageAt`). A lista da tela única não mostra prévia nem "não lidas"
     por isso. A Sara pode passar a mandar `lastMessageText`/`unreadCount`?
-  - **Prompts (`/prompts`):** corpo do `POST /prompts` e formato das
-    respostas de `GET /prompts` e `POST /prompts/{id}/activate` — a doc não
-    traz nenhum dos dois (ver "Prompt da Sara" abaixo).
-- **Prompt da Sara (`GET`/`POST /api/v1/support/prompts`,
-  `POST /api/v1/support/prompts/{id}/activate`) — NÃO implementar ainda.**
-  Esses endpoints **alteram a IA que fala com clientes reais**: ativar uma
-  versão troca, na hora, o comportamento da Sara em produção. A doc não traz o
-  corpo do `POST` nem o formato das respostas (perguntado ao TI). Nenhum
-  código para eles existe no Cashmiles.
-  - **Não aceitam `x-sara-actor-id`.** Quando forem implementados, o registro
-    de quem criou e quem ativou cada versão (e quando) tem que ficar no
-    Cashmiles — a Sara não guarda.
-  - **Proteções já decididas para a futura tela "Prompt da Sara":**
-    - só Admin, checado **no servidor** (não só esconder o botão);
-    - criar ≠ ativar: criar gera versão inativa; ativar é ação separada;
-    - antes de ativar, comparação lado a lado com a versão ativa;
-    - confirmação digitando "ATIVAR";
-    - reverter = ativar a versão anterior (não existe "desfazer" próprio).
+  - **Prévia/teste de prompt antes de ativar:** não existe, e o TI não tem
+    previsão (ver "Prompt da Sara" abaixo).
+- **Prompt da Sara — implementado** (tela Configurações → "Sara (IA)",
+  `/settings/sara`, aba Prompt). O prompt **é a instrução da IA que fala com
+  clientes reais**: ativar uma versão troca, na hora, como a Sara responde a
+  TODOS. **Não existe ambiente de teste nem prévia do lado da Sara**
+  (confirmado pelo TI) — a única proteção é a nossa. Durante desenvolvimento,
+  nenhum POST real (criar/ativar): só fetch mock nos testes.
+  - **Contrato confirmado pelo TI em 25/09/2026** (também em
+    `docs/sara-support-openapi.json`):
+    - `POST /api/v1/support/prompts` — corpo `{ content, notes }`, **os dois
+      obrigatórios** (400). Não há nome/tipo: `notes` faz o papel de
+      descrição; só existe o prompt de suporte. 201 → `{ id, version,
+      isActive, content, notes, createdAt }`, **nasce inativa**.
+    - `GET /api/v1/support/prompts` — 200 → `{ data: [{ id, version,
+      isActive, content, notes, activatedAt, createdAt, createdByActorId,
+      activatedByActorId }] }`.
+    - `POST /api/v1/support/prompts/{id}/activate` — sem corpo. 200 → `{ id,
+      version, isActive, activatedAt }`. Desativa a anterior. 404 se não
+      existe.
+    - `POST /prompts` e `/activate` **aceitam `x-sara-actor-id`** (novo em
+      25/09) e gravam quem criou/ativou. **A autoria fica na Sara** — não há
+      tabela nossa nem migration para isso.
+  - **Regras (implementadas):**
+    - **só Admin, checado no servidor** (`adminProcedure` em
+      `sara.listPrompts`/`createPrompt`/`activatePrompt`): Manager e Agent
+      recebem `FORBIDDEN` sem chamar a Sara. Item de menu `adminOnly` e página
+      com "Acesso restrito ao Admin" são só conveniência;
+    - **criar ≠ ativar:** criar gera versão inativa; ativar é ação separada;
+    - antes de ativar, **comparação lado a lado** com a versão ativa (diff por
+      linha, `shared/lineDiff.ts`, sem dependência, teto de 4M células) e
+      **confirmação digitando "ATIVAR"** exato;
+    - **reverter = ativar uma versão antiga** (não existe "desfazer" próprio);
+    - `notes` obrigatório também no nosso Zod (mín. 5); `content` não vazio e
+      até `SARA_PROMPT_CONTENT_MAX` = 50.000 caracteres (teto nosso; em
+      25/09 a versão ativa era a v1, com ~2.400). Editor bloqueia salvar texto
+      idêntico ao ativo e confirma antes de descartar rascunho;
+    - `createdByActorId`/`activatedByActorId` → nome do usuário do Cashmiles;
+      id desconhecido → "outro usuário"; `null` → "—";
+    - **conteúdo e notes nunca vão para log** — as três chamadas usam
+      `logPath`, que também suprime o corpo de erro (pode ecoar o prompt).
 - **Pendências — fora do escopo até agora:**
   - Números bloqueados (`/blocked-numbers`) e templates (`/templates`,
     `/templates/sync`) —

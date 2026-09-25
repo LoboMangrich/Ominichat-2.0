@@ -660,3 +660,56 @@ describe("sara.customerByPhone — painel recebe LTV junto", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sara.optOutStatus — opt-out do WhatsApp (só leitura; telefone nunca no log)", () => {
+  const PHONE = "+5548984053595";
+
+  it("200 optedOut true → dados da Sara, GET com x-sara-actor-id", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        phoneNumber: PHONE, optedOut: true, optedOutAt: "2026-09-20T15:00:00Z", optedOutReason: "PARAR",
+      }),
+    );
+
+    const result = await saraRouter.createCaller(createContext()).optOutStatus({ phone: PHONE });
+
+    expect(result).toEqual({ optedOut: true, optedOutAt: "2026-09-20T15:00:00Z", reason: "PARAR", noRecord: false });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://sara.example.test/api/v1/support/contacts/%2B5548984053595/opt-out");
+    expect(init.method).toBeUndefined(); // GET
+    expect((init.headers as Record<string, string>)["x-sara-actor-id"]).toBe(String(USER_ID));
+  });
+
+  it("200 optedOut false", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { phoneNumber: PHONE, optedOut: false, optedOutAt: null, optedOutReason: null }),
+    );
+    const result = await saraRouter.createCaller(createContext()).optOutStatus({ phone: PHONE });
+    expect(result).toEqual({ optedOut: false, optedOutAt: null, reason: null, noRecord: false });
+  });
+
+  it("404 → sem registro de opt-out (não é erro), e o telefone não vai para o log", async () => {
+    fetchMock.mockResolvedValueOnce(errorResponse(404, `{"error":{"code":"NOT_FOUND","message":"contato ${PHONE}"}}`));
+
+    const result = await saraRouter.createCaller(createContext()).optOutStatus({ phone: PHONE });
+
+    expect(result).toEqual({ optedOut: false, optedOutAt: null, reason: null, noRecord: true });
+    const logged = consoleErrorSpy.mock.calls.flat().join(" ");
+    expect(logged).toContain("/contacts/{phone}/opt-out");
+    expect(logged).not.toContain("5548984053595");
+  });
+
+  it("500 → erro (a tela mostra \"Não foi possível verificar opt-out\"), sem telefone no log", async () => {
+    fetchMock.mockResolvedValueOnce(errorResponse(500, `falhou para ${PHONE}`));
+    const error = await catchError(saraRouter.createCaller(createContext()).optOutStatus({ phone: PHONE }));
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+    expect(error.message).not.toContain("5548984053595");
+    expect(consoleErrorSpy.mock.calls.flat().join(" ")).not.toContain("5548984053595");
+  });
+
+  it("telefone fora do formato é recusado antes de chamar a Sara", async () => {
+    await expect(saraRouter.createCaller(createContext()).optOutStatus({ phone: "48 9840-53595" })).rejects.toThrow();
+    await expect(saraRouter.createCaller(createContext()).optOutStatus({ phone: "../conversations" })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

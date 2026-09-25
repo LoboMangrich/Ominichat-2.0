@@ -22,6 +22,7 @@ import {
   getSaraAudioUrl,
   getSaraConversation,
   getSaraImageUrl,
+  getSaraOptOut,
   listSaraConversations,
   releaseSaraConversation,
   sendSaraMessage,
@@ -219,6 +220,19 @@ export const saraRouter = router({
       throw await wrapSaraError(error, ctx.user.id);
     }
   }),
+  // Opt-out do WhatsApp (só leitura). Não bloqueia nada: a tela mostra a faixa e pede
+  // confirmação antes de enviar. 404 da Sara = "sem registro". O telefone nunca é logado
+  // (logPath genérico no saraSupportClient).
+  optOutStatus: protectedProcedure
+    .input(z.object({ phone: z.string().regex(/^\+?\d{10,15}$/, "Telefone inválido") }))
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getSaraOptOut(input.phone, ctx.user.id);
+      } catch (error) {
+        throw await wrapSaraError(error, ctx.user.id);
+      }
+    }),
+
   // Mídia recebida: URL assinada de 900s, buscada sob demanda (só leitura, GET).
   // A URL não é logada em lugar nenhum.
   audioUrl: protectedProcedure
